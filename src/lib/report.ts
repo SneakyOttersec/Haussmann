@@ -214,7 +214,7 @@ export async function generateReport(inputs: CalculatorInputs, results: Calculat
   yR = row(doc, yR, "Copropriete", eur(inputs.chargesCopro), { x: colR, w: colW });
   yR = row(doc, yR, "Taxe fonciere", eur(inputs.taxeFonciere), { x: colR, w: colW });
   yR = row(doc, yR, "Assurance PNO", eur(inputs.assurancePNO), { x: colR, w: colW });
-  if (inputs.gestionLocativePct > 0) yR = row(doc, yR, "Gestion locative", `${(inputs.gestionLocativePct * 100).toFixed(0)}%`, { x: colR, w: colW });
+  if (inputs.gestionLocativePct > 0) yR = row(doc, yR, "Gestion locative", eur(Math.round(results.loyerAnnuelNet * inputs.gestionLocativePct)), { x: colR, w: colW });
   if (inputs.comptabilite > 0) yR = row(doc, yR, "Comptabilite", eur(inputs.comptabilite), { x: colR, w: colW });
   if (inputs.cfeCrl > 0) yR = row(doc, yR, "CFE / CRL", eur(inputs.cfeCrl), { x: colR, w: colW });
   if (inputs.entretien > 0) yR = row(doc, yR, "Entretien", eur(inputs.entretien), { x: colR, w: colW });
