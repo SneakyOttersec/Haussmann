@@ -172,7 +172,7 @@ export async function generateReport(inputs: CalculatorInputs, results: Calculat
   kpi(doc, M + kW * 2, y, kW - 1.5, 15, "Rdt net-net", pct(results.rendementNetNet));
   kpi(doc, M + kW * 3, y, kW - 1.5, 15, "Cash flow/m", eur(results.cashFlowMensuelApresImpot), cfColor);
   kpi(doc, M + kW * 4, y, kW - 1.5, 15, "TAEG (estime)", pct(results.taeg));
-  kpi(doc, M + kW * 5, y, kW - 1.5, 15, `TRI ${results.projection.length}a`, pct(results.tri), results.tri > 0 ? C.green : C.red);
+  kpi(doc, M + kW * 5, y, kW - 1.5, 15, "TRI 10 ans", pct(results.tri), results.tri > 0 ? C.green : C.red);
   y += 22;
 
   // Acquisition | Financement
