@@ -185,8 +185,9 @@ function CalculateurContent() {
     toast.success(`"${sim.nom}" supprimee`);
   };
 
-  const handleExport = () => {
-    const json = exportSimulations();
+  const handleExport = async () => {
+    toast.info("Export en cours...");
+    const json = await exportSimulations();
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -194,16 +195,16 @@ function CalculateurContent() {
     a.download = `simulations-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Simulations exportees");
+    toast.success("Simulations exportees (avec fichiers joints)");
   };
 
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
-        const merged = importSimulations(reader.result as string);
+        const merged = await importSimulations(reader.result as string);
         setSimulations(merged);
         toast.success(`${merged.length} simulation(s) importee(s)`);
       } catch {
