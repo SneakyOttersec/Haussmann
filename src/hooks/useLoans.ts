@@ -1,0 +1,53 @@
+"use client";
+
+import { useCallback, useMemo } from "react";
+import type { AppData, LoanDetails } from "@/types";
+import { generateId } from "@/lib/utils";
+
+export function useLoans(
+  data: AppData | null,
+  setData: (updater: (prev: AppData) => AppData) => void,
+  propertyId?: string
+) {
+  const allLoans = data?.loans ?? [];
+
+  const loans = useMemo(
+    () => propertyId ? allLoans.filter((l) => l.propertyId === propertyId) : allLoans,
+    [allLoans, propertyId]
+  );
+
+  const loan = propertyId ? loans[0] ?? null : null;
+
+  const setLoan = useCallback(
+    (loanData: Omit<LoanDetails, "id">) => {
+      setData((prev) => {
+        const existing = prev.loans.find((l) => l.propertyId === loanData.propertyId);
+        if (existing) {
+          return {
+            ...prev,
+            loans: prev.loans.map((l) =>
+              l.propertyId === loanData.propertyId ? { ...loanData, id: l.id } : l
+            ),
+          };
+        }
+        return {
+          ...prev,
+          loans: [...prev.loans, { ...loanData, id: generateId() }],
+        };
+      });
+    },
+    [setData]
+  );
+
+  const deleteLoan = useCallback(
+    (id: string) => {
+      setData((prev) => ({
+        ...prev,
+        loans: prev.loans.filter((l) => l.id !== id),
+      }));
+    },
+    [setData]
+  );
+
+  return { loans, loan, setLoan, deleteLoan };
+}
