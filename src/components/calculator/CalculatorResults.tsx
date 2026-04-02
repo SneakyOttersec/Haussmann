@@ -94,8 +94,8 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
       applied: `Mensualite totale: ${formatCurrency(r.mensualiteCredit, true)}/mois\nTAEG = ${formatPercent(r.taeg)}`,
     },
     tri: {
-      formula: "TRI investisseur (avec levier)\nCF0 = -apport personnel\nCF1..n = cash flow apres impot\nCFn += valeur bien - capital restant du\n\nTRI projet (sans levier)\nCF0 = -cout total acquisition\nCF1..n = revenus nets - charges\nCFn += valeur du bien",
-      applied: `TRI investisseur: ${formatPercent(r.tri)}\n  Apport: ${eur(r.apportPersonnel)}\n  CF an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\n\nTRI projet: ${formatPercent(r.triProjet)}\n  Cout total: ${eur(r.coutTotalAcquisition)}`,
+      formula: "TRI a 10 ans (avec levier)\nCF0 = -apport personnel\nCF1..9 = cash flow annuel apres impot\nCF10 = CF + valeur bien - capital restant du",
+      applied: `Apport: ${eur(r.apportPersonnel)}\nCF an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nValeur bien A10: ${eur(r.projection[9]?.valeurBien ?? 0)}\nCRD A10: ${eur(r.projection[9]?.capitalRestantDu ?? 0)}\nTRI 10 ans = ${formatPercent(r.tri)}`,
     },
   };
 
@@ -103,14 +103,13 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
     <div className="space-y-5">
       {/* KPI band */}
       <div className="border border-dotted rounded-lg p-5">
-        <div className="grid grid-cols-4 sm:grid-cols-7 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
           <Kpi label="Rdt brut" value={formatPercent(r.rendementBrut)} tooltip={tooltips.rdtBrut} />
           <Kpi label="Rdt net" value={formatPercent(r.rendementNet)} tooltip={tooltips.rdtNet} />
           <Kpi label="Rdt net-net A1" value={formatPercent(nn1)} tooltip={tooltips.rdtNetNet} />
           <Kpi label="Cash flow/m" value={formatCurrency(r.cashFlowMensuelApresImpot)} accent={cfSign} tooltip={tooltips.cashFlow} />
           <Kpi label="TAEG" value={formatPercent(r.taeg)} tooltip={tooltips.taeg} />
-          <Kpi label={`TRI invest.`} value={formatPercent(r.tri)} accent={r.tri > 0 ? "positive" : "negative"} tooltip={tooltips.tri} />
-          <Kpi label={`TRI projet`} value={formatPercent(r.triProjet)} accent={r.triProjet > 0 ? "positive" : "negative"} tooltip={tooltips.tri} />
+          <Kpi label="TRI 10 ans" value={formatPercent(r.tri)} accent={r.tri > 0 ? "positive" : "negative"} tooltip={tooltips.tri} />
         </div>
       </div>
 
