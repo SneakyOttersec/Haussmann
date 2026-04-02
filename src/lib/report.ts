@@ -206,7 +206,7 @@ export async function generateReport(inputs: CalculatorInputs, results: Calculat
   }
   yL = row(doc, yL, "Total loyers", `${eur(lotsTotal)}/mois`, { x: colL, w: colW, bold: true });
   yL = row(doc, yL, "Annuel brut", eur(results.loyerAnnuelBrut), { x: colL, w: colW });
-  yL = row(doc, yL, "Vacance", `${(inputs.tauxVacance * 100).toFixed(0)}%`, { x: colL, w: colW });
+  yL = row(doc, yL, "Vacance locative", `${(inputs.tauxVacance * 100).toFixed(0)}%`, { x: colL, w: colW });
   if (inputs.differeLoyer > 0) yL = row(doc, yL, "Differe loyer", `${inputs.differeLoyer} mois`, { x: colL, w: colW });
   yL = row(doc, yL, "Annuel net", eur(results.loyerAnnuelNet), { x: colL, w: colW, bold: true });
 
