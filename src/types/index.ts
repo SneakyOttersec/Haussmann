@@ -255,6 +255,7 @@ export interface CalculatorResults {
   taeg: number;
   impotAnnuel: number;
   tri: number;
+  triProjet: number;
   projection: YearProjection[];
 }
 
