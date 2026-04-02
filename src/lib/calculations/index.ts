@@ -206,6 +206,7 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
   const apportPersonnel = inputs.apportPersonnel ?? Math.max(0, coutTotalAcquisition - inputs.montantEmprunte);
   const projection: YearProjection[] = [];
   const triCashFlows: number[] = [-apportPersonnel];
+  const triProjetFlows: number[] = [-coutTotalAcquisition];
 
   const evo = (key: string) => inputs.evolutions?.[key as keyof typeof inputs.evolutions] ?? 0;
   const baseLoyerBrut = loyerAnnuelBrut;
@@ -290,18 +291,23 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
       plusValue,
     });
 
+    // TRI investisseur (levered): CF apres impot + vente - CRD a la sortie
     if (annee < inputs.dureeDetention) {
       triCashFlows.push(cfApresImpot);
     } else if (annee === inputs.dureeDetention) {
-      // Terminal year: cash flow + sale proceeds - remaining debt
-      // Sale proceeds = property value - selling costs (~6%)
-      const fraisRevente = valeurBien * 0.06;
-      triCashFlows.push(cfApresImpot + valeurBien - fraisRevente - cr.crd);
+      triCashFlows.push(cfApresImpot + valeurBien - cr.crd);
     }
-    // Years beyond dureeDetention: not included in TRI
+
+    // TRI projet (unlevered): revenus nets - charges, sans credit
+    if (annee < inputs.dureeDetention) {
+      triProjetFlows.push(yrLoyerNet - yrCharges);
+    } else if (annee === inputs.dureeDetention) {
+      triProjetFlows.push(yrLoyerNet - yrCharges + valeurBien);
+    }
   }
 
   const tri = calculerTRI(triCashFlows);
+  const triProjet = calculerTRI(triProjetFlows);
 
   return {
     apportPersonnel,
@@ -320,6 +326,7 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
     taeg,
     impotAnnuel,
     tri,
+    triProjet,
     projection,
   };
 }
