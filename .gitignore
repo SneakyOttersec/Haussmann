@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright
+.playwright-mcp/
+test-results/
+*.png
+
+# analysis
+analyse_montlucon_03.md

@@ -1,0 +1,57 @@
+export const PRELEVEMENTS_SOCIAUX = 0.172;
+export const IS_TAUX_REDUIT = 0.15;
+export const IS_SEUIL_REDUIT = 42500;
+export const IS_TAUX_NORMAL = 0.25;
+export const FRAIS_NOTAIRE_ANCIEN = 0.08;
+export const FRAIS_NOTAIRE_NEUF = 0.03;
+export const TMI_TRANCHES = [0, 0.11, 0.30, 0.41, 0.45];
+
+export const DEFAULT_CALCULATOR_INPUTS = {
+  nomSimulation: '',
+  adresse: '',
+  pointsNotables: '',
+  attachments: [],
+  photo: '',
+  prixAchat: 200000,
+  fraisNotairePct: 0.08,
+  fraisAgence: 0,
+  surfaceM2: 0,
+  fraisDossier: 0,
+  fraisCourtage: 0,
+  montantTravaux: 0,
+  lotsTravaux: [],
+  lotsMobilier: [],
+  montantMobilierTotal: 0,
+  lots: [{ id: '1', nom: 'Lot 1', loyerMensuel: 800 }],
+  loyerMensuel: 800,
+  autresRevenusAnnuels: 0,
+  tauxVacance: 0.05,
+  apportPersonnel: 16000,
+  montantEmprunte: 200000,
+  tauxCredit: 0.035,
+  dureeCredit: 20,
+  typePret: 'amortissable' as const,
+  assurancePretMode: 'eur' as const,
+  assurancePretAnnuelle: 700,
+  assurancePretPct: 0.0034,
+  differePretMois: 0,
+  differeLoyer: 0,
+  chargesCopro: 1200,
+  taxeFonciere: 1000,
+  assurancePNO: 200,
+  gestionLocativePct: 0,
+  comptabilite: 0,
+  cfeCrl: 0,
+  entretien: 0,
+  gli: 0,
+  evolutions: { lopiloyer: 0.006 },
+  autresChargesAnnuelles: 0,
+  regimeFiscal: 'IR' as const,
+  trancheMarginalePct: 0.30,
+  amortissementImmobilierPct: 0.02,
+  amortissementTravauxPct: 0.10,
+  amortissementMobilierPct: 0.10,
+  montantMobilier: 0,
+  tauxAppreciation: 0.02,
+  dureeDetention: 25,
+};
