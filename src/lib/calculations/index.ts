@@ -290,11 +290,15 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
       plusValue,
     });
 
-    if (annee < projectionYears) {
+    if (annee < inputs.dureeDetention) {
       triCashFlows.push(cfApresImpot);
-    } else {
-      triCashFlows.push(cfApresImpot + valeurBien - cr.crd);
+    } else if (annee === inputs.dureeDetention) {
+      // Terminal year: cash flow + sale proceeds - remaining debt
+      // Sale proceeds = property value - selling costs (~6%)
+      const fraisRevente = valeurBien * 0.06;
+      triCashFlows.push(cfApresImpot + valeurBien - fraisRevente - cr.crd);
     }
+    // Years beyond dureeDetention: not included in TRI
   }
 
   const tri = calculerTRI(triCashFlows);
