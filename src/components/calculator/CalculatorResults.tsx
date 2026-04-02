@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { CalculatorResults as Results } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
+import { calculerTRI } from "@/lib/calculations/irr";
 
 interface CalculatorResultsProps {
   results: Results;
@@ -59,6 +60,23 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
 export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
   const cfSign = results.cashFlowMensuelApresImpot >= 0 ? "positive" : "negative";
   const r = results;
+  const [triAnnee, setTriAnnee] = useState(10);
+  const [showTriTooltip, setShowTriTooltip] = useState(false);
+
+  const triCustom = useMemo(() => {
+    const n = Math.min(triAnnee, r.projection.length);
+    if (n < 1) return 0;
+    const cfs: number[] = [-r.apportPersonnel];
+    for (let i = 0; i < n; i++) {
+      const p = r.projection[i];
+      if (i < n - 1) {
+        cfs.push(p.cashFlowApresImpot);
+      } else {
+        cfs.push(p.cashFlowApresImpot + p.valeurBien - p.capitalRestantDu);
+      }
+    }
+    return calculerTRI(cfs);
+  }, [r, triAnnee]);
 
   // Compute net-net at different time points
   const netNetAt = (yr: number) => {
@@ -94,8 +112,8 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
       applied: `Mensualite totale: ${formatCurrency(r.mensualiteCredit, true)}/mois\nTAEG = ${formatPercent(r.taeg)}`,
     },
     tri: {
-      formula: "TRI a 10 ans (avec levier)\nCF0 = -apport personnel\nCF1..9 = cash flow annuel apres impot\nCF10 = CF + valeur bien - capital restant du",
-      applied: `Apport: ${eur(r.apportPersonnel)}\nCF an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nValeur bien A10: ${eur(r.projection[9]?.valeurBien ?? 0)}\nCRD A10: ${eur(r.projection[9]?.capitalRestantDu ?? 0)}\nTRI 10 ans = ${formatPercent(r.tri)}`,
+      formula: `TRI a ${triAnnee} ans (avec levier)\nCF0 = -apport personnel\nCF1..${triAnnee - 1} = cash flow annuel apres impot\nCF${triAnnee} = CF + valeur bien - capital restant du`,
+      applied: `Apport: ${eur(r.apportPersonnel)}\nCF an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nValeur bien A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\nCRD A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.capitalRestantDu ?? 0)}\nTRI ${triAnnee} ans = ${formatPercent(triCustom)}`,
     },
   };
 
@@ -109,7 +127,35 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
           <Kpi label="Rdt net-net A1" value={formatPercent(nn1)} tooltip={tooltips.rdtNetNet} />
           <Kpi label="Cash flow/m" value={formatCurrency(r.cashFlowMensuelApresImpot)} accent={cfSign} tooltip={tooltips.cashFlow} />
           <Kpi label="TAEG" value={formatPercent(r.taeg)} tooltip={tooltips.taeg} />
-          <Kpi label="TRI 10 ans" value={formatPercent(r.tri)} accent={r.tri > 0 ? "positive" : "negative"} tooltip={tooltips.tri} />
+          <div className="text-center relative"
+            onMouseEnter={() => setShowTriTooltip(true)}
+            onMouseLeave={() => setShowTriTooltip(false)}
+          >
+            <div className="flex items-center justify-center gap-1 mb-0.5">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-help">TRI</p>
+              <select
+                value={triAnnee}
+                onChange={(e) => setTriAnnee(Number(e.target.value))}
+                className="text-[10px] bg-transparent text-muted-foreground outline-none cursor-pointer"
+              >
+                {[5, 10, 15, 20, 25].filter((y) => y <= r.projection.length).map((y) => (
+                  <option key={y} value={y}>{y} ans</option>
+                ))}
+              </select>
+            </div>
+            <p className={`text-lg font-bold leading-tight ${triCustom > 0 ? "text-green-600" : "text-destructive"}`}>
+              {formatPercent(triCustom)}
+            </p>
+            {showTriTooltip && tooltips.tri && (
+              <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-white border border-dotted rounded-lg shadow-lg p-3 text-left">
+                <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Formule</p>
+                <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line">{tooltips.tri.formula}</p>
+                <hr className="my-2 border-dashed border-muted-foreground/20" />
+                <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Calcul applique</p>
+                <p className="text-[11px] text-foreground leading-relaxed whitespace-pre-line font-mono">{tooltips.tri.applied}</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
