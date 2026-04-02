@@ -97,17 +97,44 @@ export async function deleteSimulation(id: string): Promise<void> {
   await deleteBlobsWithPrefix(`sim:${id}:`);
 }
 
-export function exportSimulations(): string {
-  return JSON.stringify(loadSimulations(), null, 2);
+export async function exportSimulations(): Promise<string> {
+  const sims = loadSimulations();
+  // Hydrate all blobs back into the export data
+  const hydrated = await Promise.all(
+    sims.map(async (sim) => {
+      const inputs = await hydrateSimulation(sim);
+      return { ...sim, inputs };
+    })
+  );
+  return JSON.stringify(hydrated, null, 2);
 }
 
-export function importSimulations(json: string): SavedSimulation[] {
+export async function importSimulations(json: string): Promise<SavedSimulation[]> {
   const imported = JSON.parse(json);
   if (!Array.isArray(imported)) throw new Error('Format invalide');
   const existing = loadSimulations();
   const existingIds = new Set(existing.map((s) => s.id));
   const newSims = imported.filter((s: SavedSimulation) => !existingIds.has(s.id));
-  const merged = [...existing, ...newSims];
+
+  // Store blobs in IndexedDB for each new simulation
+  for (const sim of newSims) {
+    if (sim.inputs.photo && sim.inputs.photo !== '__blob__') {
+      await putBlob(photoKey(sim.id), sim.inputs.photo);
+    }
+    for (const att of sim.inputs.attachments ?? []) {
+      if (att.data && att.data !== '__blob__') {
+        await putBlob(attachKey(sim.id, att.id), att.data);
+      }
+    }
+  }
+
+  // Strip blobs before saving to localStorage
+  const strippedNew = newSims.map((sim) => ({
+    ...sim,
+    inputs: stripForStorage(sim.inputs),
+  }));
+
+  const merged = [...existing, ...strippedNew];
   saveAll(merged);
   return merged;
 }
