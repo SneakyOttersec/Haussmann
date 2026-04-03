@@ -9,6 +9,11 @@ function npv(cashFlows: number[], rate: number): number {
 export function calculerTRI(cashFlows: number[]): number {
   if (cashFlows.length < 2) return 0;
 
+  // Check if there is at least one sign change (necessary for a valid IRR)
+  const hasNeg = cashFlows.some(cf => cf < 0);
+  const hasPos = cashFlows.some(cf => cf > 0);
+  if (!hasNeg || !hasPos) return 0;
+
   // Newton-Raphson method
   let rate = 0.08;
   for (let iter = 0; iter < 200; iter++) {

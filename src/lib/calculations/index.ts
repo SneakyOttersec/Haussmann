@@ -244,8 +244,9 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
     const yrAutres = inputs.autresChargesAnnuelles * Math.pow(1 + evo('autresCharges'), yr);
     const yrCharges = yrCopro + yrTF + yrPNO + yrGestion + yrCompta + yrCFE + yrEntretien + yrGLI + yrAutres;
 
-    const valeurBien = inputs.prixAchat * Math.pow(1 + inputs.tauxAppreciation, annee);
-    const plusValue = valeurBien - inputs.prixAchat;
+    const valeurBienInitiale = inputs.prixAchat + inputs.montantTravaux;
+    const valeurBien = valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee);
+    const plusValue = valeurBien - valeurBienInitiale;
 
     // Credit with deferral
     const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, assuranceMensuelle, annee, inputs.typePret);

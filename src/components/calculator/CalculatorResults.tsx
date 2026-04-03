@@ -62,6 +62,7 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
   const r = results;
   const [triAnnee, setTriAnnee] = useState(10);
   const [showTriTooltip, setShowTriTooltip] = useState(false);
+  const [showTriProjetTooltip, setShowTriProjetTooltip] = useState(false);
 
   const triCustom = useMemo(() => {
     const n = Math.min(triAnnee, r.projection.length);
@@ -73,6 +74,22 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
         cfs.push(p.cashFlowApresImpot);
       } else {
         cfs.push(p.cashFlowApresImpot + p.valeurBien - p.capitalRestantDu);
+      }
+    }
+    return calculerTRI(cfs);
+  }, [r, triAnnee]);
+
+  const triProjet = useMemo(() => {
+    const n = Math.min(triAnnee, r.projection.length);
+    if (n < 1) return 0;
+    const cfs: number[] = [-r.coutTotalAcquisition];
+    for (let i = 0; i < n; i++) {
+      const p = r.projection[i];
+      const noi = p.loyerNet - p.charges;
+      if (i < n - 1) {
+        cfs.push(noi);
+      } else {
+        cfs.push(noi + p.valeurBien);
       }
     }
     return calculerTRI(cfs);
@@ -111,9 +128,13 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
       formula: "Taux annuel effectif global\n= Taux nominal + cout assurance\ncalcule par methode actuarielle\n(Newton-Raphson)",
       applied: `Mensualite totale: ${formatCurrency(r.mensualiteCredit, true)}/mois\nTAEG = ${formatPercent(r.taeg)}`,
     },
-    tri: {
-      formula: `TRI a ${triAnnee} ans (avec levier)\nCF0 = -apport personnel\nCF1..${triAnnee - 1} = cash flow annuel apres impot\nCF${triAnnee} = CF + valeur bien - capital restant du`,
-      applied: `Apport: ${eur(r.apportPersonnel)}\nCF an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nValeur bien A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\nCRD A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.capitalRestantDu ?? 0)}\nTRI ${triAnnee} ans = ${formatPercent(triCustom)}`,
+    triInvestisseur: {
+      formula: `Avec levier (point de vue associe)\n\nMise de depart = apport personnel\nFlux annuels = cash flow apres impot\nSortie = cash flow + revente - dette restante`,
+      applied: `Mise de depart: ${eur(r.apportPersonnel)}\nFlux an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nRevente A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\nDette restante A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.capitalRestantDu ?? 0)}\n\n→ TRI = ${formatPercent(triCustom)}`,
+    },
+    triProjet: {
+      formula: `Sans levier (rentabilite du bien)\n\nMise de depart = cout total acquisition\nFlux annuels = loyers nets - charges\nSortie = flux + revente du bien`,
+      applied: `Mise de depart: ${eur(r.coutTotalAcquisition)}\nFlux an 1: ${eur((r.projection[0]?.loyerNet ?? 0) - (r.projection[0]?.charges ?? 0))}\nRevente A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\n\n→ TRI = ${formatPercent(triProjet)}`,
     },
   };
 
@@ -121,18 +142,15 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
     <div className="space-y-5">
       {/* KPI band */}
       <div className="border border-dotted rounded-lg p-5">
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-4">
           <Kpi label="Rdt brut" value={formatPercent(r.rendementBrut)} tooltip={tooltips.rdtBrut} />
           <Kpi label="Rdt net" value={formatPercent(r.rendementNet)} tooltip={tooltips.rdtNet} />
           <Kpi label="Rdt net-net A1" value={formatPercent(nn1)} tooltip={tooltips.rdtNetNet} />
           <Kpi label="Cash flow/m" value={formatCurrency(r.cashFlowMensuelApresImpot)} accent={cfSign} tooltip={tooltips.cashFlow} />
           <Kpi label="TAEG" value={formatPercent(r.taeg)} tooltip={tooltips.taeg} />
-          <div className="text-center relative"
-            onMouseEnter={() => setShowTriTooltip(true)}
-            onMouseLeave={() => setShowTriTooltip(false)}
-          >
+          <div className="text-center col-span-2">
             <div className="flex items-center justify-center gap-1 mb-0.5">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground cursor-help">TRI</p>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">TRI</p>
               <select
                 value={triAnnee}
                 onChange={(e) => setTriAnnee(Number(e.target.value))}
@@ -143,18 +161,44 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
                 ))}
               </select>
             </div>
-            <p className={`text-lg font-bold leading-tight ${triCustom > 0 ? "text-green-600" : "text-destructive"}`}>
-              {formatPercent(triCustom)}
-            </p>
-            {showTriTooltip && tooltips.tri && (
-              <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-white border border-dotted rounded-lg shadow-lg p-3 text-left">
-                <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Formule</p>
-                <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line">{tooltips.tri.formula}</p>
-                <hr className="my-2 border-dashed border-muted-foreground/20" />
-                <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Calcul applique</p>
-                <p className="text-[11px] text-foreground leading-relaxed whitespace-pre-line font-mono">{tooltips.tri.applied}</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="relative"
+                onMouseEnter={() => setShowTriTooltip(true)}
+                onMouseLeave={() => setShowTriTooltip(false)}
+              >
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5 cursor-help">Investisseur</p>
+                <p className={`text-lg font-bold leading-tight ${triCustom > 0 ? "text-green-600" : "text-destructive"}`}>
+                  {formatPercent(triCustom)}
+                </p>
+                {showTriTooltip && tooltips.triInvestisseur && (
+                  <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-white border border-dotted rounded-lg shadow-lg p-3 text-left">
+                    <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Formule</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line">{tooltips.triInvestisseur.formula}</p>
+                    <hr className="my-2 border-dashed border-muted-foreground/20" />
+                    <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Calcul applique</p>
+                    <p className="text-[11px] text-foreground leading-relaxed whitespace-pre-line font-mono">{tooltips.triInvestisseur.applied}</p>
+                  </div>
+                )}
               </div>
-            )}
+              <div className="relative"
+                onMouseEnter={() => setShowTriProjetTooltip(true)}
+                onMouseLeave={() => setShowTriProjetTooltip(false)}
+              >
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5 cursor-help">Projet</p>
+                <p className={`text-lg font-bold leading-tight ${triProjet > 0 ? "text-green-600" : "text-destructive"}`}>
+                  {formatPercent(triProjet)}
+                </p>
+                {showTriProjetTooltip && tooltips.triProjet && (
+                  <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-2 w-72 bg-white border border-dotted rounded-lg shadow-lg p-3 text-left">
+                    <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Formule</p>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed whitespace-pre-line">{tooltips.triProjet.formula}</p>
+                    <hr className="my-2 border-dashed border-muted-foreground/20" />
+                    <p className="text-[10px] uppercase tracking-wider text-teal font-bold mb-1.5">Calcul applique</p>
+                    <p className="text-[11px] text-foreground leading-relaxed whitespace-pre-line font-mono">{tooltips.triProjet.applied}</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
