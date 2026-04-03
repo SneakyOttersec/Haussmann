@@ -47,6 +47,10 @@ export function useProperties(
         expenses: prev.expenses.filter((e) => e.propertyId !== id),
         incomes: prev.incomes.filter((i) => i.propertyId !== id),
         loans: prev.loans.filter((l) => l.propertyId !== id),
+        interventions: (prev.interventions ?? []).filter((i) => i.propertyId !== id),
+        contacts: (prev.contacts ?? []).filter((c) => c.propertyId !== id),
+        documents: (prev.documents ?? []).filter((d) => d.propertyId !== id),
+        lots: (prev.lots ?? []).filter((l) => l.propertyId !== id),
       }));
     },
     [setData]

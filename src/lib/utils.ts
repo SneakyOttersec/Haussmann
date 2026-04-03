@@ -53,3 +53,7 @@ export function generateId(): string {
 export function now(): string {
   return new Date().toISOString();
 }
+
+export function coutTotalBien(p: { prixAchat: number; fraisNotaire: number; fraisAgence?: number; fraisDossier?: number; fraisCourtage?: number; montantTravaux: number; montantMobilier?: number }): number {
+  return p.prixAchat + p.fraisNotaire + (p.fraisAgence ?? 0) + (p.fraisDossier ?? 0) + (p.fraisCourtage ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
+}

@@ -7,13 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -28,6 +21,35 @@ interface ExpenseFormProps {
   initialData?: Partial<ExpenseFormData>;
   onSubmit: (data: ExpenseFormData) => void;
   trigger?: React.ReactNode;
+}
+
+function ChipGroup<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: Record<T, string>;
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {Object.entries(options).map(([k, label]) => (
+        <button
+          key={k}
+          type="button"
+          onClick={() => onChange(k as T)}
+          className={`px-2.5 py-1 rounded-md text-xs transition-colors ${
+            value === k
+              ? "bg-primary text-primary-foreground font-medium"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          {label as string}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: ExpenseFormProps) {
@@ -74,33 +96,25 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
         <DialogHeader>
           <DialogTitle>Ajouter une depense</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Categorie</Label>
-              <Select value={form.categorie} onValueChange={(v) => update("categorie", v as ExpenseCategory)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(EXPENSE_CATEGORY_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Frequence</Label>
-              <Select value={form.frequence} onValueChange={(v) => update("frequence", v as ExpenseFrequency)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {Object.entries(FREQUENCY_LABELS).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>{label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-2.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Categorie</Label>
+            <ChipGroup
+              options={EXPENSE_CATEGORY_LABELS}
+              value={form.categorie}
+              onChange={(v) => update("categorie", v)}
+            />
+          </div>
+          <div className="space-y-2.5">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Frequence</Label>
+            <ChipGroup
+              options={FREQUENCY_LABELS}
+              value={form.frequence}
+              onChange={(v) => update("frequence", v)}
+            />
           </div>
           <div className="space-y-2">
-            <Label>Label</Label>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Label</Label>
             <Input
               value={form.label}
               onChange={(e) => update("label", e.target.value)}
@@ -109,7 +123,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Montant (EUR)</Label>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Montant (EUR)</Label>
               <Input
                 type="number"
                 min={0}
@@ -120,7 +134,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
               />
             </div>
             <div className="space-y-2">
-              <Label>Date debut</Label>
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date debut</Label>
               <Input
                 type="date"
                 value={form.dateDebut}
@@ -128,7 +142,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
               />
             </div>
           </div>
-          <Button type="submit" className="w-full">Ajouter</Button>
+          <Button type="submit" className="w-full mt-2">Ajouter</Button>
         </form>
       </DialogContent>
     </Dialog>

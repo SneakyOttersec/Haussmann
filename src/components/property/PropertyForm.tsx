@@ -30,7 +30,11 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
     prixAchat: initialData?.prixAchat ?? 0,
     dateAchat: initialData?.dateAchat ?? new Date().toISOString().slice(0, 10),
     fraisNotaire: initialData?.fraisNotaire ?? 0,
+    fraisAgence: initialData?.fraisAgence ?? 0,
+    fraisDossier: initialData?.fraisDossier ?? 0,
+    fraisCourtage: initialData?.fraisCourtage ?? 0,
     montantTravaux: initialData?.montantTravaux ?? 0,
+    montantMobilier: initialData?.montantMobilier ?? 0,
     surfaceM2: initialData?.surfaceM2,
     notes: initialData?.notes ?? "",
   });
@@ -106,6 +110,19 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="fraisAgence">Frais d&apos;agence (EUR)</Label>
+          <Input
+            id="fraisAgence"
+            type="number"
+            min={0}
+            value={form.fraisAgence || ""}
+            onChange={(e) => update("fraisAgence", Number(e.target.value))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="space-y-2">
           <Label htmlFor="montantTravaux">Travaux (EUR)</Label>
           <Input
             id="montantTravaux"
@@ -113,6 +130,26 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
             min={0}
             value={form.montantTravaux || ""}
             onChange={(e) => update("montantTravaux", Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="montantMobilier">Mobilier (EUR)</Label>
+          <Input
+            id="montantMobilier"
+            type="number"
+            min={0}
+            value={form.montantMobilier || ""}
+            onChange={(e) => update("montantMobilier", Number(e.target.value))}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="fraisDossier">Frais dossier + courtage (EUR)</Label>
+          <Input
+            id="fraisDossier"
+            type="number"
+            min={0}
+            value={(form.fraisDossier + form.fraisCourtage) || ""}
+            onChange={(e) => { update("fraisDossier", Number(e.target.value)); update("fraisCourtage", 0); }}
           />
         </div>
       </div>

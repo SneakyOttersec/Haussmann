@@ -8,8 +8,48 @@ function getDefaultData(): AppData {
     expenses: [],
     incomes: [],
     loans: [],
-    settings: { regimeFiscal: 'IR', nomSCI: 'Ma SCI' },
+    interventions: [],
+    contacts: [],
+    documents: [],
+    lots: [],
+    settings: {
+      regimeFiscal: 'IR',
+      nomSCI: 'Ma SCI',
+      associes: [
+        { id: '1', nom: 'Associe 1', quotePart: 50 },
+        { id: '2', nom: 'Associe 2', quotePart: 50 },
+      ],
+    },
   };
+}
+
+function migrateData(data: AppData): AppData {
+  // Ensure new fields exist on properties (backward compat with old exports)
+  data.properties = (data.properties ?? []).map((p) => {
+    const migrated = { ...p };
+    if (migrated.fraisAgence == null) migrated.fraisAgence = 0;
+    if (migrated.fraisDossier == null) migrated.fraisDossier = 0;
+    if (migrated.fraisCourtage == null) migrated.fraisCourtage = 0;
+    if (migrated.montantMobilier == null) migrated.montantMobilier = 0;
+    return migrated;
+  });
+  data.interventions = data.interventions ?? [];
+  data.contacts = data.contacts ?? [];
+  data.documents = data.documents ?? [];
+  data.lots = (data.lots ?? []).map((l) => {
+    const migrated = { ...l };
+    if (!migrated.historiqueLoyers) {
+      migrated.historiqueLoyers = [{ id: '0', date: new Date().toISOString().slice(0, 10), montant: migrated.loyerMensuel }];
+    }
+    return migrated;
+  });
+  if (!data.settings.associes) {
+    data.settings.associes = [
+      { id: '1', nom: 'Associe 1', quotePart: 50 },
+      { id: '2', nom: 'Associe 2', quotePart: 50 },
+    ];
+  }
+  return data;
 }
 
 export function loadData(): AppData {
@@ -17,7 +57,7 @@ export function loadData(): AppData {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return getDefaultData();
-    return { ...getDefaultData(), ...JSON.parse(raw) };
+    return migrateData({ ...getDefaultData(), ...JSON.parse(raw) });
   } catch {
     return getDefaultData();
   }
@@ -34,7 +74,7 @@ export function exportData(): string {
 
 export function importData(json: string): AppData {
   const data = JSON.parse(json);
-  const merged = { ...getDefaultData(), ...data };
+  const merged = migrateData({ ...getDefaultData(), ...data });
   saveData(merged);
   return merged;
 }
