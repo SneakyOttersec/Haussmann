@@ -31,6 +31,37 @@ export type LoanType = 'amortissable' | 'in_fine';
 
 export type AssurancePretMode = 'eur' | 'pct';
 
+export type PropertyStatus =
+  | 'prospection'
+  | 'offre'
+  | 'compromis'
+  | 'acte'
+  | 'travaux'
+  | 'location'
+  | 'exploitation';
+
+export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {
+  prospection: 'Prospection',
+  offre: 'Offre',
+  compromis: 'Compromis',
+  acte: 'Acte signe',
+  travaux: 'Travaux',
+  location: 'Mise en location',
+  exploitation: 'Exploitation',
+};
+
+export const PROPERTY_STATUS_ORDER: PropertyStatus[] = [
+  'prospection', 'offre', 'compromis', 'acte', 'travaux', 'location', 'exploitation',
+];
+
+export interface AllocationCredit {
+  bien: number;
+  travaux: number;
+  notaire: number;
+  agence: number;
+  autre: number;
+}
+
 export interface Property {
   id: string;
   nom: string;
@@ -39,11 +70,118 @@ export interface Property {
   prixAchat: number;
   dateAchat: string;
   fraisNotaire: number;
+  fraisAgence: number;
+  fraisDossier: number;
+  fraisCourtage: number;
   montantTravaux: number;
+  montantMobilier: number;
   surfaceM2?: number;
+  notes?: string;
+  statut?: PropertyStatus;
+  allocationCredit?: AllocationCredit;
+  simulationId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Interventions / Travaux ---
+
+export type InterventionStatut = 'planifie' | 'en_cours' | 'termine';
+
+export const INTERVENTION_STATUT_LABELS: Record<InterventionStatut, string> = {
+  planifie: 'Planifie',
+  en_cours: 'En cours',
+  termine: 'Termine',
+};
+
+export interface InterventionPJ {
+  nom: string;
+  data: string;
+  type: string;
+  taille: number;
+}
+
+export interface Intervention {
+  id: string;
+  propertyId: string;
+  date: string;
+  montant: number;
+  prestataire: string;
+  description: string;
+  statut: InterventionStatut;
+  pieceJointe?: InterventionPJ;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// --- Contacts / Prestataires ---
+
+export type ContactRole = 'agence' | 'gestionnaire' | 'artisan' | 'notaire' | 'banque' | 'assureur' | 'autre';
+
+export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
+  agence: 'Agence immobiliere',
+  gestionnaire: 'Gestionnaire locatif',
+  artisan: 'Artisan',
+  notaire: 'Notaire',
+  banque: 'Banque',
+  assureur: 'Assureur',
+  autre: 'Autre',
+};
+
+export interface Contact {
+  id: string;
+  propertyId?: string;
+  nom: string;
+  role: ContactRole;
+  telephone?: string;
+  email?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// --- Documents ---
+
+export type DocumentCategory = 'devis' | 'facture' | 'copro' | 'fiscal' | 'autre';
+
+export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  devis: 'Devis',
+  facture: 'Facture',
+  copro: 'Copropriete',
+  fiscal: 'Document fiscal',
+  autre: 'Autre',
+};
+
+export interface PropertyDocument {
+  id: string;
+  propertyId: string;
+  nom: string;
+  categorie: DocumentCategory;
+  data: string;
+  type: string;
+  taille: number;
+  ajouteLe: string;
+}
+
+// --- Lots ---
+
+export type LotStatut = 'occupe' | 'vacant';
+
+export interface RentHistoryEntry {
+  id: string;
+  date: string;
+  montant: number;
+}
+
+export interface Lot {
+  id: string;
+  propertyId: string;
+  nom: string;
+  etage?: string;
+  surface?: number;
+  loyerMensuel: number;
+  statut: LotStatut;
+  historiqueLoyers?: RentHistoryEntry[];
 }
 
 export interface Expense {
@@ -74,6 +212,14 @@ export interface Income {
   updatedAt: string;
 }
 
+export interface LoanPJ {
+  nom: string;
+  data: string;
+  type: string;
+  taille: number;
+  ajouteLe: string;
+}
+
 export interface LoanDetails {
   id: string;
   propertyId: string;
@@ -83,6 +229,8 @@ export interface LoanDetails {
   dureeAnnees: number;
   dateDebut: string;
   assuranceAnnuelle: number;
+  banque?: string;
+  documents?: LoanPJ[];
 }
 
 export interface LotLoyer {
@@ -266,9 +414,17 @@ export interface SavedSimulation {
   savedAt: string;
 }
 
+export interface Associe {
+  id: string;
+  nom: string;
+  quotePart: number; // percentage, e.g. 50 = 50%
+}
+
 export interface AppSettings {
   regimeFiscal: TaxRegime;
   nomSCI: string;
+  associes: Associe[];
+  seuilAlerteTresorerie?: number;
 }
 
 export interface AppData {
@@ -276,6 +432,10 @@ export interface AppData {
   expenses: Expense[];
   incomes: Income[];
   loans: LoanDetails[];
+  interventions: Intervention[];
+  contacts: Contact[];
+  documents: PropertyDocument[];
+  lots: Lot[];
   settings: AppSettings;
 }
 

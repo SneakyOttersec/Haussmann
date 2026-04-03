@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { href: "/", label: "Biens" },
   { href: "/calculateur", label: "Calculateur" },
+  { href: "/comparateur", label: "Comparateur" },
 ];
 
 export function Header() {

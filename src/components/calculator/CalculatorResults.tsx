@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { CalculatorResults as Results } from "@/types";
+import type { CalculatorResults as Results, Associe } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { calculerTRI } from "@/lib/calculations/irr";
 
 interface CalculatorResultsProps {
   results: Results;
+  associes?: Associe[];
 }
 
 function eur(v: number): string {
@@ -57,7 +58,7 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
+export function CalculatorResultsPanel({ results, associes }: CalculatorResultsProps) {
   const cfSign = results.cashFlowMensuelApresImpot >= 0 ? "positive" : "negative";
   const r = results;
   const [triAnnee, setTriAnnee] = useState(10);
@@ -211,7 +212,7 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
             <DetailRow label="Cout total acquisition" value={formatCurrency(r.coutTotalAcquisition)} />
             <DetailRow label="Apport personnel" value={formatCurrency(r.apportPersonnel)} />
             <DetailRow label="Loyer annuel brut" value={formatCurrency(r.loyerAnnuelBrut)} />
-            <DetailRow label="Loyer annuel net (vacance)" value={formatCurrency(r.loyerAnnuelNet)} />
+            <DetailRow label="Loyer annuel net (avec vacance locative)" value={formatCurrency(r.loyerAnnuelNet)} />
             <DetailRow label="Charges annuelles" value={formatCurrency(r.chargesAnnuellesTotales)} />
           </div>
           <div>
@@ -222,6 +223,49 @@ export function CalculatorResultsPanel({ results }: CalculatorResultsProps) {
           </div>
         </div>
       </div>
+
+      {/* Repartition associes */}
+      {associes && associes.length > 1 && (
+        <div className="border border-dotted rounded-lg p-5">
+          <h2 className="text-xs font-bold uppercase tracking-wider mb-3">Repartition associes</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-dashed border-muted-foreground/20">
+                  <th className="text-left py-2 pr-4 text-muted-foreground font-medium"></th>
+                  {associes.map((a) => (
+                    <th key={a.id} className="text-right py-2 px-3 font-medium">
+                      {a.nom} <span className="text-muted-foreground font-normal">({a.quotePart}%)</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {[
+                  { label: "Apport personnel", value: r.apportPersonnel },
+                  { label: "Cash flow mensuel", value: r.cashFlowMensuelApresImpot, color: true },
+                  { label: "Cash flow annuel", value: r.cashFlowAnnuelApresImpot, color: true },
+                  { label: "Impot annuel", value: r.impotAnnuel },
+                ].map((row) => (
+                  <tr key={row.label} className="border-b border-dashed border-muted-foreground/10">
+                    <td className="py-1.5 pr-4 text-muted-foreground">{row.label}</td>
+                    {associes.map((a) => {
+                      const part = row.value * a.quotePart / 100;
+                      return (
+                        <td key={a.id} className={`py-1.5 px-3 text-right tabular-nums font-medium ${
+                          row.color ? (part >= 0 ? "text-green-600" : "text-destructive") : ""
+                        }`}>
+                          {formatCurrency(part)}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

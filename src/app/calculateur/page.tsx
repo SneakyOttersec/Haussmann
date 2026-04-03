@@ -16,6 +16,8 @@ import { annualiserMontant, mensualiserMontant } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { generateReport } from "@/lib/report";
+import { simulationToBien } from "@/lib/simulationToBien";
+import { useRouter } from "next/navigation";
 
 /* ── Sidebar content (shared between desktop & mobile drawer) ── */
 
@@ -105,7 +107,8 @@ function SimulationList({
 function CalculateurContent() {
   const searchParams = useSearchParams();
   const bienId = searchParams.get("bienId");
-  const { data } = useAppData();
+  const { data, setData } = useAppData();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -157,8 +160,21 @@ function CalculateurContent() {
   const [inputs, setInputs] = useState<CalculatorInputs>(initialInputs);
   const [simulations, setSimulations] = useState<SavedSimulation[]>([]);
   const [activeSimId, setActiveSimId] = useState<string | null>(null);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
-  useEffect(() => { setSimulations(loadSimulations()); }, []);
+  useEffect(() => {
+    const sims = loadSimulations();
+    setSimulations(sims);
+    // Auto-load the most recent simulation if no bienId and not yet loaded
+    if (!initialLoaded && !bienId && sims.length > 0) {
+      const mostRecent = sims.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
+      hydrateSimulation(mostRecent).then((hydrated) => {
+        setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
+        setActiveSimId(mostRecent.id);
+      });
+    }
+    setInitialLoaded(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleUpdate = useCallback(<K extends keyof CalculatorInputs>(key: K, value: CalculatorInputs[K]) => {
     setInputs(prev => ({ ...prev, [key]: value }));
@@ -280,14 +296,28 @@ function CalculateurContent() {
 
           <div className="flex items-center justify-between">
             <h1 className="text-xl sm:text-2xl">{inputs.nomSimulation || "Calculateur de rentabilite"}</h1>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => { toast.info("Generation en cours..."); await generateReport(inputs, results); toast.success("Dossier PDF genere"); }}
-              className="text-xs shrink-0"
-            >
-              Generer le dossier PDF
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const id = simulationToBien(inputs, setData, activeSimId ?? undefined);
+                  toast.success("Bien cree a partir de la simulation");
+                  router.push(`/biens?id=${id}`);
+                }}
+                className="text-xs shrink-0"
+              >
+                Creer le bien
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={async () => { toast.info("Generation en cours..."); await generateReport(inputs, results); toast.success("Dossier PDF genere"); }}
+                className="text-xs shrink-0"
+              >
+                Generer le dossier PDF
+              </Button>
+            </div>
           </div>
 
           {/* Simulation — full width */}
@@ -306,7 +336,7 @@ function CalculateurContent() {
           <ChargesCard inputs={inputs} onUpdate={handleUpdate} />
 
           {/* Results — full width */}
-          <CalculatorResultsPanel results={results} />
+          <CalculatorResultsPanel results={results} associes={data?.settings?.associes} />
 
           {/* Projection chart + table — full width */}
           <ResultsChart

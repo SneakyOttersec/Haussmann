@@ -1,7 +1,7 @@
 "use client";
 
 import type { Expense, Income, Property } from "@/types";
-import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant } from "@/lib/utils";
+import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
 
@@ -33,7 +33,7 @@ export function PropertySummary({ property, expenses, incomes }: PropertySummary
     .filter((e) => e.categorie !== "credit")
     .reduce((sum, e) => sum + annualiserMontant(e.montant, e.frequence), 0);
 
-  const coutTotal = property.prixAchat + property.fraisNotaire + property.montantTravaux;
+  const coutTotal = coutTotalBien(property);
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);
   const rNet = rendementNet(revenuAnnuel, chargesAnnuelles, coutTotal);
 
