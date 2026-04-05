@@ -1,16 +1,9 @@
-import type { CalculatorInputs, CalculatorResults, YearProjection } from '@/types';
-import { calculerMensualite, calculerMensualiteAmortissable, capitalRestantDu, interetsAnnuels } from './loan';
+import type { CalculatorInputs, CalculatorResults, RegimeFiscalType } from '@/types';
+import { toRegimeFiscalType } from '@/types';
+import { calculerMensualite, calculerMensualiteAmortissable } from './loan';
 import { rendementBrut, rendementNet, rendementNetNet } from './rendement';
-import { calculerImpotIR } from './tax-ir';
-import { calculerImpotIS, calculerAmortissementAnnee } from './tax-is';
 import { calculerTRI } from './irr';
-
-function resolveMontantMobilier(inputs: CalculatorInputs): number {
-  if (inputs.lotsMobilier && inputs.lotsMobilier.length > 0) {
-    return inputs.lotsMobilier.reduce((sum, lot) => sum + (lot.montant || 0), 0);
-  }
-  return 0;
-}
+import { projeterAvecRegime, type YearComputed } from './regimes';
 
 function resolveAssuranceAnnuelle(inputs: CalculatorInputs): number {
   if (inputs.assurancePretMode === 'pct') {
@@ -50,7 +43,6 @@ function calculerTAEG(
  * Compute credit payment for a given year, accounting for partial deferral.
  * During deferral months: pay only interest + insurance.
  * After deferral: normal amortization mensualite + insurance.
- * Returns { mensualitesAnnee, interetsAnnee, capitalRembourse }
  */
 function creditAnnee(
   montant: number,
@@ -65,28 +57,24 @@ function creditAnnee(
 
   const tauxMensuel = taux / 12;
   const totalMoisCredit = dureeAns * 12;
-  const moisDebut = (annee - 1) * 12; // month index at start of this year (0-based)
+  const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12;
 
-  // Durée amortissement = durée totale - différé
   const dureeAmortMois = totalMoisCredit - differeMois;
   const mensualiteAmort = dureeAmortMois > 0
     ? calculerMensualiteAmortissable(montant, taux, dureeAmortMois / 12)
     : 0;
-  const mensualiteDiffere = montant * tauxMensuel; // intérêts seulement
 
   let totalPaye = 0;
   let totalInterets = 0;
   let crd = montant;
 
-  // Compute CRD at start of year by simulating from month 0
   if (annee > 1) {
     for (let m = 0; m < moisDebut; m++) {
       if (m >= totalMoisCredit) { crd = 0; break; }
       if (m < differeMois) {
-        // Différé: only interest, no capital
+        // Differe: only interest, no capital
       } else {
-        // Amortization
         const interet = crd * tauxMensuel;
         const capital = mensualiteAmort - interet;
         crd = Math.max(0, crd - capital);
@@ -96,16 +84,11 @@ function creditAnnee(
 
   const crdDebutAnnee = crd;
 
-  // Process 12 months of this year
   for (let m = moisDebut; m < moisFin; m++) {
-    if (m >= totalMoisCredit) {
-      // Loan finished
-      break;
-    }
+    if (m >= totalMoisCredit) break;
     if (crd <= 0) break;
 
     if (m < differeMois) {
-      // Différé partiel: interest only
       const interet = crd * tauxMensuel;
       totalPaye += interet + assuranceMensuelle;
       totalInterets += interet;
@@ -114,7 +97,6 @@ function creditAnnee(
         const interet = crd * tauxMensuel;
         totalPaye += interet + assuranceMensuelle;
         totalInterets += interet;
-        // Capital repaid at maturity
         if (m === totalMoisCredit - 1) {
           totalPaye += crd;
           crd = 0;
@@ -129,7 +111,6 @@ function creditAnnee(
     }
   }
 
-  // Snap to 0 for floating point precision
   if (crd < 1) crd = 0;
 
   return {
@@ -140,29 +121,44 @@ function creditAnnee(
   };
 }
 
-/* ── Main ── */
+/* ── Year-by-year financial data (regime-independent) ── */
 
-export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults {
+export interface YearlyFinancials {
+  years: YearComputed[];
+  fraisNotaire: number;
+  assuranceAnnuelle: number;
+  coutTotalAcquisition: number;
+  loyerAnnuelBrut: number;
+  loyerAnnuelNet: number;
+  chargesAnnuellesTotales: number;
+  mensualiteTotale: number;
+  taeg: number;
+  apportPersonnel: number;
+}
+
+/**
+ * Compute all regime-independent yearly financial data for a projection.
+ * This is what every regime computation shares.
+ */
+export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinancials {
   const loyerMensuelTotal = inputs.lots && inputs.lots.length > 0
     ? inputs.lots.reduce((sum, lot) => sum + (lot.loyerMensuel || 0), 0)
     : inputs.loyerMensuel;
 
   const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
-  const coutTotalAcquisition = inputs.prixAchat + fraisNotaire + inputs.fraisAgence + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + inputs.montantTravaux;
+  const coutTotalAcquisition = inputs.prixAchat + fraisNotaire + inputs.fraisAgence
+    + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + inputs.montantTravaux;
 
   const assuranceAnnuelle = resolveAssuranceAnnuelle(inputs);
   const assuranceMensuelle = assuranceAnnuelle / 12;
-
   const differePretMois = inputs.differePretMois ?? 0;
   const differeLoyer = inputs.differeLoyer ?? 0;
 
-  // Mensualite standard (post-differe) for display
   const dureeAmortMois = inputs.dureeCredit * 12 - differePretMois;
   const mensualiteCreditStandard = dureeAmortMois > 0
     ? calculerMensualiteAmortissable(inputs.montantEmprunte, inputs.tauxCredit, dureeAmortMois / 12)
     : 0;
   const mensualiteTotale = mensualiteCreditStandard + assuranceMensuelle;
-
   const taeg = calculerTAEG(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, assuranceAnnuelle);
 
   const loyerAnnuelBrut = loyerMensuelTotal * 12 + inputs.autresRevenusAnnuels;
@@ -170,66 +166,27 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
 
   const gestionLocative = loyerAnnuelNet * inputs.gestionLocativePct;
   const chargesAnnuellesTotales =
-    inputs.chargesCopro +
-    inputs.taxeFonciere +
-    inputs.assurancePNO +
-    gestionLocative +
-    inputs.comptabilite +
-    inputs.cfeCrl +
-    inputs.entretien +
-    inputs.gli +
-    inputs.autresChargesAnnuelles;
-
-  const rBrut = rendementBrut(loyerAnnuelBrut, coutTotalAcquisition);
-  const rNet = rendementNet(loyerAnnuelNet, chargesAnnuellesTotales, coutTotalAcquisition);
-
-  // Year 1 tax (for KPI display)
-  const credit1 = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, assuranceMensuelle, 1, inputs.typePret);
-  let impotAnnuel = 0;
-
-  if (inputs.regimeFiscal === 'IR') {
-    const revenuFoncierNet = loyerAnnuelNet - chargesAnnuellesTotales - credit1.interetsAnnee - assuranceAnnuelle;
-    impotAnnuel = calculerImpotIR(revenuFoncierNet, inputs.trancheMarginalePct ?? 0.30);
-  } else {
-    const amortAn1 = calculerAmortissementAnnee(inputs, fraisNotaire, 1);
-    const resultatFiscal = loyerAnnuelNet - chargesAnnuellesTotales - amortAn1 - credit1.interetsAnnee - assuranceAnnuelle;
-    impotAnnuel = calculerImpotIS(resultatFiscal);
-  }
-
-  const rNetNet = rendementNetNet(loyerAnnuelNet, chargesAnnuellesTotales, impotAnnuel, coutTotalAcquisition);
-
-  const cashFlowAnnuelAvantImpot = loyerAnnuelNet - credit1.mensualitesAnnee - chargesAnnuellesTotales;
-  const cashFlowAnnuelApresImpot = cashFlowAnnuelAvantImpot - impotAnnuel;
-  const cashFlowMensuelAvantImpot = cashFlowAnnuelAvantImpot / 12;
-  const cashFlowMensuelApresImpot = cashFlowAnnuelApresImpot / 12;
+    inputs.chargesCopro + inputs.taxeFonciere + inputs.assurancePNO + gestionLocative
+    + inputs.comptabilite + inputs.cfeCrl + inputs.entretien + inputs.gli + inputs.autresChargesAnnuelles;
 
   const apportPersonnel = inputs.apportPersonnel ?? Math.max(0, coutTotalAcquisition - inputs.montantEmprunte);
-  const projection: YearProjection[] = [];
-  const triCashFlows: number[] = [-apportPersonnel];
 
+  // Yearly projection
   const evo = (key: string) => inputs.evolutions?.[key as keyof typeof inputs.evolutions] ?? 0;
-  const baseLoyerBrut = loyerAnnuelBrut;
   const baseGestionLoc = loyerAnnuelNet * inputs.gestionLocativePct;
-  const lotsCount = inputs.lots?.length || 1;
   const baseCompta = inputs.comptabilite;
-
-  let reportDeficitIS = 0; // Deficit reportable IS (amortissement non utilise)
-
   const projectionYears = Math.max(inputs.dureeDetention, 25);
 
+  const years: YearComputed[] = [];
   for (let annee = 1; annee <= projectionYears; annee++) {
     const yr = annee - 1;
 
     // Evolving loyer
-    let yrLoyerBrut = baseLoyerBrut * Math.pow(1 + evo('lopiloyer'), yr);
-
-    // Différé loyer: reduce income in months where no rent is collected
+    let yrLoyerBrut = loyerAnnuelBrut * Math.pow(1 + evo('lopiloyer'), yr);
     if (differeLoyer > 0 && annee === 1) {
-      // In year 1, only (12 - differeLoyer) months of rent
       const moisAvecLoyer = Math.max(0, 12 - differeLoyer);
       yrLoyerBrut = (loyerMensuelTotal * moisAvecLoyer) + inputs.autresRevenusAnnuels;
     }
-
     const yrLoyerNet = yrLoyerBrut * (1 - inputs.tauxVacance);
 
     // Evolving charges
@@ -248,74 +205,81 @@ export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults
     const valeurBien = valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee);
     const plusValue = valeurBien - valeurBienInitiale;
 
-    // Credit with deferral
     const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, assuranceMensuelle, annee, inputs.typePret);
 
-    let impot = 0;
-    if (inputs.regimeFiscal === 'IR') {
-      const revFoncierNet = yrLoyerNet - yrCharges - cr.interetsAnnee - assuranceAnnuelle;
-      impot = calculerImpotIR(revFoncierNet, inputs.trancheMarginalePct ?? 0.30);
-    } else {
-      const amortAnnee = calculerAmortissementAnnee(inputs, fraisNotaire, annee);
-      // Resultat avant report = revenus - charges - amortissement - interets - assurance
-      let resultatAvantReport = yrLoyerNet - yrCharges - amortAnnee - cr.interetsAnnee - assuranceAnnuelle;
-      // Apply deficit carryforward: reduce taxable result by accumulated deficit
-      let resultatFiscal = resultatAvantReport + reportDeficitIS; // reportDeficitIS is negative
-      if (resultatFiscal < 0) {
-        // Still in deficit: no tax, carry forward the total deficit
-        reportDeficitIS = resultatFiscal;
-        impot = 0;
-      } else {
-        // Positive result after absorbing deficit: pay tax on remainder
-        reportDeficitIS = 0;
-        impot = calculerImpotIS(resultatFiscal);
-      }
-    }
-
-    const cfAvantImpot = yrLoyerNet - cr.mensualitesAnnee - yrCharges;
-    const cfApresImpot = cfAvantImpot - impot;
-
-    projection.push({
-      annee,
+    years.push({
       loyerBrut: yrLoyerBrut,
       loyerNet: yrLoyerNet,
       charges: yrCharges,
       interets: cr.interetsAnnee,
+      assurancePret: assuranceAnnuelle,
+      mensualitesAnnee: cr.mensualitesAnnee,
       capitalRembourse: cr.capitalRembourse,
-      mensualitesCredit: cr.mensualitesAnnee,
-      cashFlowAvantImpot: cfAvantImpot,
-      impot,
-      cashFlowApresImpot: cfApresImpot,
-      capitalRestantDu: cr.crd,
+      crd: cr.crd,
       valeurBien,
       plusValue,
     });
-
-    // TRI 10 ans: CF apres impot + vente - CRD a l'annee 10
-    if (annee < 10) {
-      triCashFlows.push(cfApresImpot);
-    } else if (annee === 10) {
-      triCashFlows.push(cfApresImpot + valeurBien - cr.crd);
-    }
   }
 
-  const tri = calculerTRI(triCashFlows);
-
   return {
-    apportPersonnel,
-    rendementBrut: rBrut,
-    rendementNet: rNet,
-    rendementNetNet: rNetNet,
-    cashFlowMensuelAvantImpot,
-    cashFlowMensuelApresImpot,
-    cashFlowAnnuelAvantImpot,
-    cashFlowAnnuelApresImpot,
+    years,
+    fraisNotaire,
+    assuranceAnnuelle,
     coutTotalAcquisition,
     loyerAnnuelBrut,
     loyerAnnuelNet,
     chargesAnnuellesTotales,
-    mensualiteCredit: mensualiteTotale,
+    mensualiteTotale,
     taeg,
+    apportPersonnel,
+  };
+}
+
+/* ── Main ── */
+
+export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults {
+  const fin = computeYearlyFinancials(inputs);
+
+  const regime: RegimeFiscalType = toRegimeFiscalType(inputs.regimeFiscal);
+  const regimeProjection = projeterAvecRegime(regime, inputs, fin.fraisNotaire, fin.years);
+  const projection = regimeProjection.projection;
+
+  // Year 1 KPIs
+  const impotAnnuel = regimeProjection.impotAn1;
+  const cashFlowAnnuelAvantImpot = projection[0]?.cashFlowAvantImpot ?? 0;
+  const cashFlowAnnuelApresImpot = projection[0]?.cashFlowApresImpot ?? 0;
+
+  const rBrut = rendementBrut(fin.loyerAnnuelBrut, fin.coutTotalAcquisition);
+  const rNet = rendementNet(fin.loyerAnnuelNet, fin.chargesAnnuellesTotales, fin.coutTotalAcquisition);
+  const rNetNet = rendementNetNet(fin.loyerAnnuelNet, fin.chargesAnnuellesTotales, impotAnnuel, fin.coutTotalAcquisition);
+
+  // TRI 10 ans: CF apres impot + vente - CRD a l'annee 10
+  const triCashFlows: number[] = [-fin.apportPersonnel];
+  for (let i = 0; i < Math.min(10, projection.length); i++) {
+    const p = projection[i];
+    if (i < 9) {
+      triCashFlows.push(p.cashFlowApresImpot);
+    } else {
+      triCashFlows.push(p.cashFlowApresImpot + p.valeurBien - p.capitalRestantDu);
+    }
+  }
+  const tri = calculerTRI(triCashFlows);
+
+  return {
+    apportPersonnel: fin.apportPersonnel,
+    rendementBrut: rBrut,
+    rendementNet: rNet,
+    rendementNetNet: rNetNet,
+    cashFlowMensuelAvantImpot: cashFlowAnnuelAvantImpot / 12,
+    cashFlowMensuelApresImpot: cashFlowAnnuelApresImpot / 12,
+    cashFlowAnnuelAvantImpot,
+    cashFlowAnnuelApresImpot,
+    coutTotalAcquisition: fin.coutTotalAcquisition,
+    loyerAnnuelBrut: fin.loyerAnnuelBrut,
+    loyerAnnuelNet: fin.loyerAnnuelNet,
+    chargesAnnuellesTotales: fin.chargesAnnuellesTotales,
+    mensualiteCredit: fin.mensualiteTotale,
+    taeg: fin.taeg,
     impotAnnuel,
     tri,
     triProjet: 0,

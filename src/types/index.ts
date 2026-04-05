@@ -1,5 +1,36 @@
 export type TaxRegime = 'IR' | 'IS';
 
+/**
+ * Granular tax regime used for multi-regime comparison.
+ * - ir_reel     : location nue, frais reels (revenus fonciers)
+ * - ir_micro    : location nue, micro-foncier (abattement 30%, plafond 15 000 €)
+ * - lmnp_reel   : location meublee, reel BIC avec amortissements
+ * - lmnp_micro  : location meublee, micro-BIC (abattement 50%, plafond 77 700 €)
+ * - is          : SCI/SARL a l'IS (taux 15% / 25%)
+ */
+export type RegimeFiscalType = 'ir_reel' | 'ir_micro' | 'lmnp_reel' | 'lmnp_micro' | 'is';
+
+export const REGIME_FISCAL_LABELS: Record<RegimeFiscalType, string> = {
+  ir_reel: 'IR - Foncier reel',
+  ir_micro: 'IR - Micro-foncier',
+  lmnp_reel: 'LMNP - Reel BIC',
+  lmnp_micro: 'LMNP - Micro-BIC',
+  is: 'IS (SCI/SARL)',
+};
+
+export const REGIME_FISCAL_SHORT: Record<RegimeFiscalType, string> = {
+  ir_reel: 'IR reel',
+  ir_micro: 'IR micro',
+  lmnp_reel: 'LMNP reel',
+  lmnp_micro: 'LMNP micro',
+  is: 'IS',
+};
+
+/** Convert legacy TaxRegime to granular RegimeFiscalType */
+export function toRegimeFiscalType(r: TaxRegime): RegimeFiscalType {
+  return r === 'IR' ? 'ir_reel' : 'is';
+}
+
 export type PropertyType =
   | 'appartement'
   | 'maison'
@@ -184,6 +215,41 @@ export interface Lot {
   historiqueLoyers?: RentHistoryEntry[];
 }
 
+// --- Rent tracking (month by month) ---
+
+export type RentMonthStatus = 'paye' | 'partiel' | 'impaye' | 'vacant';
+
+export const RENT_MONTH_STATUS_LABELS: Record<RentMonthStatus, string> = {
+  paye: 'Paye',
+  partiel: 'Partiel',
+  impaye: 'Impaye',
+  vacant: 'Vacant',
+};
+
+export interface RentMonthEntry {
+  id: string;
+  propertyId: string;
+  lotId: string;
+  /** "YYYY-MM" e.g. "2025-03" */
+  yearMonth: string;
+  /** Loyer attendu pour ce mois (snapshot du loyer du lot au moment de l'enregistrement) */
+  loyerAttendu: number;
+  /** Loyer effectivement percu (0 pour vacant/impaye) */
+  loyerPercu: number;
+  statut: RentMonthStatus;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExpenseRevision {
+  id: string;
+  /** Date d'effet de la revision (YYYY-MM-DD) */
+  dateEffet: string;
+  montant: number;
+  notes?: string;
+}
+
 export interface Expense {
   id: string;
   propertyId: string;
@@ -194,6 +260,8 @@ export interface Expense {
   dateDebut: string;
   dateFin?: string;
   notes?: string;
+  /** Historique des revisions de prix. Ordre indifferent — trie par dateEffet a l'utilisation. */
+  revisions?: ExpenseRevision[];
   createdAt: string;
   updatedAt: string;
 }
@@ -302,6 +370,9 @@ export type EvolvableKey =
   | 'autresCharges';
 
 export interface CalculatorInputs {
+  // Identity — persistent unique ID; when present, saving overwrites the existing simulation
+  id?: string;
+
   // Meta
   nomSimulation: string;
   adresse: string;
@@ -407,11 +478,18 @@ export interface CalculatorResults {
   projection: YearProjection[];
 }
 
+export interface SimulationSnapshot {
+  inputs: CalculatorInputs;
+  savedAt: string;
+}
+
 export interface SavedSimulation {
   id: string;
   nom: string;
   inputs: CalculatorInputs;
   savedAt: string;
+  /** Previous versions of this simulation (most recent first). Capped to keep storage reasonable. */
+  history?: SimulationSnapshot[];
 }
 
 export interface Associe {
@@ -436,6 +514,7 @@ export interface AppData {
   contacts: Contact[];
   documents: PropertyDocument[];
   lots: Lot[];
+  rentTracking: RentMonthEntry[];
   settings: AppSettings;
 }
 

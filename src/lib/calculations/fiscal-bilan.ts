@@ -1,5 +1,6 @@
 import type { AppData, Property } from "@/types";
 import { annualiserMontant } from "@/lib/utils";
+import { getMontantForYear } from "@/lib/expenseRevisions";
 import { interetsAnnuels } from "./loan";
 import { calculerImpotIR } from "./tax-ir";
 import { calculerImpotIS } from "./tax-is";
@@ -66,7 +67,7 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     // Charges deductibles (hors credit)
     const charges = data.expenses
       .filter((e) => e.propertyId === p.id && e.categorie !== "credit" && isActiveInYear(e.dateDebut, e.dateFin, annee) && e.frequence !== "ponctuel")
-      .reduce((s, e) => s + annualiserMontant(e.montant, e.frequence), 0);
+      .reduce((s, e) => s + annualiserMontant(getMontantForYear(e, annee), e.frequence), 0);
 
     // Interets & assurance emprunt
     const loan = data.loans.find((l) => l.propertyId === p.id);

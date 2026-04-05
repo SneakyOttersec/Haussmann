@@ -12,7 +12,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "Haussmann",
-  description: "Suivi des investissements immobiliers et calculateur de rentabilite",
+  description: "Suivi des investissements immobiliers et simulateur de rentabilite",
 };
 
 export default function RootLayout({

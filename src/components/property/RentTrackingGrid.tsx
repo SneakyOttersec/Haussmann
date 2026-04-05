@@ -1,0 +1,426 @@
+"use client";
+
+import { useMemo, useRef, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import type { Lot, RentMonthEntry, RentMonthStatus } from "@/types";
+import { RENT_MONTH_STATUS_LABELS } from "@/types";
+import { formatCurrency } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+
+interface Props {
+  propertyId: string;
+  lots: Lot[];
+  entries: RentMonthEntry[];
+  onUpsert: (
+    propertyId: string,
+    lotId: string,
+    yearMonth: string,
+    updates: Partial<Omit<RentMonthEntry, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
+  ) => void;
+  onDelete: (id: string) => void;
+}
+
+const MONTH_LABELS = [
+  "Jan", "Fev", "Mar", "Avr", "Mai", "Juin",
+  "Juil", "Aout", "Sep", "Oct", "Nov", "Dec",
+];
+
+function monthsWindow(count: number): string[] {
+  const now = new Date();
+  const months: string[] = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    months.push(`${yyyy}-${mm}`);
+  }
+  return months;
+}
+
+function parseMonth(ym: string): { year: number; month: number } {
+  const [y, m] = ym.split("-");
+  return { year: Number(y), month: Number(m) };
+}
+
+function statusColor(status: RentMonthStatus): { bg: string; border: string; text: string } {
+  switch (status) {
+    case "paye":
+      return { bg: "bg-green-600/15", border: "border-green-600/40", text: "text-green-700" };
+    case "partiel":
+      return { bg: "bg-amber-500/15", border: "border-amber-500/40", text: "text-amber-700" };
+    case "impaye":
+      return { bg: "bg-destructive/15", border: "border-destructive/40", text: "text-destructive" };
+    case "vacant":
+      return { bg: "bg-muted", border: "border-muted-foreground/20", text: "text-muted-foreground" };
+  }
+}
+
+interface CellEditorProps {
+  propertyId: string;
+  lotId: string;
+  yearMonth: string;
+  loyerAttendu: number;
+  entry: RentMonthEntry | undefined;
+  anchorRect: DOMRect;
+  onUpsert: Props["onUpsert"];
+  onDelete: Props["onDelete"];
+  onClose: () => void;
+}
+
+function CellEditor({
+  propertyId,
+  lotId,
+  yearMonth,
+  loyerAttendu,
+  entry,
+  anchorRect,
+  onUpsert,
+  onDelete,
+  onClose,
+}: CellEditorProps) {
+  const [statut, setStatut] = useState<RentMonthStatus>(entry?.statut ?? "paye");
+  const [loyerPercu, setLoyerPercu] = useState<string>(
+    String(entry?.loyerPercu ?? loyerAttendu),
+  );
+  const [notes, setNotes] = useState(entry?.notes ?? "");
+
+  const handleSave = () => {
+    const percu = statut === "vacant" || statut === "impaye" ? 0 : Number(loyerPercu) || 0;
+    onUpsert(propertyId, lotId, yearMonth, {
+      statut,
+      loyerAttendu,
+      loyerPercu: percu,
+      notes: notes || undefined,
+    });
+    onClose();
+  };
+
+  const handleClear = () => {
+    if (entry) onDelete(entry.id);
+    onClose();
+  };
+
+  const { year, month } = parseMonth(yearMonth);
+
+  // Position the popover below the anchor cell, clamped within the viewport
+  const POP_WIDTH = 256;
+  const POP_HEIGHT = 260; // estimated
+  let top = anchorRect.bottom + 4;
+  let left = anchorRect.left;
+  if (left + POP_WIDTH > window.innerWidth - 8) {
+    left = window.innerWidth - POP_WIDTH - 8;
+  }
+  if (left < 8) left = 8;
+  if (top + POP_HEIGHT > window.innerHeight - 8) {
+    top = anchorRect.top - POP_HEIGHT - 4;
+  }
+
+  return createPortal(
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div
+        className="fixed z-50 w-64 border border-dotted rounded-lg bg-background shadow-lg p-3 space-y-2"
+        style={{ top: `${top}px`, left: `${left}px` }}
+        onClick={(e) => e.stopPropagation()}
+      >
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold">
+          {MONTH_LABELS[month - 1]} {year}
+        </p>
+        <button
+          onClick={onClose}
+          className="text-muted-foreground hover:text-primary text-sm leading-none"
+        >
+          ×
+        </button>
+      </div>
+
+      <div>
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Statut</label>
+        <div className="grid grid-cols-2 gap-1 mt-1">
+          {(["paye", "partiel", "impaye", "vacant"] as RentMonthStatus[]).map((s) => {
+            const c = statusColor(s);
+            const active = statut === s;
+            return (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setStatut(s)}
+                className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+                  active ? `${c.bg} ${c.border} ${c.text} font-semibold` : "border-dotted border-muted-foreground/30 text-muted-foreground"
+                }`}
+              >
+                {RENT_MONTH_STATUS_LABELS[s]}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {(statut === "paye" || statut === "partiel") && (
+        <div>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Loyer percu (attendu : {formatCurrency(loyerAttendu)})
+          </label>
+          <Input
+            type="number"
+            value={loyerPercu}
+            onChange={(e) => setLoyerPercu(e.target.value)}
+            className="mt-1 h-8 text-xs"
+          />
+        </div>
+      )}
+
+      <div>
+        <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Note</label>
+        <Input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Optionnel"
+          className="mt-1 h-8 text-xs"
+        />
+      </div>
+
+      <div className="flex gap-1.5 pt-1">
+        <Button size="sm" onClick={handleSave} className="flex-1 text-[11px] h-7">
+          Enregistrer
+        </Button>
+        {entry && (
+          <Button size="sm" variant="outline" onClick={handleClear} className="text-[11px] h-7">
+            Effacer
+          </Button>
+        )}
+      </div>
+      </div>
+    </>,
+    document.body,
+  );
+}
+
+interface CellProps {
+  propertyId: string;
+  lot: Lot;
+  yearMonth: string;
+  entry: RentMonthEntry | undefined;
+  isFuture: boolean;
+  onUpsert: Props["onUpsert"];
+  onDelete: Props["onDelete"];
+}
+
+function Cell({ propertyId, lot, yearMonth, entry, isFuture, onUpsert, onDelete }: CellProps) {
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+
+  // Close when scrolling/resizing (position would be stale)
+  useEffect(() => {
+    if (!anchorRect) return;
+    const close = () => setAnchorRect(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [anchorRect]);
+
+  if (isFuture) {
+    return (
+      <td className="border border-dashed border-muted-foreground/10 p-0">
+        <div className="h-10 w-full bg-muted/20" />
+      </td>
+    );
+  }
+
+  const colors = entry ? statusColor(entry.statut) : null;
+  const display = entry
+    ? entry.statut === "paye" || entry.statut === "partiel"
+      ? formatCurrency(entry.loyerPercu)
+      : RENT_MONTH_STATUS_LABELS[entry.statut]
+    : "—";
+
+  const handleClick = () => {
+    if (anchorRect) {
+      setAnchorRect(null);
+    } else if (btnRef.current) {
+      setAnchorRect(btnRef.current.getBoundingClientRect());
+    }
+  };
+
+  return (
+    <td className="border border-dashed border-muted-foreground/10 p-0">
+      <button
+        ref={btnRef}
+        onClick={handleClick}
+        className={`h-10 w-full flex items-center justify-center text-[10px] font-medium tabular-nums transition-colors ${
+          entry
+            ? `${colors!.bg} ${colors!.text} hover:opacity-80`
+            : "hover:bg-muted/40 text-muted-foreground/50"
+        }`}
+        title={entry?.notes || display}
+      >
+        {display}
+      </button>
+      {anchorRect && (
+        <CellEditor
+          propertyId={propertyId}
+          lotId={lot.id}
+          yearMonth={yearMonth}
+          loyerAttendu={lot.loyerMensuel}
+          entry={entry}
+          anchorRect={anchorRect}
+          onUpsert={onUpsert}
+          onDelete={onDelete}
+          onClose={() => setAnchorRect(null)}
+        />
+      )}
+    </td>
+  );
+}
+
+export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete }: Props) {
+  const [monthCount, setMonthCount] = useState(12);
+  const months = useMemo(() => monthsWindow(monthCount), [monthCount]);
+  const currentYM = months[months.length - 1];
+
+  // Compute KPIs across displayed window — excluding future months (beyond current month)
+  const kpis = useMemo(() => {
+    const pastMonths = months.filter((m) => m <= currentYM);
+    const windowEntries = entries.filter((e) => pastMonths.includes(e.yearMonth));
+    const totalAttendu = lots.reduce((s, l) => s + l.loyerMensuel, 0) * pastMonths.length;
+    const totalPercu = windowEntries.reduce((s, e) => s + e.loyerPercu, 0);
+    const totalImpayes = windowEntries
+      .filter((e) => e.statut === "impaye" || e.statut === "partiel")
+      .reduce((s, e) => s + Math.max(0, e.loyerAttendu - e.loyerPercu), 0);
+
+    const moisOccupes = windowEntries.filter((e) => e.statut === "paye" || e.statut === "partiel").length;
+    const totalMoisLots = lots.length * pastMonths.length;
+    // Unrecorded months count as occupied; only explicit "vacant" reduces the rate.
+    const moisVacants = windowEntries.filter((e) => e.statut === "vacant").length;
+    const tauxOccupation = totalMoisLots > 0
+      ? ((totalMoisLots - moisVacants) / totalMoisLots) * 100
+      : 0;
+
+    return { totalAttendu, totalPercu, totalImpayes, tauxOccupation, moisOccupes, nbMois: pastMonths.length };
+  }, [entries, lots, months, currentYM]);
+
+  if (lots.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="border border-dotted rounded-md p-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Taux occupation</p>
+          <p className="text-sm font-bold">{kpis.tauxOccupation.toFixed(0)} %</p>
+        </div>
+        <div className="border border-dotted rounded-md p-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Loyer percu ({monthCount}m)
+          </p>
+          <p className="text-sm font-bold">{formatCurrency(kpis.totalPercu)}</p>
+        </div>
+        <div className="border border-dotted rounded-md p-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            Loyer attendu ({monthCount}m)
+          </p>
+          <p className="text-sm font-bold text-muted-foreground">{formatCurrency(kpis.totalAttendu)}</p>
+        </div>
+        <div className="border border-dotted rounded-md p-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impayes</p>
+          <p className={`text-sm font-bold ${kpis.totalImpayes > 0 ? "text-destructive" : ""}`}>
+            {formatCurrency(kpis.totalImpayes)}
+          </p>
+        </div>
+      </div>
+
+      {/* Controls */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {[12, 24, 36].map((n) => (
+            <button
+              key={n}
+              onClick={() => setMonthCount(n)}
+              className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+                monthCount === n
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {n} mois
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted-foreground">Cliquer une cellule pour editer</p>
+      </div>
+
+      {/* Grid */}
+      <div className="overflow-x-auto border border-dotted rounded-lg">
+        <table className="w-full border-collapse text-xs">
+          <thead>
+            <tr className="bg-muted/20">
+              <th className="text-left py-2 pl-3 pr-2 text-[10px] uppercase tracking-wider text-muted-foreground font-medium min-w-[120px] sticky left-0 bg-muted/20 z-10">
+                Lot
+              </th>
+              {months.map((ym) => {
+                const { year, month } = parseMonth(ym);
+                return (
+                  <th
+                    key={ym}
+                    className="py-2 px-1 text-[10px] text-muted-foreground font-medium min-w-[56px]"
+                  >
+                    <div className="font-semibold">{MONTH_LABELS[month - 1]}</div>
+                    <div className="opacity-60 text-[9px]">{String(year).slice(2)}</div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {lots.map((lot) => (
+              <tr key={lot.id}>
+                <td className="py-2 pl-3 pr-2 text-xs font-medium border-r border-dashed border-muted-foreground/10 sticky left-0 bg-background z-10">
+                  <div className="truncate max-w-[120px]">{lot.nom}</div>
+                  <div className="text-[9px] text-muted-foreground">
+                    {formatCurrency(lot.loyerMensuel)}/mois
+                  </div>
+                </td>
+                {months.map((ym) => {
+                  const entry = entries.find((e) => e.lotId === lot.id && e.yearMonth === ym);
+                  const isFuture = ym > currentYM;
+                  return (
+                    <Cell
+                      key={ym}
+                      propertyId={propertyId}
+                      lot={lot}
+                      yearMonth={ym}
+                      entry={entry}
+                      isFuture={isFuture}
+                      onUpsert={onUpsert}
+                      onDelete={onDelete}
+                    />
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
+        {(["paye", "partiel", "impaye", "vacant"] as RentMonthStatus[]).map((s) => {
+          const c = statusColor(s);
+          return (
+            <div key={s} className="flex items-center gap-1.5">
+              <span className={`inline-block w-3 h-3 rounded-sm ${c.bg} ${c.border} border`} />
+              <span>{RENT_MONTH_STATUS_LABELS[s]}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

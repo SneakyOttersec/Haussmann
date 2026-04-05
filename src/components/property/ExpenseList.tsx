@@ -1,10 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import type { Expense, ExpenseFrequency } from "@/types";
+import { useMemo, useState } from "react";
+import type { Expense, ExpenseFrequency, ExpenseRevision } from "@/types";
 import { EXPENSE_CATEGORY_LABELS, FREQUENCY_LABELS, EXPENSE_GROUPS } from "@/types";
 import { formatCurrency, annualiserMontant } from "@/lib/utils";
+import { getMontantForYear, getRevisionTimeline } from "@/lib/expenseRevisions";
+import { ExpenseEvolutionTable } from "./ExpenseEvolutionTable";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -106,7 +109,7 @@ function FrequencyChips({
 
 const CATEGORY_ICONS: Record<string, string> = {
   credit: "🏦",
-  taxe_fonciere: "��",
+  taxe_fonciere: "🏛",
   assurance_pno: "🛡",
   gestion_locative: "🔑",
   copropriete: "🏢",
@@ -119,13 +122,215 @@ const CATEGORY_ICONS: Record<string, string> = {
   autre: "📌",
 };
 
+/* ── Reviser dialog ── */
+
+interface ReviseDialogProps {
+  expense: Expense;
+  selectedYear: number;
+  onClose: () => void;
+  onSave: (revision: Omit<ExpenseRevision, "id">) => void;
+  onDeleteRevision: (revisionId: string) => void;
+}
+
+function ReviseDialog({ expense, selectedYear, onClose, onSave, onDeleteRevision }: ReviseDialogProps) {
+  const timeline = getRevisionTimeline(expense);
+  const [montant, setMontant] = useState(String(getMontantForYear(expense, selectedYear)));
+  const [dateEffet, setDateEffet] = useState(`${selectedYear}-01-01`);
+  const [notes, setNotes] = useState("");
+
+  const handleSave = () => {
+    const v = Number(montant);
+    if (isNaN(v) || v <= 0) return;
+    onSave({ dateEffet, montant: v, notes: notes || undefined });
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/30" />
+      <div
+        className="relative border border-dotted rounded-lg p-5 bg-background shadow-lg w-full max-w-md mx-4 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold">Reviser le prix</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {expense.label} · {EXPENSE_CATEGORY_LABELS[expense.categorie]}
+            </p>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-primary text-lg leading-none">×</button>
+        </div>
+
+        {/* History */}
+        <div>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Historique</p>
+          <div className="space-y-1 max-h-48 overflow-y-auto">
+            {timeline.map((entry, idx) => {
+              const prev = timeline[idx + 1];
+              const delta = prev ? entry.montant - prev.montant : 0;
+              const deltaPct = prev && prev.montant > 0 ? (delta / prev.montant) * 100 : 0;
+              return (
+                <div
+                  key={`${entry.dateEffet}-${idx}`}
+                  className={`flex items-center justify-between text-xs py-1 px-2 rounded ${
+                    entry.isInitial ? "bg-muted/30" : "border border-dotted"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-[11px] tabular-nums">{entry.dateEffet}</span>
+                    {entry.isInitial && (
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wider">initial</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold tabular-nums">{formatCurrency(entry.montant)}</span>
+                    {delta !== 0 && !entry.isInitial && (
+                      <span className={`text-[10px] tabular-nums ${delta > 0 ? "text-destructive" : "text-green-600"}`}>
+                        {delta > 0 ? "+" : ""}{deltaPct.toFixed(1)}%
+                      </span>
+                    )}
+                    {entry.id && (
+                      <button
+                        onClick={() => onDeleteRevision(entry.id!)}
+                        className="text-destructive/40 hover:text-destructive text-sm leading-none"
+                        title="Supprimer cette revision"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <hr className="border-dashed border-muted-foreground/20" />
+
+        {/* New revision form */}
+        <div className="space-y-2">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Nouvelle revision</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground">Montant</label>
+              <Input
+                type="number"
+                value={montant}
+                onChange={(e) => setMontant(e.target.value)}
+                className="h-8 text-xs"
+                step="0.01"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground">Date d&apos;effet</label>
+              <Input
+                type="date"
+                value={dateEffet}
+                onChange={(e) => setDateEffet(e.target.value)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground">Note (optionnel)</label>
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="ex: revision tacite, sinistre..."
+              className="h-8 text-xs"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onClose} className="flex-1 text-xs">Annuler</Button>
+          <Button size="sm" onClick={handleSave} className="flex-1 text-xs">Enregistrer</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Year selector ── */
+
+function YearSelector({
+  years,
+  selected,
+  onSelect,
+}: {
+  years: number[];
+  selected: number;
+  onSelect: (y: number) => void;
+}) {
+  const currentYear = new Date().getFullYear();
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 mb-3">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Annee :</span>
+      {years.map((y) => (
+        <button
+          key={y}
+          onClick={() => onSelect(y)}
+          className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+            selected === y
+              ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+              : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {y}
+          {y === currentYear && <span className="opacity-60 ml-1 text-[9px]">(courante)</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ── Main list ── */
+
 export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [reviseTarget, setReviseTarget] = useState<Expense | null>(null);
+  const [showEvolution, setShowEvolution] = useState(false);
+
+  // Build year options based on expense history
+  const years = useMemo(() => {
+    const ys = new Set<number>();
+    for (const e of expenses) {
+      const startYear = new Date(e.dateDebut).getFullYear();
+      if (!isNaN(startYear)) ys.add(startYear);
+      for (const r of e.revisions ?? []) {
+        const ry = new Date(r.dateEffet).getFullYear();
+        if (!isNaN(ry)) ys.add(ry);
+      }
+    }
+    ys.add(currentYear);
+    return Array.from(ys).sort((a, b) => a - b);
+  }, [expenses, currentYear]);
+
   if (expenses.length === 0) {
     return <p className="text-sm text-muted-foreground py-4">Aucune depense enregistree.</p>;
   }
 
+  const handleAddRevision = (expenseId: string, revision: Omit<ExpenseRevision, "id">) => {
+    const expense = expenses.find((e) => e.id === expenseId);
+    if (!expense || !onUpdate) return;
+    const newRevision: ExpenseRevision = { ...revision, id: crypto.randomUUID() };
+    onUpdate(expenseId, { revisions: [...(expense.revisions ?? []), newRevision] });
+  };
+
+  const handleDeleteRevision = (expenseId: string, revisionId: string) => {
+    const expense = expenses.find((e) => e.id === expenseId);
+    if (!expense || !onUpdate) return;
+    onUpdate(expenseId, { revisions: (expense.revisions ?? []).filter((r) => r.id !== revisionId) });
+  };
+
   return (
     <div className="space-y-4">
+      {years.length > 1 && (
+        <YearSelector years={years} selected={selectedYear} onSelect={setSelectedYear} />
+      )}
+
       {Object.entries(EXPENSE_GROUPS).map(([groupLabel, categories]) => {
         const groupExpenses = expenses.filter((e) => categories.includes(e.categorie));
         if (groupExpenses.length === 0) return null;
@@ -138,67 +343,117 @@ export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                 <TableRow>
                   <TableHead>Label</TableHead>
                   <TableHead>Categorie</TableHead>
-                  <TableHead className="text-right">Montant</TableHead>
+                  <TableHead className="text-right">Montant {selectedYear}</TableHead>
                   <TableHead>Frequence</TableHead>
                   <TableHead className="text-right">Annualise</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupExpenses.map((expense) => (
-                  <TableRow key={expense.id}>
-                    <TableCell className="font-medium">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="text-xs">{CATEGORY_ICONS[expense.categorie] ?? "📌"}</span>
+                {groupExpenses.map((expense) => {
+                  const montantEffectif = getMontantForYear(expense, selectedYear);
+                  const nbRevisions = (expense.revisions ?? []).length;
+                  const hasDelta = montantEffectif !== expense.montant;
+                  return (
+                    <TableRow key={expense.id}>
+                      <TableCell className="font-medium">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="text-xs">{CATEGORY_ICONS[expense.categorie] ?? "📌"}</span>
+                          {onUpdate ? (
+                            <EditableCell
+                              value={expense.label}
+                              onSave={(v) => onUpdate(expense.id, { label: String(v) })}
+                            />
+                          ) : expense.label}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">{EXPENSE_CATEGORY_LABELS[expense.categorie]}</TableCell>
+                      <TableCell className="text-right">
+                        <span className="inline-flex items-center gap-1.5 tabular-nums">
+                          {formatCurrency(montantEffectif)}
+                          {nbRevisions > 0 && (
+                            <span
+                              className={`text-[9px] px-1 rounded ${hasDelta ? "bg-amber-500/15 text-amber-700" : "bg-muted text-muted-foreground"}`}
+                              title={`${nbRevisions} revision${nbRevisions > 1 ? "s" : ""}`}
+                            >
+                              {nbRevisions}×
+                            </span>
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell>
                         {onUpdate ? (
-                          <EditableCell
-                            value={expense.label}
-                            onSave={(v) => onUpdate(expense.id, { label: String(v) })}
+                          <FrequencyChips
+                            value={expense.frequence}
+                            onChange={(v) => onUpdate(expense.id, { frequence: v })}
                           />
-                        ) : expense.label}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">{EXPENSE_CATEGORY_LABELS[expense.categorie]}</TableCell>
-                    <TableCell className="text-right">
-                      {onUpdate ? (
-                        <EditableCell
-                          value={expense.montant}
-                          type="number"
-                          onSave={(v) => onUpdate(expense.id, { montant: Number(v) })}
-                          className="text-right"
-                        />
-                      ) : formatCurrency(expense.montant)}
-                    </TableCell>
-                    <TableCell>
-                      {onUpdate ? (
-                        <FrequencyChips
-                          value={expense.frequence}
-                          onChange={(v) => onUpdate(expense.id, { frequence: v })}
-                        />
-                      ) : FREQUENCY_LABELS[expense.frequence]}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {expense.frequence !== "ponctuel"
-                        ? formatCurrency(annualiserMontant(expense.montant, expense.frequence))
-                        : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onDelete(expense.id)}
-                        className="text-destructive hover:text-destructive"
-                      >
-                        ×
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                        ) : FREQUENCY_LABELS[expense.frequence]}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {expense.frequence !== "ponctuel"
+                          ? formatCurrency(annualiserMontant(montantEffectif, expense.frequence))
+                          : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-0.5">
+                          {onUpdate && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReviseTarget(expense)}
+                              className="text-muted-foreground hover:text-primary px-2"
+                              title="Reviser le prix"
+                            >
+                              ↻
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => onDelete(expense.id)}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         );
       })}
+
+      {reviseTarget && onUpdate && (
+        <ReviseDialog
+          expense={reviseTarget}
+          selectedYear={selectedYear}
+          onClose={() => setReviseTarget(null)}
+          onSave={(rev) => handleAddRevision(reviseTarget.id, rev)}
+          onDeleteRevision={(rid) => handleDeleteRevision(reviseTarget.id, rid)}
+        />
+      )}
+
+      {years.length > 1 && (
+        <div className="mt-3">
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => setShowEvolution(!showEvolution)}
+              className="text-xs text-primary hover:underline"
+            >
+              {showEvolution ? "Masquer" : "Evolution annee par annee"}
+            </button>
+          </div>
+          {showEvolution && (
+            <div className="mt-3">
+              <ExpenseEvolutionTable expenses={expenses} years={years} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ function getDefaultData(): AppData {
     contacts: [],
     documents: [],
     lots: [],
+    rentTracking: [],
     settings: {
       regimeFiscal: 'IR',
       nomSCI: 'Ma SCI',
@@ -36,6 +37,7 @@ function migrateData(data: AppData): AppData {
   data.interventions = data.interventions ?? [];
   data.contacts = data.contacts ?? [];
   data.documents = data.documents ?? [];
+  data.rentTracking = data.rentTracking ?? [];
   data.lots = (data.lots ?? []).map((l) => {
     const migrated = { ...l };
     if (!migrated.historiqueLoyers) {

@@ -120,6 +120,7 @@ export default function Dashboard() {
               property={property}
               expenses={data.expenses.filter((e) => e.propertyId === property.id)}
               incomes={data.incomes.filter((i) => i.propertyId === property.id)}
+              rentEntries={(data.rentTracking ?? []).filter((e) => e.propertyId === property.id)}
               onDelete={handleDeleteRequest}
             />
           ))}
