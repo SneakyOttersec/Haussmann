@@ -2,10 +2,29 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { exportData, importData } from "@/lib/storage";
 import { toast } from "sonner";
+
+function useCurrentDate() {
+  const [date, setDate] = useState<string | null>(null);
+  useEffect(() => {
+    const format = () =>
+      new Date().toLocaleDateString("fr-FR", {
+        weekday: "short",
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      });
+    setDate(format());
+    // Refresh at midnight in case the session stays open
+    const ms = new Date().setHours(24, 0, 0, 0) - Date.now();
+    const timeout = setTimeout(() => setDate(format()), ms + 1000);
+    return () => clearTimeout(timeout);
+  }, []);
+  return date;
+}
 
 const gestionItems = [
   { href: "/", label: "Portefeuille", icon: "⌂" },
@@ -26,6 +45,7 @@ const configItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const today = useCurrentDate();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/" || pathname.startsWith("/biens");
@@ -68,6 +88,9 @@ export function Sidebar() {
         <Link href="/" className="text-primary font-bold text-base hover:opacity-80 transition-opacity">
           Haussmann
         </Link>
+        {today && (
+          <p className="text-[10px] text-muted-foreground/70 mt-0.5 capitalize tabular-nums">{today}</p>
+        )}
       </div>
 
       {/* Nav */}
@@ -163,6 +186,7 @@ export function MobileHeader() {
   const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const today = useCurrentDate();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/" || pathname.startsWith("/biens");
@@ -201,9 +225,14 @@ export function MobileHeader() {
   return (
     <header className="md:hidden border-b border-dashed border-muted-foreground/30 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
       <div className="px-4 py-3 flex items-center justify-between">
-        <Link href="/" className="text-primary font-bold text-base hover:opacity-80 transition-opacity">
-          Haussmann
-        </Link>
+        <div>
+          <Link href="/" className="text-primary font-bold text-base hover:opacity-80 transition-opacity">
+            Haussmann
+          </Link>
+          {today && (
+            <p className="text-[9px] text-muted-foreground/70 leading-none capitalize tabular-nums">{today}</p>
+          )}
+        </div>
         <div className="flex items-center gap-1">
           {[...gestionItems, ...outilsItems, ...configItems].map((item) => (
             <Link
