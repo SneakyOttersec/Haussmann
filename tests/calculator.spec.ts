@@ -1,8 +1,8 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Calculateur de rentabilite", () => {
+test.describe("Simulateur de rentabilite", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/calculateur");
+    await page.goto("/simulateur");
     await page.waitForSelector("h1");
   });
 

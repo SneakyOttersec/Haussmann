@@ -29,6 +29,7 @@ import { InterventionSection } from "@/components/property/InterventionSection";
 import { ContactSection } from "@/components/property/ContactSection";
 import { DocumentSection } from "@/components/property/DocumentSection";
 import { LotSection } from "@/components/property/LotSection";
+import { useRentTracking } from "@/hooks/useRentTracking";
 import { RealVsSimulatedSection } from "@/components/property/RealVsSimulatedSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -240,6 +241,7 @@ function PropertyDetailContent() {
   const { contacts, addContact, updateContact, deleteContact } = useContacts(data, setData, id ?? undefined);
   const { documents, addDocument, deleteDocument } = useDocuments(data, setData, id ?? undefined);
   const { lots, addLot, updateLot, deleteLot } = useLots(data, setData, id ?? undefined);
+  const { entries: rentEntries } = useRentTracking(data, setData, id ?? undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
@@ -387,6 +389,20 @@ function PropertyDetailContent() {
           </div>
           <div className="flex items-center gap-3">
             <Link
+              href={`/loyers?propertyId=${id}`}
+              className="text-sm text-primary hover:underline"
+              title="Ouvrir le suivi des loyers de ce bien"
+            >
+              Suivi loyers
+            </Link>
+            <Link
+              href={`/simulateur?bienId=${id}`}
+              className="text-sm text-primary hover:underline"
+              title="Ouvrir ce bien dans le simulateur"
+            >
+              Simuler
+            </Link>
+            <Link
               href={`/biens/modifier?id=${id}`}
               className="text-sm text-primary hover:underline"
             >
@@ -522,14 +538,15 @@ function PropertyDetailContent() {
         <LotSection lots={lots} onAdd={handleAddLot} onUpdate={handleUpdateLot} onDelete={handleDeleteLot} propertyId={id} />
       </section>
 
+
       {/* Flux mensuels */}
       <section>
         <Card className="border-dotted">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Flux mensuels (12 derniers mois)</CardTitle>
+            <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
           </CardHeader>
           <CardContent>
-            <CashFlowChart incomes={incomes} expenses={expenses} />
+            <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} />
           </CardContent>
         </Card>
       </section>

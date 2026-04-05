@@ -6,6 +6,12 @@ export const FRAIS_NOTAIRE_ANCIEN = 0.08;
 export const FRAIS_NOTAIRE_NEUF = 0.03;
 export const TMI_TRANCHES = [0, 0.11, 0.30, 0.41, 0.45];
 
+// Seuils des regimes micro (CA annuel, 2024)
+export const SEUIL_MICRO_FONCIER = 15000;
+export const SEUIL_MICRO_BIC = 77700;
+export const ABATTEMENT_MICRO_FONCIER = 0.30;
+export const ABATTEMENT_MICRO_BIC = 0.50;
+
 export const DEFAULT_CALCULATOR_INPUTS = {
   nomSimulation: '',
   adresse: '',

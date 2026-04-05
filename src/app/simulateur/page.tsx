@@ -6,13 +6,16 @@ import { Suspense } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
-import { loadSimulations, saveSimulation, deleteSimulation, exportSimulations, importSimulations, hydrateSimulation } from "@/lib/simulations";
+import { loadSimulations, saveSimulation, deleteSimulation, exportSimulations, importSimulations, hydrateSimulation, restoreSnapshot } from "@/lib/simulations";
 import { SimulationCard, BienCard, ChargesCard, FinancementCard, FiscaliteCard } from "@/components/calculator/CalculatorForm";
 import { CalculatorResultsPanel } from "@/components/calculator/CalculatorResults";
+import { RegimesComparison } from "@/components/calculator/RegimesComparison";
+import { SensitivityChart } from "@/components/calculator/SensitivityChart";
+import { HistoryModal } from "@/components/calculator/HistoryModal";
 import { ResultsChart } from "@/components/calculator/ResultsChart";
 import type { CalculatorInputs, SavedSimulation, Attachment } from "@/types";
 import { AttachmentsPanel } from "@/components/calculator/AttachmentsPanel";
-import { annualiserMontant, mensualiserMontant } from "@/lib/utils";
+import { bienToSimulation } from "@/lib/bienToSimulation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { generateReport } from "@/lib/report";
@@ -104,7 +107,7 @@ function SimulationList({
 
 /* ── Main page ── */
 
-function CalculateurContent() {
+function SimulateurContent() {
   const searchParams = useSearchParams();
   const bienId = searchParams.get("bienId");
   const { data, setData } = useAppData();
@@ -114,53 +117,21 @@ function CalculateurContent() {
 
   const initialInputs = useMemo(() => {
     if (!bienId || !data) return DEFAULT_CALCULATOR_INPUTS;
-
-    const property = data.properties.find((p) => p.id === bienId);
-    if (!property) return DEFAULT_CALCULATOR_INPUTS;
-
-    const propertyIncomes = data.incomes.filter((i) => i.propertyId === bienId);
-    const propertyExpenses = data.expenses.filter((e) => e.propertyId === bienId && e.categorie !== "credit");
-    const loan = data.loans.find((l) => l.propertyId === bienId);
-
-    const loyerMensuel = propertyIncomes
-      .filter((i) => i.categorie === "loyer")
-      .reduce((sum, i) => sum + mensualiserMontant(i.montant, i.frequence), 0);
-    const chargesCopro = propertyExpenses
-      .filter((e) => e.categorie === "copropriete")
-      .reduce((sum, e) => sum + annualiserMontant(e.montant, e.frequence), 0);
-    const taxeFonciere = propertyExpenses
-      .filter((e) => e.categorie === "taxe_fonciere")
-      .reduce((sum, e) => sum + annualiserMontant(e.montant, e.frequence), 0);
-    const assurancePNO = propertyExpenses
-      .filter((e) => e.categorie === "assurance_pno")
-      .reduce((sum, e) => sum + annualiserMontant(e.montant, e.frequence), 0);
-
-    return {
-      ...DEFAULT_CALCULATOR_INPUTS,
-      nomSimulation: property.nom,
-      adresse: property.adresse,
-      prixAchat: property.prixAchat,
-      fraisNotairePct: property.prixAchat > 0 ? property.fraisNotaire / property.prixAchat : 0.08,
-      montantTravaux: property.montantTravaux,
-      loyerMensuel,
-      chargesCopro,
-      taxeFonciere,
-      assurancePNO,
-      regimeFiscal: data.settings.regimeFiscal,
-      ...(loan ? {
-        montantEmprunte: loan.montantEmprunte,
-        tauxCredit: loan.tauxAnnuel,
-        dureeCredit: loan.dureeAnnees,
-        typePret: loan.type,
-        assurancePretAnnuelle: loan.assuranceAnnuelle,
-      } : {}),
-    };
+    const fromBien = bienToSimulation(data, bienId);
+    return fromBien ?? DEFAULT_CALCULATOR_INPUTS;
   }, [bienId, data]);
 
   const [inputs, setInputs] = useState<CalculatorInputs>(initialInputs);
   const [simulations, setSimulations] = useState<SavedSimulation[]>([]);
-  const [activeSimId, setActiveSimId] = useState<string | null>(null);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const loadedBienIdRef = useRef<string | null>(null);
+
+  // The active simulation id lives inside `inputs.id` — this makes saves idempotent:
+  // saving twice in a row overwrites the same record instead of creating duplicates.
+  const activeSimId = inputs.id ?? null;
+  const activeSim = simulations.find((s) => s.id === activeSimId);
+  const activeHistory = activeSim?.history ?? [];
 
   useEffect(() => {
     const sims = loadSimulations();
@@ -170,34 +141,47 @@ function CalculateurContent() {
       const mostRecent = sims.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
       hydrateSimulation(mostRecent).then((hydrated) => {
         setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
-        setActiveSimId(mostRecent.id);
       });
     }
     setInitialLoaded(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load simulation from a bien when bienId changes (after data has loaded)
+  useEffect(() => {
+    if (!bienId || !data) return;
+    if (loadedBienIdRef.current === bienId) return;
+    const fromBien = bienToSimulation(data, bienId);
+    if (fromBien) {
+      setInputs({ ...fromBien, id: undefined });
+      loadedBienIdRef.current = bienId;
+      toast.info(`Bien "${fromBien.nomSimulation}" charge dans le simulateur`);
+    }
+  }, [bienId, data]);
 
   const handleUpdate = useCallback(<K extends keyof CalculatorInputs>(key: K, value: CalculatorInputs[K]) => {
     setInputs(prev => ({ ...prev, [key]: value }));
   }, []);
 
   const handleSave = async () => {
-    const sim = await saveSimulation(inputs.nomSimulation, inputs, activeSimId);
+    const sim = await saveSimulation(inputs.nomSimulation, inputs);
     setSimulations(loadSimulations());
-    setActiveSimId(sim.id);
+    // Persist the assigned id back into the form state so the next save overwrites
+    setInputs(prev => ({ ...prev, id: sim.id }));
     toast.success(`"${sim.nom}" sauvegardee`);
   };
 
   const handleLoad = async (sim: SavedSimulation) => {
     const hydrated = await hydrateSimulation(sim);
     setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
-    setActiveSimId(sim.id);
     setDrawerOpen(false);
   };
 
   const handleDelete = async (sim: SavedSimulation) => {
     await deleteSimulation(sim.id);
     setSimulations(loadSimulations());
-    if (activeSimId === sim.id) setActiveSimId(null);
+    if (inputs.id === sim.id) {
+      setInputs(prev => ({ ...prev, id: undefined }));
+    }
     toast.success(`"${sim.nom}" supprimee`);
   };
 
@@ -232,9 +216,18 @@ function CalculateurContent() {
   };
 
   const handleNew = () => {
-    setInputs(DEFAULT_CALCULATOR_INPUTS);
-    setActiveSimId(null);
+    setInputs({ ...DEFAULT_CALCULATOR_INPUTS, id: undefined });
     setDrawerOpen(false);
+  };
+
+  const handleRestoreSnapshot = async (index: number) => {
+    if (!activeSimId) return;
+    const restored = await restoreSnapshot(activeSimId, index);
+    if (restored) {
+      setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...restored });
+      setHistoryOpen(false);
+      toast.success("Version restauree — sauvegarde pour la conserver");
+    }
   };
 
   const results = calculerRentabilite(inputs);
@@ -295,8 +288,19 @@ function CalculateurContent() {
           </div>
 
           <div className="flex items-center justify-between">
-            <h1 className="text-xl sm:text-2xl">{inputs.nomSimulation || "Calculateur de rentabilite"}</h1>
+            <h1 className="text-xl sm:text-2xl">{inputs.nomSimulation || "Simulateur de rentabilite"}</h1>
             <div className="flex items-center gap-2">
+              {activeSimId && activeHistory.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setHistoryOpen(true)}
+                  className="text-xs shrink-0"
+                  title="Voir les versions precedentes"
+                >
+                  Historique ({activeHistory.length})
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -338,6 +342,12 @@ function CalculateurContent() {
           {/* Results — full width */}
           <CalculatorResultsPanel results={results} associes={data?.settings?.associes} />
 
+          {/* Multi-regime comparison */}
+          <RegimesComparison inputs={inputs} />
+
+          {/* Sensitivity analysis */}
+          <SensitivityChart inputs={inputs} />
+
           {/* Projection chart + table — full width */}
           <ResultsChart
             projection={results.projection}
@@ -365,14 +375,22 @@ function CalculateurContent() {
           </div>
         </div>
       </div>
+
+      <HistoryModal
+        open={historyOpen}
+        simulationNom={activeSim?.nom ?? inputs.nomSimulation}
+        history={activeHistory}
+        onClose={() => setHistoryOpen(false)}
+        onRestore={handleRestoreSnapshot}
+      />
     </>
   );
 }
 
-export default function Calculateur() {
+export default function Simulateur() {
   return (
     <Suspense fallback={<div>Chargement...</div>}>
-      <CalculateurContent />
+      <SimulateurContent />
     </Suspense>
   );
 }

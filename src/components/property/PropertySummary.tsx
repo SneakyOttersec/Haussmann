@@ -2,6 +2,7 @@
 
 import type { Expense, Income, Property } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
+import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { Card, CardContent } from "@/components/ui/card";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
 
@@ -18,10 +19,10 @@ export function PropertySummary({ property, expenses, incomes }: PropertySummary
   );
   const depensesMensuelles = expenses
     .filter((e) => e.categorie !== "credit")
-    .reduce((sum, e) => sum + mensualiserMontant(e.montant, e.frequence), 0);
+    .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
   const creditMensuel = expenses
     .filter((e) => e.categorie === "credit")
-    .reduce((sum, e) => sum + mensualiserMontant(e.montant, e.frequence), 0);
+    .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
 
   const cashFlow = revenuMensuel - depensesMensuelles - creditMensuel;
 
@@ -31,7 +32,7 @@ export function PropertySummary({ property, expenses, incomes }: PropertySummary
   );
   const chargesAnnuelles = expenses
     .filter((e) => e.categorie !== "credit")
-    .reduce((sum, e) => sum + annualiserMontant(e.montant, e.frequence), 0);
+    .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
 
   const coutTotal = coutTotalBien(property);
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);

@@ -76,7 +76,7 @@ export default function Comparateur() {
       <h1>Comparateur de simulations</h1>
 
       {simulations.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Aucune simulation sauvegardee. Sauvegardez des simulations dans le calculateur pour les comparer.</p>
+        <p className="text-sm text-muted-foreground">Aucune simulation sauvegardee. Sauvegardez des simulations dans le simulateur pour les comparer.</p>
       ) : (
         <>
           <div className="space-y-2">

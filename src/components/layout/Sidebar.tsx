@@ -8,13 +8,15 @@ import { exportData, importData } from "@/lib/storage";
 import { toast } from "sonner";
 
 const gestionItems = [
-  { href: "/finances", label: "Finances", icon: "€" },
   { href: "/", label: "Portefeuille", icon: "⌂" },
+  { href: "/finances", label: "Finances", icon: "€" },
+  { href: "/loyers", label: "Loyers", icon: "◷" },
 ];
 
 const outilsItems = [
-  { href: "/calculateur", label: "Calculateur", icon: "⚙" },
+  { href: "/simulateur", label: "Simulateur", icon: "⚙" },
   { href: "/comparateur", label: "Comparateur", icon: "⇔" },
+  { href: "/scenarios", label: "Scenarios", icon: "↗" },
 ];
 
 const configItems = [

@@ -5,6 +5,7 @@ import { useAppData } from "@/hooks/useLocalStorage";
 import type { AppData } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { formatCurrency, mensualiserMontant, annualiserMontant } from "@/lib/utils";
+import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
 import { capitalRestantDu } from "@/lib/calculations/loan";
 import { coutTotalBien } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,11 +57,12 @@ function buildMonthlyCashFlow(data: AppData): MonthlyFinance[] {
       const start = new Date(exp.dateDebut);
       const end = exp.dateFin ? new Date(exp.dateFin) : null;
       if (start > monthEnd || (end && end < d)) continue;
+      const montantEff = getMontantEffectif(exp, d);
       let m = 0;
       if (exp.frequence === "ponctuel") {
-        if (start.getFullYear() === d.getFullYear() && start.getMonth() === d.getMonth()) m = exp.montant;
+        if (start.getFullYear() === d.getFullYear() && start.getMonth() === d.getMonth()) m = montantEff;
       } else {
-        m = mensualiserMontant(exp.montant, exp.frequence);
+        m = mensualiserMontant(montantEff, exp.frequence);
       }
       if (exp.categorie === "credit") credit += m; else depenses += m;
     }
@@ -134,7 +136,7 @@ export default function Finances() {
   const alertActive = seuil > 0 && lastCumul < seuil;
 
   const totalRevenus = data.incomes.reduce((s, i) => s + annualiserMontant(i.montant, i.frequence), 0);
-  const totalDepenses = data.expenses.reduce((s, e) => s + annualiserMontant(e.montant, e.frequence), 0);
+  const totalDepenses = data.expenses.reduce((s, e) => s + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
   const cashFlowAnnuel = totalRevenus - totalDepenses;
 
   return (

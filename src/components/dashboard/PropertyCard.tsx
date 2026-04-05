@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import type { Property, Expense, Income } from "@/types";
+import { useRouter } from "next/navigation";
+import { useMemo } from "react";
+import type { Property, Expense, Income, RentMonthEntry } from "@/types";
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS } from "@/types";
-import { formatCurrency, mensualiserMontant } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
+import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
@@ -11,19 +14,24 @@ interface PropertyCardProps {
   property: Property;
   expenses: Expense[];
   incomes: Income[];
+  rentEntries: RentMonthEntry[];
   onDelete?: (id: string) => void;
 }
 
-export function PropertyCard({ property, expenses, incomes, onDelete }: PropertyCardProps) {
-  const revenuMensuel = incomes.reduce(
-    (sum, i) => sum + mensualiserMontant(i.montant, i.frequence),
-    0
+export function PropertyCard({ property, expenses, incomes, rentEntries, onDelete }: PropertyCardProps) {
+  const router = useRouter();
+
+  const stats = useMemo(() => {
+    const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries);
+    return computeCashflowStats(monthly);
+  }, [property, incomes, expenses, rentEntries]);
+
+  const cfTheorique = useMemo(
+    () => computeTheoreticalMonthlyCashflow(incomes, expenses),
+    [incomes, expenses],
   );
-  const depensesMensuelles = expenses.reduce(
-    (sum, e) => sum + mensualiserMontant(e.montant, e.frequence),
-    0
-  );
-  const cashFlow = revenuMensuel - depensesMensuelles;
+
+  const cfClass = (v: number) => (v >= 0 ? "text-green-600" : "text-destructive");
 
   return (
     <Link href={`/biens?id=${property.id}`}>
@@ -52,22 +60,37 @@ export function PropertyCard({ property, expenses, incomes, onDelete }: Property
             </div>
           </div>
           <p className="text-xs text-muted-foreground mb-3 truncate">{property.adresse}</p>
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-4 gap-2 text-xs mb-3">
             <div>
-              <p className="text-muted-foreground">Revenus</p>
-              <p className="font-bold">{formatCurrency(revenuMensuel)}/m</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF theorique</p>
+              <p className={`font-bold ${cfClass(cfTheorique)}`}>{formatCurrency(cfTheorique)}</p>
+              <p className="text-[9px] text-muted-foreground">/mois</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Depenses</p>
-              <p className="font-bold">{formatCurrency(depensesMensuelles)}/m</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF global</p>
+              <p className={`font-bold ${cfClass(stats.global)}`}>{formatCurrency(stats.global)}</p>
+              <p className="text-[9px] text-muted-foreground">{stats.nbMois} mois</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Cash flow</p>
-              <p className={`font-bold ${cashFlow >= 0 ? "text-green-600" : "text-destructive"}`}>
-                {formatCurrency(cashFlow)}/m
-              </p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Mois dernier</p>
+              <p className={`font-bold ${cfClass(stats.lastMonth)}`}>{formatCurrency(stats.lastMonth)}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">6 derniers</p>
+              <p className={`font-bold ${cfClass(stats.last6Months)}`}>{formatCurrency(stats.last6Months)}</p>
             </div>
           </div>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              router.push(`/loyers?propertyId=${property.id}`);
+            }}
+            className="text-[11px] text-muted-foreground hover:text-primary border-t border-dashed border-muted-foreground/15 pt-2 -mx-4 px-4 transition-colors text-left w-full block"
+          >
+            Suivi des loyers →
+          </button>
         </CardContent>
       </Card>
     </Link>
