@@ -47,12 +47,25 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const rdtBrutTheo = capitalTotal > 0 ? rendementBrut(revenuAnnuelTheo, capitalTotal) : 0;
 
   /* ── Reel : base sur le suivi des loyers (/loyers) ── */
-  // Fixed 12-month window; loyers come from rentTracking, everything else is projected.
-  const last12 = monthsWindow(12);
-  const loyersReels12m = (rentTracking ?? [])
-    .filter((e) => last12.includes(e.yearMonth))
+  // Window = min(12, months since earliest property acquisition).
+  // If the portfolio is younger than 12 months, we extrapolate from the available data.
+  const now = new Date();
+  const acquisitionDates = properties
+    .map((p) => new Date(p.dateAchat))
+    .filter((d) => !isNaN(d.getTime()));
+  const earliestAchat = acquisitionDates.length > 0
+    ? acquisitionDates.reduce((min, d) => (d < min ? d : min))
+    : now;
+  const monthsSinceStart = (now.getFullYear() - earliestAchat.getFullYear()) * 12
+    + (now.getMonth() - earliestAchat.getMonth()) + 1;
+  const effectiveMonths = Math.max(1, Math.min(12, monthsSinceStart));
+  const isExtrapolated = effectiveMonths < 12;
+
+  const windowMonths = monthsWindow(effectiveMonths);
+  const loyersReelsSum = (rentTracking ?? [])
+    .filter((e) => windowMonths.includes(e.yearMonth))
     .reduce((s, e) => s + e.loyerPercu, 0);
-  const loyersReelsMensuel = loyersReels12m / 12;
+  const loyersReelsMensuel = loyersReelsSum / effectiveMonths;
 
   const autresRevenusTheoMensuel = incomes
     .filter((i) => i.categorie !== "loyer")
@@ -62,7 +75,7 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const depensesReelMensuel = depensesTheoMensuel; // non-trackees → identique au theorique
   const cashFlowReelMensuel = revenusReelMensuel - depensesReelMensuel;
   const rdtBrutReel = capitalTotal > 0
-    ? rendementBrut(loyersReels12m + autresRevenusTheoMensuel * 12, capitalTotal)
+    ? rendementBrut((loyersReelsMensuel + autresRevenusTheoMensuel) * 12, capitalTotal)
     : 0;
 
   const Row = ({
@@ -144,13 +157,24 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
       />
 
       {/* Reel */}
-      <Row
-        label="Reel (loyers 12 derniers mois)"
-        revenus={revenusReelMensuel}
-        depenses={depensesReelMensuel}
-        cashFlow={cashFlowReelMensuel}
-        rendement={rdtBrutReel}
-      />
+      <div>
+        <Row
+          label={
+            isExtrapolated
+              ? `Reel (extrapole sur ${effectiveMonths} mois de donnees)`
+              : "Reel (loyers 12 derniers mois)"
+          }
+          revenus={revenusReelMensuel}
+          depenses={depensesReelMensuel}
+          cashFlow={cashFlowReelMensuel}
+          rendement={rdtBrutReel}
+        />
+        {isExtrapolated && (
+          <p className="text-[10px] text-amber-700 mt-1.5 italic">
+            ⚠ Moins de 12 mois d&apos;exploitation — les moyennes mensuelles sont extrapolees sur {effectiveMonths} mois disponibles.
+          </p>
+        )}
+      </div>
 
       {/* Repartition associes */}
       {associes.length > 1 && (
