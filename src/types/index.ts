@@ -217,13 +217,14 @@ export interface Lot {
 
 // --- Rent tracking (month by month) ---
 
-export type RentMonthStatus = 'paye' | 'partiel' | 'impaye' | 'vacant';
+export type RentMonthStatus = 'paye' | 'partiel' | 'impaye' | 'vacant' | 'travaux';
 
 export const RENT_MONTH_STATUS_LABELS: Record<RentMonthStatus, string> = {
   paye: 'Paye',
   partiel: 'Partiel',
   impaye: 'Impaye',
   vacant: 'Vacant',
+  travaux: 'En travaux',
 };
 
 export interface RentMonthEntry {
@@ -505,6 +506,32 @@ export interface AppSettings {
   seuilAlerteTresorerie?: number;
 }
 
+// --- Charge payments (budget vs reel) ---
+
+export type ChargePaymentStatus = 'paye' | 'partiel' | 'en_attente';
+
+export const CHARGE_PAYMENT_STATUS_LABELS: Record<ChargePaymentStatus, string> = {
+  paye: 'Paye',
+  partiel: 'Partiel',
+  en_attente: 'En attente',
+};
+
+export interface ChargePaymentEntry {
+  id: string;
+  /** Linked recurring expense */
+  expenseId: string;
+  propertyId: string;
+  /** "YYYY-MM" for mensuel, "YYYY-Q1".."YYYY-Q4" for trimestriel, "YYYY" for annuel */
+  periode: string;
+  montantAttendu: number;
+  montantPaye: number;
+  statut: ChargePaymentStatus;
+  datePaiement?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AppData {
   properties: Property[];
   expenses: Expense[];
@@ -515,6 +542,7 @@ export interface AppData {
   documents: PropertyDocument[];
   lots: Lot[];
   rentTracking: RentMonthEntry[];
+  chargePayments: ChargePaymentEntry[];
   settings: AppSettings;
 }
 

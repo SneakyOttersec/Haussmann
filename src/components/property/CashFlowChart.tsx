@@ -110,9 +110,13 @@ export function CashFlowChart({ property, incomes, expenses, rentEntries }: Cash
         </span>
         <span>
           6 derniers mois :{" "}
-          <strong className={stats.last6Months >= 0 ? "text-green-600" : "text-destructive"}>
-            {formatCurrency(stats.last6Months)}
-          </strong>
+          {stats.last6Months !== null ? (
+            <strong className={stats.last6Months >= 0 ? "text-green-600" : "text-destructive"}>
+              {formatCurrency(stats.last6Months)}
+            </strong>
+          ) : (
+            <strong className="text-muted-foreground/50">N/A</strong>
+          )}
         </span>
       </div>
       <ResponsiveContainer width="100%" height={280}>

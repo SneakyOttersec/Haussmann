@@ -13,7 +13,8 @@ import { generateId, now } from "@/lib/utils";
 function deriveLotStatus(lotEntries: RentMonthEntry[]): LotStatut | null {
   if (lotEntries.length === 0) return null;
   const sorted = [...lotEntries].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
-  return sorted[0].statut === "vacant" ? "vacant" : "occupe";
+  const latest = sorted[0].statut;
+  return latest === "vacant" || latest === "travaux" ? "vacant" : "occupe";
 }
 
 /**

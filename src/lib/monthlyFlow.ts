@@ -126,17 +126,19 @@ export function buildMonthlyFlow(
 export interface CashflowStats {
   global: number;      // cumulative since exploitation
   lastMonth: number;   // last completed month
-  last6Months: number; // sum of 6 last months
+  last6Months: number | null; // sum of 6 last months, null if < 6 months of data
   nbMois: number;
 }
 
 export function computeCashflowStats(monthlyData: MonthFlowData[]): CashflowStats {
   if (monthlyData.length === 0) {
-    return { global: 0, lastMonth: 0, last6Months: 0, nbMois: 0 };
+    return { global: 0, lastMonth: 0, last6Months: null, nbMois: 0 };
   }
   const global = monthlyData.reduce((s, m) => s + m.cashFlow, 0);
   const lastMonth = monthlyData[monthlyData.length - 1].cashFlow;
-  const last6 = monthlyData.slice(-6).reduce((s, m) => s + m.cashFlow, 0);
+  const last6 = monthlyData.length >= 6
+    ? monthlyData.slice(-6).reduce((s, m) => s + m.cashFlow, 0)
+    : null;
   return { global, lastMonth, last6Months: last6, nbMois: monthlyData.length };
 }
 

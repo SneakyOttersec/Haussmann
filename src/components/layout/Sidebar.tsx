@@ -29,7 +29,7 @@ function useCurrentDate() {
 const gestionItems = [
   { href: "/", label: "Portefeuille", icon: "⌂" },
   { href: "/finances", label: "Finances", icon: "€" },
-  { href: "/loyers", label: "Loyers", icon: "◷" },
+  { href: "/loyers", label: "Loyers & Charges", icon: "◷" },
 ];
 
 const outilsItems = [

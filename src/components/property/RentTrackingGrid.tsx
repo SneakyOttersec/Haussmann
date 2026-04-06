@@ -12,6 +12,8 @@ interface Props {
   propertyId: string;
   lots: Lot[];
   entries: RentMonthEntry[];
+  /** Date d'acquisition / exploitation (YYYY-MM-DD). Cells before this month are locked. */
+  dateExploitation?: string;
   onUpsert: (
     propertyId: string,
     lotId: string,
@@ -43,6 +45,35 @@ function parseMonth(ym: string): { year: number; month: number } {
   return { year: Number(y), month: Number(m) };
 }
 
+/** YYYY-MM for a Date in local time */
+function toYM(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Compute the editable range for rent tracking:
+ * - minYM: max of (M-12) and dateExploitation month
+ * - maxYM: M+1 (next month)
+ */
+function editableRange(dateExploitation?: string): { minYM: string; maxYM: string } {
+  const now = new Date();
+  // M+1
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const maxYM = toYM(nextMonth);
+  // M-12
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  let minYM = toYM(twelveMonthsAgo);
+  // Clamp to dateExploitation if later
+  if (dateExploitation) {
+    const expl = new Date(dateExploitation);
+    if (!isNaN(expl.getTime())) {
+      const explYM = toYM(expl);
+      if (explYM > minYM) minYM = explYM;
+    }
+  }
+  return { minYM, maxYM };
+}
+
 function statusColor(status: RentMonthStatus): { bg: string; border: string; text: string } {
   switch (status) {
     case "paye":
@@ -53,6 +84,8 @@ function statusColor(status: RentMonthStatus): { bg: string; border: string; tex
       return { bg: "bg-destructive/15", border: "border-destructive/40", text: "text-destructive" };
     case "vacant":
       return { bg: "bg-muted", border: "border-muted-foreground/20", text: "text-muted-foreground" };
+    case "travaux":
+      return { bg: "bg-violet-500/15", border: "border-violet-500/40", text: "text-violet-700" };
   }
 }
 
@@ -86,7 +119,7 @@ function CellEditor({
   const [notes, setNotes] = useState(entry?.notes ?? "");
 
   const handleSave = () => {
-    const percu = statut === "vacant" || statut === "impaye" ? 0 : Number(loyerPercu) || 0;
+    const percu = statut === "vacant" || statut === "impaye" || statut === "travaux" ? 0 : Number(loyerPercu) || 0;
     onUpsert(propertyId, lotId, yearMonth, {
       statut,
       loyerAttendu,
@@ -139,7 +172,7 @@ function CellEditor({
       <div>
         <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Statut</label>
         <div className="grid grid-cols-2 gap-1 mt-1">
-          {(["paye", "partiel", "impaye", "vacant"] as RentMonthStatus[]).map((s) => {
+          {(["paye", "partiel", "impaye", "vacant", "travaux"] as RentMonthStatus[]).map((s) => {
             const c = statusColor(s);
             const active = statut === s;
             return (
@@ -203,12 +236,12 @@ interface CellProps {
   lot: Lot;
   yearMonth: string;
   entry: RentMonthEntry | undefined;
-  isFuture: boolean;
+  isLocked: boolean;
   onUpsert: Props["onUpsert"];
   onDelete: Props["onDelete"];
 }
 
-function Cell({ propertyId, lot, yearMonth, entry, isFuture, onUpsert, onDelete }: CellProps) {
+function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete }: CellProps) {
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -224,7 +257,7 @@ function Cell({ propertyId, lot, yearMonth, entry, isFuture, onUpsert, onDelete 
     };
   }, [anchorRect]);
 
-  if (isFuture) {
+  if (isLocked) {
     return (
       <td className="border border-dashed border-muted-foreground/10 p-0">
         <div className="h-10 w-full bg-muted/20" />
@@ -278,10 +311,12 @@ function Cell({ propertyId, lot, yearMonth, entry, isFuture, onUpsert, onDelete 
   );
 }
 
-export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete }: Props) {
+export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, onUpsert, onDelete }: Props) {
   const [monthCount, setMonthCount] = useState(12);
   const months = useMemo(() => monthsWindow(monthCount), [monthCount]);
-  const currentYM = months[months.length - 1];
+  const now = new Date();
+  const currentYM = toYM(now);
+  const { minYM, maxYM } = useMemo(() => editableRange(dateExploitation), [dateExploitation]);
 
   // Compute KPIs across displayed window — excluding future months (beyond current month)
   const kpis = useMemo(() => {
@@ -296,7 +331,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete
     const moisOccupes = windowEntries.filter((e) => e.statut === "paye" || e.statut === "partiel").length;
     const totalMoisLots = lots.length * pastMonths.length;
     // Unrecorded months count as occupied; only explicit "vacant" reduces the rate.
-    const moisVacants = windowEntries.filter((e) => e.statut === "vacant").length;
+    const moisVacants = windowEntries.filter((e) => e.statut === "vacant" || e.statut === "travaux").length;
     const tauxOccupation = totalMoisLots > 0
       ? ((totalMoisLots - moisVacants) / totalMoisLots) * 100
       : 0;
@@ -389,7 +424,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete
                 </td>
                 {months.map((ym) => {
                   const entry = entries.find((e) => e.lotId === lot.id && e.yearMonth === ym);
-                  const isFuture = ym > currentYM;
+                  const isLocked = ym < minYM || ym > maxYM;
                   return (
                     <Cell
                       key={ym}
@@ -397,7 +432,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete
                       lot={lot}
                       yearMonth={ym}
                       entry={entry}
-                      isFuture={isFuture}
+                      isLocked={isLocked}
                       onUpsert={onUpsert}
                       onDelete={onDelete}
                     />
@@ -411,7 +446,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, onUpsert, onDelete
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-        {(["paye", "partiel", "impaye", "vacant"] as RentMonthStatus[]).map((s) => {
+        {(["paye", "partiel", "impaye", "vacant", "travaux"] as RentMonthStatus[]).map((s) => {
           const c = statusColor(s);
           return (
             <div key={s} className="flex items-center gap-1.5">

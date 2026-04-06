@@ -77,7 +77,11 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, onDelet
             </div>
             <div>
               <p className="text-muted-foreground text-[10px] uppercase tracking-wider">6 derniers</p>
-              <p className={`font-bold ${cfClass(stats.last6Months)}`}>{formatCurrency(stats.last6Months)}</p>
+              {stats.last6Months !== null ? (
+                <p className={`font-bold ${cfClass(stats.last6Months)}`}>{formatCurrency(stats.last6Months)}</p>
+              ) : (
+                <p className="font-bold text-muted-foreground/50">N/A</p>
+              )}
             </div>
           </div>
           <button
