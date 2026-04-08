@@ -3,7 +3,7 @@
 import { useState, useRef } from "react";
 import type { Intervention, InterventionStatut } from "@/types";
 import { INTERVENTION_STATUT_LABELS } from "@/types";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, checkFileSize } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,8 +29,7 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert("Max 5 Mo"); return; }
+    if (!file || !checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => {
       onUpdate(i.id, {

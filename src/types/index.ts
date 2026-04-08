@@ -516,6 +516,7 @@ export interface AppSettings {
   nomSCI: string;
   associes: Associe[];
   seuilAlerteTresorerie?: number;
+  googleClientId?: string;
 }
 
 // --- Charge payments (budget vs reel) ---

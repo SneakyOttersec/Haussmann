@@ -113,6 +113,8 @@ export default function Dashboard() {
           </Link>
         </div>
       ) : (
+        <div className="space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mes biens ({properties.filter(p => !p.deletedAt).length})</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {properties.map((property) => (
             <PropertyCard
@@ -124,6 +126,7 @@ export default function Dashboard() {
               onDelete={handleDeleteRequest}
             />
           ))}
+        </div>
         </div>
       )}
     </div>

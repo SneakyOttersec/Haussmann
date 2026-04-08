@@ -3,6 +3,7 @@
 import type { CalculatorInputs, TaxRegime, LoanType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
+import { checkFileSize } from "@/lib/utils";
 import { Label } from "@/components/ui/label";
 import { useRef, useState } from "react";
 
@@ -123,7 +124,7 @@ function PhotoUpload({ photo, onChange }: { photo: string; onChange: (v: string)
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert("Photo trop lourde (max 5 Mo)"); return; }
+    if (!checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => onChange(reader.result as string);
     reader.readAsDataURL(file);

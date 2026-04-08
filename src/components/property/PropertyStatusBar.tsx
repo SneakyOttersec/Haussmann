@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import type { PropertyStatus, StatusDocument } from "@/types";
 import { PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
+import { checkFileSize } from "@/lib/utils";
 
 interface PropertyStatusBarProps {
   statut: PropertyStatus;
@@ -12,8 +13,6 @@ interface PropertyStatusBarProps {
   onDateChange?: (s: PropertyStatus, date: string) => void;
   onDocChange?: (s: PropertyStatus, doc: StatusDocument | null) => void;
 }
-
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`;
@@ -32,10 +31,7 @@ function DocCell({ status, doc, isActive, onDocChange }: {
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !onDocChange) return;
-    if (file.size > MAX_FILE_SIZE) {
-      alert("Fichier trop volumineux (max 5 Mo)");
-      return;
-    }
+    if (!checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => {
       onDocChange(status, {

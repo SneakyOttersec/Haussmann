@@ -57,3 +57,18 @@ export function now(): string {
 export function coutTotalBien(p: { prixAchat: number; fraisNotaire: number; fraisAgence?: number; fraisDossier?: number; fraisCourtage?: number; montantTravaux: number; montantMobilier?: number }): number {
   return p.prixAchat + p.fraisNotaire + (p.fraisAgence ?? 0) + (p.fraisDossier ?? 0) + (p.fraisCourtage ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
 }
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
+
+/** Returns true if file is within size limit. Shows a toast and returns false otherwise. */
+export function checkFileSize(file: File): boolean {
+  if (file.size <= MAX_FILE_SIZE) return true;
+  const sizeMo = (file.size / (1024 * 1024)).toFixed(1);
+  // Dynamic import to avoid pulling sonner into non-UI code
+  import('sonner').then(({ toast }) => {
+    toast.error(`Fichier trop volumineux (${sizeMo} Mo)`, {
+      description: `La limite est de ${MAX_FILE_SIZE / (1024 * 1024)} Mo. Reduisez la taille du fichier.`,
+    });
+  });
+  return false;
+}

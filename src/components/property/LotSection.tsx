@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Lot, LotStatut, RentHistoryEntry } from "@/types";
+import type { Lot, LotStatut, RentHistoryEntry, PropertyStatus } from "@/types";
+import { PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency, generateId } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,10 +16,19 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
   propertyId: string;
+  propertyStatut?: PropertyStatus;
 }
 
-function LotRow({ lot: l, onUpdate, onDelete }: {
+function isEnLocation(statut?: PropertyStatus): boolean {
+  if (!statut) return true;
+  const idx = PROPERTY_STATUS_ORDER.indexOf(statut);
+  const locIdx = PROPERTY_STATUS_ORDER.indexOf("location");
+  return idx >= locIdx;
+}
+
+function LotRow({ lot: l, onUpdate, onDelete, enLocation }: {
   lot: Lot;
+  enLocation: boolean;
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
 }) {
@@ -58,14 +68,18 @@ function LotRow({ lot: l, onUpdate, onDelete }: {
           </button>
           {l.etage && <span className="text-xs text-muted-foreground">{l.etage}</span>}
           {l.surface ? <span className="text-xs text-muted-foreground">{l.surface} m²</span> : null}
-          <button
-            onClick={() => onUpdate(l.id, { statut: l.statut === "occupe" ? "vacant" : "occupe" })}
-            className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-colors ${
-              l.statut === "occupe" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-            }`}
-          >
-            {l.statut === "occupe" ? "Occupe" : "Vacant"}
-          </button>
+          {enLocation ? (
+            <button
+              onClick={() => onUpdate(l.id, { statut: l.statut === "occupe" ? "vacant" : "occupe" })}
+              className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-colors ${
+                l.statut === "occupe" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
+              }`}
+            >
+              {l.statut === "occupe" ? "Occupe" : "Vacant"}
+            </button>
+          ) : (
+            <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-muted text-muted-foreground">N/A</span>
+          )}
           <span className="flex-1" />
           <span className="font-medium tabular-nums shrink-0">{formatCurrency(l.loyerMensuel)}/m</span>
           {history.length > 1 && (
@@ -135,7 +149,8 @@ function LotRow({ lot: l, onUpdate, onDelete }: {
   );
 }
 
-export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId }: Props) {
+export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut }: Props) {
+  const enLocation = isEnLocation(propertyStatut);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut });
 
@@ -208,11 +223,14 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId }: Prop
           <>
             <div className="flex gap-4 text-[11px] text-muted-foreground mb-3">
               <span>Loyer total : <strong className="text-foreground">{formatCurrency(totalLoyer)}/mois</strong></span>
-              <span>Occupation : <strong className={occupes === lots.length ? "text-green-600" : "text-foreground"}>{tauxOccupation}% ({occupes}/{lots.length})</strong></span>
+              <span>Occupation : {enLocation
+                ? <strong className={occupes === lots.length ? "text-green-600" : "text-foreground"}>{tauxOccupation}% ({occupes}/{lots.length})</strong>
+                : <strong className="text-muted-foreground">N/A</strong>
+              }</span>
             </div>
             <div>
               {lots.map((l) => (
-                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} />
+                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} />
               ))}
             </div>
           </>

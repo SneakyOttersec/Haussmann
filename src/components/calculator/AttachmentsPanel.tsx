@@ -2,9 +2,7 @@
 
 import { useRef } from "react";
 import type { Attachment } from "@/types";
-import { toast } from "sonner";
-
-const MAX_FILE_SIZE = 30 * 1024 * 1024; // 30 MB per file
+import { checkFileSize } from "@/lib/utils";
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} o`;
@@ -41,11 +39,7 @@ export function AttachmentsPanel({ attachments, onChange }: AttachmentsPanelProp
     if (!files) return;
 
     Array.from(files).forEach((file) => {
-      if (file.size > MAX_FILE_SIZE) {
-        toast.error(`"${file.name}" depasse 30 Mo`);
-        return;
-      }
-
+      if (!checkFileSize(file)) return;
       const reader = new FileReader();
       reader.onload = () => {
         const attachment: Attachment = {

@@ -2,19 +2,19 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { AppData } from "@/types";
-import { loadData, saveData } from "@/lib/storage";
+import { loadDataWithBlobs, saveData } from "@/lib/storage";
 
 export function useAppData() {
   const [data, setDataState] = useState<AppData | null>(null);
 
   useEffect(() => {
-    setDataState(loadData());
+    loadDataWithBlobs().then(setDataState);
   }, []);
 
   const setData = useCallback((updater: AppData | ((prev: AppData) => AppData)) => {
     setDataState((prev) => {
-      const current = prev ?? loadData();
-      const next = typeof updater === "function" ? updater(current) : updater;
+      if (!prev) return prev;
+      const next = typeof updater === "function" ? updater(prev) : updater;
       saveData(next);
       return next;
     });

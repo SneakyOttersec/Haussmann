@@ -1,10 +1,18 @@
 "use client";
 
-import type { AppData } from "@/types";
+import type { AppData, PropertyStatus } from "@/types";
+import { PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { rendementBrut } from "@/lib/calculations/rendement";
 import { Card, CardContent } from "@/components/ui/card";
+
+const PRE_ACTE: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
+
+function isActive(statut?: PropertyStatus): boolean {
+  if (!statut) return true;
+  return !PRE_ACTE.includes(statut);
+}
 
 interface PortfolioSummaryProps {
   data: AppData;
@@ -23,8 +31,16 @@ function monthsWindow(count: number): string[] {
 }
 
 export function PortfolioSummary({ data }: PortfolioSummaryProps) {
-  const { properties, expenses, incomes, loans, rentTracking, settings } = data;
+  const { settings } = data;
   const associes = settings.associes ?? [];
+
+  // Only include post-acte properties in financial summaries
+  const activeIds = new Set(data.properties.filter(p => !p.deletedAt && isActive(p.statut)).map(p => p.id));
+  const properties = data.properties.filter(p => activeIds.has(p.id));
+  const expenses = data.expenses.filter(e => activeIds.has(e.propertyId));
+  const incomes = data.incomes.filter(i => activeIds.has(i.propertyId));
+  const loans = data.loans.filter(l => activeIds.has(l.propertyId));
+  const rentTracking = (data.rentTracking ?? []).filter(r => activeIds.has(r.propertyId));
 
   const capitalTotal = properties.reduce((sum, p) => sum + coutTotalBien(p), 0);
   const totalEmprunte = loans.reduce((sum, l) => sum + l.montantEmprunte, 0);
@@ -130,7 +146,7 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
 
   return (
     <div className="space-y-4">
-      {/* Capital + apport */}
+      {/* Capital + apport + associes */}
       <div className="grid grid-cols-2 gap-3">
         <Card className="border-dotted">
           <CardContent className="p-3">
@@ -142,6 +158,16 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
           <CardContent className="p-3">
             <p className="text-[11px] text-muted-foreground">Apport global</p>
             <p className="text-lg font-bold">{formatCurrency(apportGlobal)}</p>
+            {associes.length > 1 && (
+              <div className="mt-1.5 pt-1.5 border-t border-dashed border-muted-foreground/15 space-y-0.5">
+                {associes.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground">{a.nom} ({a.quotePart}%)</span>
+                    <span className="tabular-nums">{formatCurrency(apportGlobal * a.quotePart / 100)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -175,29 +201,6 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
           </p>
         )}
       </div>
-
-      {/* Repartition associes */}
-      {associes.length > 1 && (
-        <Card className="border-dotted">
-          <CardContent className="p-4">
-            <div className="flex items-baseline justify-between mb-2">
-              <p className="text-xs text-muted-foreground">Repartition associes</p>
-            </div>
-            <div className="space-y-1 border-t border-dashed border-muted-foreground/15 pt-2">
-              {associes.map((a) => (
-                <div key={a.id} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">
-                    {a.nom} <span className="text-[10px]">({a.quotePart}%)</span>
-                  </span>
-                  <span className="font-medium tabular-nums">
-                    {formatCurrency(apportGlobal * a.quotePart / 100)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

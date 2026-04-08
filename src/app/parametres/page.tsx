@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { useProperties } from "@/hooks/useProperties";
 import { Input } from "@/components/ui/input";
@@ -7,11 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { Associe } from "@/types";
 import { generateId } from "@/lib/utils";
+import { importData, saveData } from "@/lib/storage";
+import { signIn, saveToGDrive, loadFromGDrive, isSignedIn } from "@/lib/gdrive";
 
 export default function Parametres() {
   const { data, setData } = useAppData();
 
   const { deletedProperties, restoreProperty, permanentlyDeleteProperty } = useProperties(data, setData);
+
+  const [driveStatus, setDriveStatus] = useState<'idle' | 'saving' | 'loading' | 'success' | 'error'>('idle');
+  const [driveMessage, setDriveMessage] = useState('');
+  const [lastSyncDate, setLastSyncDate] = useState<string | null>(null);
 
   if (!data) return null;
 
@@ -133,6 +140,96 @@ export default function Parametres() {
           <p className="text-xs text-muted-foreground">Alerte affichee sur la page Finances si le cash flow cumule passe sous ce seuil.</p>
         </div>
       </section>
+      {/* Google Drive sync */}
+      <section className="border border-dotted rounded-lg p-5 space-y-4">
+        <h2 className="text-xs font-bold uppercase tracking-wider">Sauvegarde Google Drive</h2>
+
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">Google OAuth Client ID</Label>
+          <Input
+            value={settings.googleClientId ?? ""}
+            onChange={(e) => updateSettings({ googleClientId: e.target.value })}
+            placeholder="123456789-xxxx.apps.googleusercontent.com"
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Creer un projet sur{" "}
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              Google Cloud Console
+            </a>
+            {" "}→ activer Drive API → creer un ID client OAuth (type Web, origine autorisee : <code className="text-[10px] bg-muted px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}</code>).
+          </p>
+        </div>
+
+        {settings.googleClientId && (
+          <div className="space-y-3 pt-2 border-t border-dashed border-muted-foreground/15">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={driveStatus === 'saving' || driveStatus === 'loading'}
+                onClick={async () => {
+                  try {
+                    setDriveStatus('saving');
+                    setDriveMessage('');
+                    if (!isSignedIn()) await signIn(settings.googleClientId!);
+                    const { savedAt, docsUploaded } = await saveToGDrive(data);
+                    setLastSyncDate(savedAt);
+                    setDriveStatus('success');
+                    setDriveMessage(`Sauvegarde reussie — ${docsUploaded} document${docsUploaded > 1 ? 's' : ''} synchronise${docsUploaded > 1 ? 's' : ''}`);
+                  } catch (err) {
+                    setDriveStatus('error');
+                    setDriveMessage(err instanceof Error ? err.message : 'Erreur inconnue');
+                  }
+                }}
+              >
+                {driveStatus === 'saving' ? 'Sauvegarde...' : 'Sauvegarder sur Drive'}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1"
+                disabled={driveStatus === 'saving' || driveStatus === 'loading'}
+                onClick={async () => {
+                  try {
+                    setDriveStatus('loading');
+                    setDriveMessage('');
+                    if (!isSignedIn()) await signIn(settings.googleClientId!);
+                    const restored = await loadFromGDrive();
+                    saveData(restored);
+                    setData(() => restored);
+                    setDriveStatus('success');
+                    setDriveMessage('Restauration reussie (donnees + documents)');
+                  } catch (err) {
+                    setDriveStatus('error');
+                    setDriveMessage(err instanceof Error ? err.message : 'Erreur inconnue');
+                  }
+                }}
+              >
+                {driveStatus === 'loading' ? 'Restauration...' : 'Restaurer depuis Drive'}
+              </Button>
+            </div>
+
+            {driveMessage && (
+              <p className={`text-xs ${driveStatus === 'error' ? 'text-destructive' : 'text-green-600'}`}>
+                {driveMessage}
+              </p>
+            )}
+
+            {lastSyncDate && driveStatus !== 'error' && (
+              <p className="text-[10px] text-muted-foreground">
+                Derniere sync : {new Date(lastSyncDate).toLocaleString('fr-FR')}
+              </p>
+            )}
+
+            <p className="text-[10px] text-muted-foreground">
+              Les donnees sont stockees dans un dossier &quot;Haussmann&quot; sur votre Google Drive personnel.
+            </p>
+          </div>
+        )}
+      </section>
+
       {/* Corbeille */}
       {deletedProperties.length > 0 && (
         <section className="border border-dotted rounded-lg p-5 space-y-4">

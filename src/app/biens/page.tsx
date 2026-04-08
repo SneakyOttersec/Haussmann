@@ -14,7 +14,8 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { useLots } from "@/hooks/useLots";
 import { PROPERTY_TYPE_LABELS } from "@/types";
 import type { PropertyStatus, Property, LoanDetails, AllocationCredit } from "@/types";
-import { formatCurrency } from "@/lib/utils";
+import { PROPERTY_STATUS_ORDER } from "@/types";
+import { formatCurrency, checkFileSize } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import { PropertyStatusBar } from "@/components/property/PropertyStatusBar";
@@ -51,8 +52,7 @@ function LoanExtras({ loan, onUpdate }: {
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) { alert("Max 5 Mo"); return; }
+    if (!file || !checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => {
       const newDoc: LoanPJ = {
@@ -226,6 +226,14 @@ function AllocationSection({ loan, property, onSave }: {
       </Dialog>
     </>
   );
+}
+
+/** Property is past the "acte" phase — financial data is meaningful */
+function isPostActe(statut?: PropertyStatus): boolean {
+  if (!statut) return true; // backward compat
+  const idx = PROPERTY_STATUS_ORDER.indexOf(statut);
+  const acteIdx = PROPERTY_STATUS_ORDER.indexOf("acte");
+  return idx >= acteIdx;
 }
 
 function PropertyDetailContent() {
@@ -555,21 +563,23 @@ function PropertyDetailContent() {
 
       {/* Lots */}
       <section>
-        <LotSection lots={lots} onAdd={handleAddLot} onUpdate={handleUpdateLot} onDelete={handleDeleteLot} propertyId={id} />
+        <LotSection lots={lots} onAdd={handleAddLot} onUpdate={handleUpdateLot} onDelete={handleDeleteLot} propertyId={id} propertyStatut={property.statut} />
       </section>
 
 
-      {/* Flux mensuels */}
-      <section>
-        <Card className="border-dotted">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} />
-          </CardContent>
-        </Card>
-      </section>
+      {/* Flux mensuels — only for post-acte properties */}
+      {isPostActe(property.statut) && (
+        <section>
+          <Card className="border-dotted">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} />
+            </CardContent>
+          </Card>
+        </section>
+      )}
 
       {/* Reel vs Simule */}
       {property.simulationId && (

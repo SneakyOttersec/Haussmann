@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import type { PropertyDocument, DocumentCategory } from "@/types";
 import { DOCUMENT_CATEGORY_LABELS } from "@/types";
+import { checkFileSize } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -25,11 +26,7 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId }: Prop
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      alert("Fichier trop volumineux (max 5 Mo)");
-      return;
-    }
+    if (!file || !checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => {
       onAdd({
