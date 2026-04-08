@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Contact, ContactRole } from "@/types";
 import { CONTACT_ROLE_LABELS } from "@/types";
+import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -43,7 +44,7 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
         </button>
         {c.telephone && <span className="text-xs text-muted-foreground">{c.telephone}</span>}
         {c.email && <span className="text-xs text-muted-foreground truncate max-w-[180px]">{c.email}</span>}
-        <button onClick={() => onDelete(c.id)} className="text-destructive text-sm hover:opacity-70 shrink-0">×</button>
+        <ConfirmDelete label={c.nom} onConfirm={() => onDelete(c.id)} />
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>

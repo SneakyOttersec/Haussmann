@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { Intervention, InterventionStatut } from "@/types";
+import type { Intervention, InterventionStatut, InterventionType, Lot } from "@/types";
 import { INTERVENTION_STATUT_LABELS } from "@/types";
 import { formatCurrency, checkFileSize } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ConfirmDelete } from "@/components/ui/confirm-delete";
 
 interface Props {
   interventions: Intervention[];
@@ -16,16 +17,44 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Intervention>) => void;
   onDelete: (id: string) => void;
   propertyId: string;
+  filterType: InterventionType;
+  lots?: Lot[];
 }
 
-function InterventionRow({ intervention: i, onUpdate, onDelete }: {
+function LotSelect({ value, onChange, lots }: { value: string; onChange: (v: string) => void; lots: Lot[] }) {
+  if (lots.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs uppercase tracking-wider text-muted-foreground">Lot</Label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+      >
+        <option value="">Bien entier</option>
+        {lots.map((l) => (
+          <option key={l.id} value={l.id}>{l.nom}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes }: {
   intervention: Intervention;
   onUpdate: (id: string, updates: Partial<Intervention>) => void;
   onDelete: (id: string) => void;
+  lots: Lot[];
+  showNotes: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [edit, setEdit] = useState({ description: i.description, prestataire: i.prestataire, montant: i.montant, date: i.date, statut: i.statut });
+  const [edit, setEdit] = useState({
+    description: i.description, prestataire: i.prestataire, montant: i.montant,
+    date: i.date, statut: i.statut, lotId: i.lotId ?? "", notes: i.notes ?? "",
+  });
+
+  const lotName = i.lotId ? lots.find(l => l.id === i.lotId)?.nom : null;
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -50,7 +79,7 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
 
   const handleEditSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate(i.id, edit);
+    onUpdate(i.id, { ...edit, lotId: edit.lotId || undefined, notes: edit.notes || undefined });
     setEditOpen(false);
   };
 
@@ -73,10 +102,11 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
           </button>
           <button
             className="flex-1 truncate text-left hover:text-primary transition-colors cursor-pointer"
-            onClick={() => { setEdit({ description: i.description, prestataire: i.prestataire, montant: i.montant, date: i.date, statut: i.statut }); setEditOpen(true); }}
+            onClick={() => { setEdit({ description: i.description, prestataire: i.prestataire, montant: i.montant, date: i.date, statut: i.statut, lotId: i.lotId ?? "", notes: i.notes ?? "" }); setEditOpen(true); }}
           >
             {i.description}
           </button>
+          {lotName && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{lotName}</span>}
           {i.prestataire && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{i.prestataire}</span>}
           <span className="font-medium tabular-nums shrink-0">{formatCurrency(i.montant)}</span>
           <div className="flex items-center gap-1.5 shrink-0">
@@ -87,7 +117,7 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
             >
               {i.pieceJointe ? "📎" : "＋📎"}
             </button>
-            <button onClick={() => onDelete(i.id)} className="text-destructive text-sm hover:opacity-70">×</button>
+            <ConfirmDelete label={i.description} onConfirm={() => onDelete(i.id)} />
           </div>
         </div>
         {i.pieceJointe && (
@@ -97,13 +127,16 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
             <button onClick={() => onUpdate(i.id, { pieceJointe: undefined })} className="text-[10px] text-destructive hover:opacity-70">×</button>
           </div>
         )}
+        {showNotes && i.notes && (
+          <p className="text-[11px] text-muted-foreground mt-1 ml-[calc(5rem+0.75rem)] italic">{i.notes}</p>
+        )}
         <input ref={fileRef} type="file" onChange={handleFile} className="hidden" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" />
       </div>
 
       {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Modifier l&apos;intervention</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Modifier</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSave} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Description</Label>
@@ -116,7 +149,7 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
               </div>
               <div className="space-y-2">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Montant (EUR)</Label>
-                <Input type="number" min={0} value={edit.montant || ""} onChange={(e) => setEdit({ ...edit, montant: Number(e.target.value) })} required />
+                <Input type="number" min={0} step="0.01" value={edit.montant || ""} onChange={(e) => setEdit({ ...edit, montant: Number(e.target.value) })} required />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -135,6 +168,18 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
                 </div>
               </div>
             </div>
+            <LotSelect value={edit.lotId} onChange={(v) => setEdit({ ...edit, lotId: v })} lots={lots} />
+            {showNotes && (
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
+                <textarea
+                  value={edit.notes}
+                  onChange={(e) => setEdit({ ...edit, notes: e.target.value })}
+                  className="w-full min-h-[60px] rounded-md border border-input bg-transparent px-3 py-2 text-sm resize-y"
+                  placeholder="Details, suivi, remarques..."
+                />
+              </div>
+            )}
             <Button type="submit" className="w-full">Enregistrer</Button>
           </form>
         </DialogContent>
@@ -143,32 +188,57 @@ function InterventionRow({ intervention: i, onUpdate, onDelete }: {
   );
 }
 
-export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, propertyId }: Props) {
+const SECTION_LABELS: Record<InterventionType, { title: string; addLabel: string; addPlaceholder: string; emptyLabel: string }> = {
+  travaux: {
+    title: "Travaux",
+    addLabel: "+ Travaux",
+    addPlaceholder: "Ex: Refection toiture",
+    emptyLabel: "Aucun travaux enregistre.",
+  },
+  intervention: {
+    title: "Interventions",
+    addLabel: "+ Intervention",
+    addPlaceholder: "Ex: Reparation fuite",
+    emptyLabel: "Aucune intervention enregistree.",
+  },
+};
+
+export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, propertyId, filterType, lots = [] }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" as InterventionStatut });
+  const [form, setForm] = useState({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" as InterventionStatut, lotId: "", notes: "" });
+  const labels = SECTION_LABELS[filterType];
+  const showNotes = filterType === "travaux";
+
+  const filtered = interventions.filter(i => (i.interventionType ?? "intervention") === filterType);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({ ...form, propertyId });
+    onAdd({
+      ...form,
+      propertyId,
+      interventionType: filterType,
+      lotId: form.lotId || undefined,
+      notes: showNotes && form.notes ? form.notes : undefined,
+    });
     setOpen(false);
-    setForm({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" });
+    setForm({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie", lotId: "", notes: "" });
   };
 
-  const totalDepense = interventions.filter(i => i.statut === "termine").reduce((s, i) => s + i.montant, 0);
-  const totalPlanifie = interventions.filter(i => i.statut !== "termine").reduce((s, i) => s + i.montant, 0);
+  const totalDepense = filtered.filter(i => i.statut === "termine").reduce((s, i) => s + i.montant, 0);
+  const totalPlanifie = filtered.filter(i => i.statut !== "termine").reduce((s, i) => s + i.montant, 0);
 
   return (
     <Card className="border-dotted">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base">Travaux & Interventions</CardTitle>
+        <CardTitle className="text-base">{labels.title}</CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger render={<Button variant="outline" size="sm" />}>+ Intervention</DialogTrigger>
+          <DialogTrigger render={<Button variant="outline" size="sm" />}>{labels.addLabel}</DialogTrigger>
           <DialogContent>
-            <DialogHeader><DialogTitle>Ajouter une intervention</DialogTitle></DialogHeader>
+            <DialogHeader><DialogTitle>Ajouter — {labels.title}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Description</Label>
-                <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required placeholder="Ex: Refection toiture" />
+                <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required placeholder={labels.addPlaceholder} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -177,7 +247,7 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Montant (EUR)</Label>
-                  <Input type="number" min={0} value={form.montant || ""} onChange={(e) => setForm({ ...form, montant: Number(e.target.value) })} required />
+                  <Input type="number" min={0} step="0.01" value={form.montant || ""} onChange={(e) => setForm({ ...form, montant: Number(e.target.value) })} required />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -196,14 +266,26 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
                   </div>
                 </div>
               </div>
+              <LotSelect value={form.lotId} onChange={(v) => setForm({ ...form, lotId: v })} lots={lots} />
+              {showNotes && (
+                <div className="space-y-2">
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
+                  <textarea
+                    value={form.notes}
+                    onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                    className="w-full min-h-[60px] rounded-md border border-input bg-transparent px-3 py-2 text-sm resize-y"
+                    placeholder="Details, suivi, remarques..."
+                  />
+                </div>
+              )}
               <Button type="submit" className="w-full">Ajouter</Button>
             </form>
           </DialogContent>
         </Dialog>
       </CardHeader>
       <CardContent>
-        {interventions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune intervention enregistree.</p>
+        {filtered.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{labels.emptyLabel}</p>
         ) : (
           <>
             <div className="flex gap-4 text-[11px] text-muted-foreground mb-3">
@@ -211,8 +293,8 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
               <span>Planifie : <strong className="text-foreground">{formatCurrency(totalPlanifie)}</strong></span>
             </div>
             <div>
-              {interventions.sort((a, b) => b.date.localeCompare(a.date)).map((i) => (
-                <InterventionRow key={i.id} intervention={i} onUpdate={onUpdate} onDelete={onDelete} />
+              {filtered.sort((a, b) => b.date.localeCompare(a.date)).map((i) => (
+                <InterventionRow key={i.id} intervention={i} onUpdate={onUpdate} onDelete={onDelete} lots={lots} showNotes={showNotes} />
               ))}
             </div>
           </>

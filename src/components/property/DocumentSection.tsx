@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { PropertyDocument, DocumentCategory } from "@/types";
 import { DOCUMENT_CATEGORY_LABELS } from "@/types";
 import { checkFileSize } from "@/lib/utils";
+import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -77,7 +78,7 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId }: Prop
                 <button onClick={() => download(doc)} className="flex-1 text-left text-primary hover:underline truncate">{doc.nom}</button>
                 <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.taille)}</span>
                 <span className="text-xs text-muted-foreground shrink-0">{doc.ajouteLe}</span>
-                <button onClick={() => onDelete(doc.id)} className="text-destructive text-sm hover:opacity-70 shrink-0">×</button>
+                <ConfirmDelete label={doc.nom} onConfirm={() => onDelete(doc.id)} />
               </div>
             ))}
           </div>

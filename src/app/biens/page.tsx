@@ -339,34 +339,41 @@ function PropertyDetailContent() {
     }
   };
 
-  // Intervention → Document sync: when a PJ is attached, also add it to Documents
+  // Intervention → Document sync: when a PJ is attached, mirror it in Documents
   const handleUpdateIntervention = (intId: string, updates: Parameters<typeof updateIntervention>[1]) => {
     updateIntervention(intId, updates);
     if (updates.pieceJointe) {
       const intervention = interventions.find((i) => i.id === intId);
-      const label = intervention ? intervention.description : "Intervention";
+      const label = intervention?.description ?? "Intervention";
+      const typeLabel = (intervention?.interventionType ?? "intervention") === "travaux" ? "Travaux" : "Intervention";
       // Remove old linked doc if replacing
-      const oldDoc = documents.find((d) => d.nom.startsWith(`[Travaux] `) && d.nom.includes(label));
+      const oldDoc = documents.find((d) => d.linkedInterventionId === intId);
       if (oldDoc) deleteDocument(oldDoc.id);
-      // Add new doc
+      // Add new linked doc
       addDocument({
         propertyId: id,
-        nom: `[Travaux] ${label} — ${updates.pieceJointe.nom}`,
+        nom: `[${typeLabel}] ${label} — ${updates.pieceJointe.nom}`,
         categorie: "devis",
         data: updates.pieceJointe.data,
         type: updates.pieceJointe.type,
         taille: updates.pieceJointe.taille,
         ajouteLe: new Date().toISOString().slice(0, 10),
+        linkedInterventionId: intId,
       });
     }
     if (updates.pieceJointe === undefined) {
       // PJ removed — remove linked doc
-      const intervention = interventions.find((i) => i.id === intId);
-      if (intervention) {
-        const linkedDoc = documents.find((d) => d.nom.startsWith(`[Travaux] `) && d.nom.includes(intervention.description));
-        if (linkedDoc) deleteDocument(linkedDoc.id);
-      }
+      const linkedDoc = documents.find((d) => d.linkedInterventionId === intId);
+      if (linkedDoc) deleteDocument(linkedDoc.id);
     }
+  };
+
+  const handleDeleteDocument = (docId: string) => {
+    const doc = documents.find((d) => d.id === docId);
+    if (doc?.linkedInterventionId) {
+      updateIntervention(doc.linkedInterventionId, { pieceJointe: undefined });
+    }
+    deleteDocument(docId);
   };
 
   const handleDelete = () => {
@@ -590,9 +597,14 @@ function PropertyDetailContent() {
 
       <Separator className="border-dashed" />
 
-      {/* Travaux & Interventions */}
+      {/* Travaux */}
       <section>
-        <InterventionSection interventions={interventions} onAdd={addIntervention} onUpdate={handleUpdateIntervention} onDelete={deleteIntervention} propertyId={id} />
+        <InterventionSection interventions={interventions} onAdd={addIntervention} onUpdate={handleUpdateIntervention} onDelete={deleteIntervention} propertyId={id} filterType="travaux" lots={lots} />
+      </section>
+
+      {/* Interventions */}
+      <section>
+        <InterventionSection interventions={interventions} onAdd={addIntervention} onUpdate={handleUpdateIntervention} onDelete={deleteIntervention} propertyId={id} filterType="intervention" lots={lots} />
       </section>
 
       {/* Contacts */}
@@ -602,7 +614,7 @@ function PropertyDetailContent() {
 
       {/* Documents */}
       <section>
-        <DocumentSection documents={documents} onAdd={addDocument} onDelete={deleteDocument} propertyId={id} />
+        <DocumentSection documents={documents} onAdd={addDocument} onDelete={handleDeleteDocument} propertyId={id} />
       </section>
 
     </div>

@@ -130,11 +130,17 @@ export interface Property {
 // --- Interventions / Travaux ---
 
 export type InterventionStatut = 'planifie' | 'en_cours' | 'termine';
+export type InterventionType = 'travaux' | 'intervention';
 
 export const INTERVENTION_STATUT_LABELS: Record<InterventionStatut, string> = {
   planifie: 'Planifie',
   en_cours: 'En cours',
   termine: 'Termine',
+};
+
+export const INTERVENTION_TYPE_LABELS: Record<InterventionType, string> = {
+  travaux: 'Travaux',
+  intervention: 'Intervention',
 };
 
 export interface InterventionPJ {
@@ -147,10 +153,15 @@ export interface InterventionPJ {
 export interface Intervention {
   id: string;
   propertyId: string;
+  /** 'travaux' (gros chantier) or 'intervention' (maintenance courante). Defaults to 'intervention' for backward compat. */
+  interventionType?: InterventionType;
+  /** Lot concerne (optionnel) */
+  lotId?: string;
   date: string;
   montant: number;
   prestataire: string;
   description: string;
+  notes?: string;
   statut: InterventionStatut;
   pieceJointe?: InterventionPJ;
   createdAt: string;
@@ -204,6 +215,8 @@ export interface PropertyDocument {
   type: string;
   taille: number;
   ajouteLe: string;
+  /** If this doc was auto-created from an intervention/travaux PJ */
+  linkedInterventionId?: string;
 }
 
 // --- Lots ---
