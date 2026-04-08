@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { expenseSchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
 type ExpenseFormData = Omit<Expense, "id" | "createdAt" | "updatedAt">;
 
@@ -65,8 +66,16 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
     notes: initialData?.notes ?? "",
   });
 
+  const [errors, setErrors] = useState<ValidationErrors>({});
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateForm(expenseSchema, form);
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
     onSubmit({
       ...form,
       label: form.label || EXPENSE_CATEGORY_LABELS[form.categorie],
@@ -132,6 +141,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
                 onChange={(e) => update("montant", Number(e.target.value))}
                 required
               />
+              {errors.montant && <p className="text-xs text-red-500">{errors.montant}</p>}
             </div>
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date debut</Label>
@@ -140,6 +150,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
                 value={form.dateDebut}
                 onChange={(e) => update("dateDebut", e.target.value)}
               />
+              {errors.dateDebut && <p className="text-xs text-red-500">{errors.dateDebut}</p>}
             </div>
           </div>
           <Button type="submit" className="w-full mt-2">Ajouter</Button>

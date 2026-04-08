@@ -1,4 +1,5 @@
 import type { LoanType } from '@/types';
+import { round2 } from '@/lib/round';
 
 export function calculerMensualiteAmortissable(
   capital: number,
@@ -6,10 +7,10 @@ export function calculerMensualiteAmortissable(
   dureeAnnees: number
 ): number {
   if (capital <= 0 || dureeAnnees <= 0) return 0;
-  if (tauxAnnuel <= 0) return capital / (dureeAnnees * 12);
+  if (tauxAnnuel <= 0) return round2(capital / (dureeAnnees * 12));
   const t = tauxAnnuel / 12;
   const n = dureeAnnees * 12;
-  return capital * (t * Math.pow(1 + t, n)) / (Math.pow(1 + t, n) - 1);
+  return round2(capital * (t * Math.pow(1 + t, n)) / (Math.pow(1 + t, n) - 1));
 }
 
 export function calculerMensualiteInFine(
@@ -17,7 +18,7 @@ export function calculerMensualiteInFine(
   tauxAnnuel: number
 ): number {
   if (capital <= 0) return 0;
-  return capital * tauxAnnuel / 12;
+  return round2(capital * tauxAnnuel / 12);
 }
 
 export function calculerMensualite(
@@ -47,7 +48,7 @@ export function capitalRestantDu(
   const moisEcoules = anneeEcoulee * 12;
   const mensualite = calculerMensualiteAmortissable(capital, tauxAnnuel, dureeAnnees);
   const crd = capital * Math.pow(1 + t, moisEcoules) - mensualite * ((Math.pow(1 + t, moisEcoules) - 1) / t);
-  return Math.max(0, crd);
+  return round2(Math.max(0, crd));
 }
 
 export function interetsAnnuels(
@@ -63,5 +64,5 @@ export function interetsAnnuels(
   const mensualite = calculerMensualiteAmortissable(capital, tauxAnnuel, dureeAnnees);
   const totalPaye = mensualite * 12;
   const capitalRembourse = crdDebut - crdFin;
-  return Math.max(0, totalPaye - capitalRembourse);
+  return round2(Math.max(0, totalPaye - capitalRembourse));
 }

@@ -1,9 +1,9 @@
-import type { AppData, Property } from "@/types";
+import type { AppData, Property, CalculatorInputs } from "@/types";
 import { annualiserMontant } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
 import { interetsAnnuels } from "./loan";
 import { calculerImpotIR } from "./tax-ir";
-import { calculerImpotIS } from "./tax-is";
+import { calculerImpotIS, calculerAmortissementAnnee } from "./tax-is";
 
 export interface BilanPropertyRow {
   propertyId: string;
@@ -36,22 +36,27 @@ function isActiveInYear(dateDebut: string, dateFin: string | undefined, year: nu
   return true;
 }
 
-function computeAmortissement(p: Property, annee: number): number {
-  // Simplified IS amortissement: bien/25 + travaux/18 + mobilier/7
-  const amortBien = (p.prixAchat * 0.8) / 25;
-  const amortTravaux = p.montantTravaux / 18;
-  const amortMobilier = (p.montantMobilier ?? 0) / 7;
+function propertyToAmortInputs(p: Property): Pick<CalculatorInputs, 'prixAchat' | 'fraisAgence' | 'montantTravaux' | 'lotsTravaux' | 'lotsMobilier'> {
+  return {
+    prixAchat: p.prixAchat,
+    fraisAgence: p.fraisAgence ?? 0,
+    montantTravaux: p.montantTravaux,
+    lotsTravaux: [],
+    lotsMobilier: (p.montantMobilier ?? 0) > 0
+      ? [{ id: '0', nom: 'Mobilier', montant: p.montantMobilier ?? 0 }]
+      : [],
+  };
+}
 
-  // Check if still within amortissement period
+function computeAmortissement(p: Property, fraisNotaire: number, annee: number): number {
   const purchaseYear = parseInt(p.dateAchat?.slice(0, 4) ?? "2024");
   const yearsOwned = annee - purchaseYear + 1;
-
-  let total = 0;
-  if (yearsOwned <= 25) total += amortBien;
-  if (yearsOwned <= 18) total += amortTravaux;
-  if (yearsOwned <= 7) total += amortMobilier;
-
-  return Math.round(total);
+  if (yearsOwned < 1) return 0;
+  return Math.round(calculerAmortissementAnnee(
+    propertyToAmortInputs(p) as CalculatorInputs,
+    fraisNotaire,
+    yearsOwned,
+  ));
 }
 
 export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnnuel {
@@ -82,7 +87,8 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     }
 
     // Amortissements (IS only)
-    const amort = regime === "IS" ? computeAmortissement(p, annee) : 0;
+    const pFraisNotaire = p.fraisNotaire ?? (p.prixAchat * 0.08);
+    const amort = regime === "IS" ? computeAmortissement(p, pFraisNotaire, annee) : 0;
 
     const resultat = revenus - charges - interets - assurance - amort;
     const impot = regime === "IR"

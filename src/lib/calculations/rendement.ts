@@ -1,6 +1,8 @@
+import { round2 } from '@/lib/round';
+
 export function rendementBrut(loyerAnnuel: number, coutTotalAcquisition: number): number {
   if (coutTotalAcquisition <= 0) return 0;
-  return (loyerAnnuel / coutTotalAcquisition) * 100;
+  return round2((loyerAnnuel / coutTotalAcquisition) * 100);
 }
 
 export function rendementNet(
@@ -9,7 +11,7 @@ export function rendementNet(
   coutTotalAcquisition: number,
 ): number {
   if (coutTotalAcquisition <= 0) return 0;
-  return ((loyerAnnuelNet - chargesAnnuelles) / coutTotalAcquisition) * 100;
+  return round2(((loyerAnnuelNet - chargesAnnuelles) / coutTotalAcquisition) * 100);
 }
 
 export function rendementNetNet(
@@ -19,5 +21,5 @@ export function rendementNetNet(
   coutTotalAcquisition: number,
 ): number {
   if (coutTotalAcquisition <= 0) return 0;
-  return ((loyerAnnuelNet - chargesAnnuelles - impotAnnuel) / coutTotalAcquisition) * 100;
+  return round2(((loyerAnnuelNet - chargesAnnuelles - impotAnnuel) / coutTotalAcquisition) * 100);
 }

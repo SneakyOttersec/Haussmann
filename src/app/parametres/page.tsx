@@ -1,13 +1,17 @@
 "use client";
 
 import { useAppData } from "@/hooks/useLocalStorage";
+import { useProperties } from "@/hooks/useProperties";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import type { Associe } from "@/types";
 import { generateId } from "@/lib/utils";
 
 export default function Parametres() {
   const { data, setData } = useAppData();
+
+  const { deletedProperties, restoreProperty, permanentlyDeleteProperty } = useProperties(data, setData);
 
   if (!data) return null;
 
@@ -129,6 +133,32 @@ export default function Parametres() {
           <p className="text-xs text-muted-foreground">Alerte affichee sur la page Finances si le cash flow cumule passe sous ce seuil.</p>
         </div>
       </section>
+      {/* Corbeille */}
+      {deletedProperties.length > 0 && (
+        <section className="border border-dotted rounded-lg p-5 space-y-4">
+          <h2 className="text-xs font-bold uppercase tracking-wider">Corbeille ({deletedProperties.length})</h2>
+          <div className="space-y-2">
+            {deletedProperties.map((p) => (
+              <div key={p.id} className="flex items-center justify-between py-2 border-b border-dotted last:border-0">
+                <div>
+                  <span className="text-sm font-medium">{p.nom}</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    Supprime le {new Date(p.deletedAt!).toLocaleDateString("fr-FR")}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => restoreProperty(p.id)}>
+                    Restaurer
+                  </Button>
+                  <Button variant="outline" size="sm" className="text-destructive" onClick={() => permanentlyDeleteProperty(p.id)}>
+                    Supprimer
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

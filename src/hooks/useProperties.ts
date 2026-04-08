@@ -8,7 +8,9 @@ export function useProperties(
   data: AppData | null,
   setData: (updater: (prev: AppData) => AppData) => void
 ) {
-  const properties = data?.properties ?? [];
+  const allProperties = data?.properties ?? [];
+  const properties = allProperties.filter((p) => !p.deletedAt);
+  const deletedProperties = allProperties.filter((p) => p.deletedAt);
 
   const addProperty = useCallback(
     (property: Omit<Property, "id" | "createdAt" | "updatedAt">) => {
@@ -39,7 +41,36 @@ export function useProperties(
     [setData]
   );
 
+  /** Soft-delete: marks the property as deleted without removing data */
   const deleteProperty = useCallback(
+    (id: string) => {
+      setData((prev) => ({
+        ...prev,
+        properties: prev.properties.map((p) =>
+          p.id === id ? { ...p, deletedAt: now(), updatedAt: now() } : p
+        ),
+      }));
+    },
+    [setData]
+  );
+
+  /** Restore a soft-deleted property */
+  const restoreProperty = useCallback(
+    (id: string) => {
+      setData((prev) => ({
+        ...prev,
+        properties: prev.properties.map((p) => {
+          if (p.id !== id) return p;
+          const { deletedAt: _, ...rest } = p;
+          return { ...rest, updatedAt: now() } as Property;
+        }),
+      }));
+    },
+    [setData]
+  );
+
+  /** Permanently delete: removes property and all related entities */
+  const permanentlyDeleteProperty = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -61,5 +92,14 @@ export function useProperties(
     [properties]
   );
 
-  return { properties, addProperty, updateProperty, deleteProperty, getProperty };
+  return {
+    properties,
+    deletedProperties,
+    addProperty,
+    updateProperty,
+    deleteProperty,
+    restoreProperty,
+    permanentlyDeleteProperty,
+    getProperty,
+  };
 }

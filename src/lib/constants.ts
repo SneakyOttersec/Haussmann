@@ -1,16 +1,47 @@
-export const PRELEVEMENTS_SOCIAUX = 0.172;
-export const IS_TAUX_REDUIT = 0.15;
-export const IS_SEUIL_REDUIT = 42500;
-export const IS_TAUX_NORMAL = 0.25;
-export const FRAIS_NOTAIRE_ANCIEN = 0.08;
-export const FRAIS_NOTAIRE_NEUF = 0.03;
-export const TMI_TRANCHES = [0, 0.11, 0.30, 0.41, 0.45];
+/**
+ * Regles fiscales versionnees — facilite les mises a jour lors des lois de finances.
+ * Pour mettre a jour : modifier l'annee et les valeurs correspondantes.
+ */
+export const FISCAL_RULES = {
+  annee: 2024,
+  prelevementsSociaux: 0.172,
+  is: {
+    tauxReduit: 0.15,
+    seuilReduit: 42_500,
+    tauxNormal: 0.25,
+  },
+  microFoncier: {
+    seuil: 15_000,
+    abattement: 0.30,
+  },
+  microBic: {
+    seuil: 77_700,
+    abattement: 0.50,
+  },
+  tmiTranches: [0, 0.11, 0.30, 0.41, 0.45] as readonly number[],
+  fraisNotaire: {
+    ancien: 0.08,
+    neuf: 0.03,
+  },
+  pvParticulier: {
+    abattementIR: { debut: 5, tauxAnnuel: 0.06, exoneration: 22 },
+    abattementPS: { debut: 5, tauxAnnuel: 0.0165, annee22: 0.016, tauxApres22: 0.09, exoneration: 30 },
+    tauxIR: 0.19,
+  },
+} as const;
 
-// Seuils des regimes micro (CA annuel, 2024)
-export const SEUIL_MICRO_FONCIER = 15000;
-export const SEUIL_MICRO_BIC = 77700;
-export const ABATTEMENT_MICRO_FONCIER = 0.30;
-export const ABATTEMENT_MICRO_BIC = 0.50;
+// Backward-compatible individual exports
+export const PRELEVEMENTS_SOCIAUX = FISCAL_RULES.prelevementsSociaux;
+export const IS_TAUX_REDUIT = FISCAL_RULES.is.tauxReduit;
+export const IS_SEUIL_REDUIT = FISCAL_RULES.is.seuilReduit;
+export const IS_TAUX_NORMAL = FISCAL_RULES.is.tauxNormal;
+export const FRAIS_NOTAIRE_ANCIEN = FISCAL_RULES.fraisNotaire.ancien;
+export const FRAIS_NOTAIRE_NEUF = FISCAL_RULES.fraisNotaire.neuf;
+export const TMI_TRANCHES = FISCAL_RULES.tmiTranches;
+export const SEUIL_MICRO_FONCIER = FISCAL_RULES.microFoncier.seuil;
+export const SEUIL_MICRO_BIC = FISCAL_RULES.microBic.seuil;
+export const ABATTEMENT_MICRO_FONCIER = FISCAL_RULES.microFoncier.abattement;
+export const ABATTEMENT_MICRO_BIC = FISCAL_RULES.microBic.abattement;
 
 export const DEFAULT_CALCULATOR_INPUTS = {
   nomSimulation: '',

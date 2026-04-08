@@ -11,6 +11,7 @@ import {
   ABATTEMENT_MICRO_BIC,
 } from '../constants';
 import { calculerAmortissementAnnee } from './tax-is';
+import { round2 } from '@/lib/round';
 
 /* ── State tracked across years ── */
 
@@ -109,8 +110,8 @@ export function computeTaxForRegime(
     /* ── IR - Micro-foncier ── */
     case 'ir_micro': {
       // Abattement forfaitaire 30%, pas de charges deductibles
-      const base = loyerBrut * (1 - ABATTEMENT_MICRO_FONCIER);
-      const impot = Math.max(0, base) * tauxIR(tmi);
+      const base = round2(loyerBrut * (1 - ABATTEMENT_MICRO_FONCIER));
+      const impot = round2(Math.max(0, base) * tauxIR(tmi));
       return {
         impot,
         resultatFiscal: base,
@@ -122,9 +123,9 @@ export function computeTaxForRegime(
     /* ── IR - Foncier reel ── */
     case 'ir_reel': {
       // Revenu foncier = loyers nets - charges - interets - assurance pret
-      const revenuFoncier = loyerNet - charges - interets - assurancePret;
+      const revenuFoncier = round2(loyerNet - charges - interets - assurancePret);
       // Apply deficit carryforward from prior years
-      const resultatApresReport = revenuFoncier + prevState.deficitFiscal;
+      const resultatApresReport = round2(revenuFoncier + prevState.deficitFiscal);
 
       if (resultatApresReport < 0) {
         return {
@@ -135,7 +136,7 @@ export function computeTaxForRegime(
         };
       }
       return {
-        impot: resultatApresReport * tauxIR(tmi),
+        impot: round2(resultatApresReport * tauxIR(tmi)),
         resultatFiscal: resultatApresReport,
         amortissement: 0,
         state: { deficitFiscal: 0, reportAmortLmnp: 0 },
@@ -144,8 +145,8 @@ export function computeTaxForRegime(
 
     /* ── LMNP - Micro-BIC ── */
     case 'lmnp_micro': {
-      const base = loyerBrut * (1 - ABATTEMENT_MICRO_BIC);
-      const impot = Math.max(0, base) * tauxIR(tmi);
+      const base = round2(loyerBrut * (1 - ABATTEMENT_MICRO_BIC));
+      const impot = round2(Math.max(0, base) * tauxIR(tmi));
       return {
         impot,
         resultatFiscal: base,
@@ -162,20 +163,20 @@ export function computeTaxForRegime(
       const amortTheoriqueAnnee = calculerAmortissementAnnee(inputs, fraisNotaire, year.annee);
 
       // 1. Resultat avant amortissement
-      const resultatAvantAmort = loyerNet - charges - interets - assurancePret;
+      const resultatAvantAmort = round2(loyerNet - charges - interets - assurancePret);
 
       // 2. Amortissement utilisable = plafonne au resultat positif
-      const amortDispo = amortTheoriqueAnnee + prevState.reportAmortLmnp;
+      const amortDispo = round2(amortTheoriqueAnnee + prevState.reportAmortLmnp);
       const amortUtilise = resultatAvantAmort > 0
-        ? Math.min(amortDispo, resultatAvantAmort)
+        ? round2(Math.min(amortDispo, resultatAvantAmort))
         : 0;
-      const reportAmortNew = amortDispo - amortUtilise;
+      const reportAmortNew = round2(amortDispo - amortUtilise);
 
       // 3. Resultat apres amort
-      let resultatFiscal = resultatAvantAmort - amortUtilise;
+      let resultatFiscal = round2(resultatAvantAmort - amortUtilise);
 
       // 4. Apply deficit BIC carryforward
-      resultatFiscal += prevState.deficitFiscal;
+      resultatFiscal = round2(resultatFiscal + prevState.deficitFiscal);
 
       if (resultatFiscal < 0) {
         return {
@@ -186,7 +187,7 @@ export function computeTaxForRegime(
         };
       }
       return {
-        impot: resultatFiscal * tauxIR(tmi),
+        impot: round2(resultatFiscal * tauxIR(tmi)),
         resultatFiscal,
         amortissement: amortUtilise,
         state: { deficitFiscal: 0, reportAmortLmnp: reportAmortNew },
@@ -196,8 +197,8 @@ export function computeTaxForRegime(
     /* ── IS ── */
     case 'is': {
       const amortAnnee = calculerAmortissementAnnee(inputs, fraisNotaire, year.annee);
-      const resultatAvantReport = loyerNet - charges - amortAnnee - interets - assurancePret;
-      const resultatFiscal = resultatAvantReport + prevState.deficitFiscal;
+      const resultatAvantReport = round2(loyerNet - charges - amortAnnee - interets - assurancePret);
+      const resultatFiscal = round2(resultatAvantReport + prevState.deficitFiscal);
 
       if (resultatFiscal < 0) {
         return {
@@ -208,7 +209,7 @@ export function computeTaxForRegime(
         };
       }
       return {
-        impot: impotIS(resultatFiscal),
+        impot: round2(impotIS(resultatFiscal)),
         resultatFiscal,
         amortissement: amortAnnee,
         state: { deficitFiscal: 0, reportAmortLmnp: 0 },
@@ -286,12 +287,12 @@ export function plusValueSortie(
   }
   abattementPS = Math.min(1, abattementPS);
 
-  const baseIR = baseImposable * (1 - abattementIR);
-  const basePS = baseImposable * (1 - abattementPS);
-  const impotPV = baseIR * 0.19 + basePS * PRELEVEMENTS_SOCIAUX;
+  const baseIR = round2(baseImposable * (1 - abattementIR));
+  const basePS = round2(baseImposable * (1 - abattementPS));
+  const impotPV = round2(baseIR * 0.19 + basePS * PRELEVEMENTS_SOCIAUX);
 
   const plusValueBrute = Math.max(0, prixVente - coutRevient);
-  return { plusValueBrute, impotPV, plusValueNette: prixVente - impotPV };
+  return { plusValueBrute, impotPV, plusValueNette: round2(prixVente - impotPV) };
 }
 
 /* ── Full projection under one regime ── */
@@ -367,12 +368,12 @@ export function projeterAvecRegime(
       state,
     );
     state = taxOut.state;
-    amortCumule += taxOut.amortissement;
-    impotCumule += taxOut.impot;
+    amortCumule = round2(amortCumule + taxOut.amortissement);
+    impotCumule = round2(impotCumule + taxOut.impot);
 
-    const cfAvantImpot = y.loyerNet - y.mensualitesAnnee - y.charges;
-    const cfApresImpot = cfAvantImpot - taxOut.impot;
-    cashFlowCumule += cfApresImpot;
+    const cfAvantImpot = round2(y.loyerNet - y.mensualitesAnnee - y.charges);
+    const cfApresImpot = round2(cfAvantImpot - taxOut.impot);
+    cashFlowCumule = round2(cashFlowCumule + cfApresImpot);
 
     projection.push({
       annee: i + 1,

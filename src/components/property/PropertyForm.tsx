@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { propertySchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
 type PropertyFormData = Omit<Property, "id" | "createdAt" | "updatedAt">;
 
@@ -39,8 +40,16 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
     notes: initialData?.notes ?? "",
   });
 
+  const [errors, setErrors] = useState<ValidationErrors>({});
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateForm(propertySchema, form);
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
     onSubmit(form);
   };
 
@@ -60,6 +69,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
             placeholder="Appartement Bordeaux T3"
             required
           />
+          {errors.nom && <p className="text-xs text-red-500">{errors.nom}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="type">Type</Label>
@@ -85,6 +95,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
           placeholder="12 rue de la Paix, 75001 Paris"
           required
         />
+        {errors.adresse && <p className="text-xs text-red-500">{errors.adresse}</p>}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -98,6 +109,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
             onChange={(e) => update("prixAchat", Number(e.target.value))}
             required
           />
+          {errors.prixAchat && <p className="text-xs text-red-500">{errors.prixAchat}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="fraisNotaire">Frais de notaire (EUR)</Label>
@@ -161,8 +173,10 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
             id="dateAchat"
             type="date"
             value={form.dateAchat}
+            max={new Date().toISOString().slice(0, 10)}
             onChange={(e) => update("dateAchat", e.target.value)}
           />
+          {errors.dateAchat && <p className="text-xs text-red-500">{errors.dateAchat}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="surfaceM2">Surface (m²)</Label>

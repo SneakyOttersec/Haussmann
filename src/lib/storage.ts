@@ -72,13 +72,21 @@ export function saveData(data: AppData): void {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
+const EXPORT_VERSION = 2;
+
 export function exportData(): string {
-  return JSON.stringify(loadData(), null, 2);
+  return JSON.stringify({
+    version: EXPORT_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: loadData(),
+  }, null, 2);
 }
 
 export function importData(json: string): AppData {
-  const data = JSON.parse(json);
-  const merged = migrateData({ ...getDefaultData(), ...data });
+  const parsed = JSON.parse(json);
+  // Detect format: version 2+ has { version, data }, legacy is flat AppData
+  const raw = parsed.version && parsed.data ? parsed.data : parsed;
+  const merged = migrateData({ ...getDefaultData(), ...raw });
   saveData(merged);
   return merged;
 }

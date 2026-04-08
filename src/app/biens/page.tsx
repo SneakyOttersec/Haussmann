@@ -458,7 +458,27 @@ function PropertyDetailContent() {
       {/* Status bar */}
       <PropertyStatusBar
         statut={property.statut ?? "exploitation"}
-        onChange={(s: PropertyStatus) => updateProperty(id, { statut: s })}
+        statusDates={property.statusDates}
+        statusDocs={property.statusDocs}
+        onChange={(s: PropertyStatus) => {
+          const today = new Date().toISOString().slice(0, 10);
+          const prevDates = property.statusDates ?? {};
+          const nextDates = prevDates[s] ? prevDates : { ...prevDates, [s]: today };
+          updateProperty(id, { statut: s, statusDates: nextDates });
+        }}
+        onDateChange={(s, date) => {
+          const prevDates = property.statusDates ?? {};
+          updateProperty(id, { statusDates: { ...prevDates, [s]: date } });
+        }}
+        onDocChange={(s, doc) => {
+          const prevDocs = property.statusDocs ?? {};
+          if (doc) {
+            updateProperty(id, { statusDocs: { ...prevDocs, [s]: doc } });
+          } else {
+            const { [s]: _, ...rest } = prevDocs;
+            updateProperty(id, { statusDocs: rest });
+          }
+        }}
       />
 
       {/* KPIs */}

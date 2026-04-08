@@ -1,8 +1,17 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, Lot } from "@/types";
+import type { AppData, Lot, LotStatut, RentMonthEntry } from "@/types";
 import { generateId } from "@/lib/utils";
+
+/** Derive lot status from the most recent rent entry for this lot */
+export function deriveLotStatut(lotId: string, rentEntries: RentMonthEntry[]): LotStatut | null {
+  const entries = rentEntries.filter((e) => e.lotId === lotId);
+  if (entries.length === 0) return null;
+  const sorted = [...entries].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+  const latest = sorted[0].statut;
+  return latest === "vacant" || latest === "travaux" ? "vacant" : "occupe";
+}
 
 export function useLots(
   data: AppData | null,

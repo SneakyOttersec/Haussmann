@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { incomeSchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
 type IncomeFormData = Omit<Income, "id" | "createdAt" | "updatedAt">;
 
@@ -65,8 +66,16 @@ export function IncomeForm({ propertyId, initialData, onSubmit, trigger }: Incom
     notes: initialData?.notes ?? "",
   });
 
+  const [errors, setErrors] = useState<ValidationErrors>({});
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateForm(incomeSchema, form);
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
     onSubmit({
       ...form,
       label: form.label || INCOME_CATEGORY_LABELS[form.categorie],
@@ -132,6 +141,7 @@ export function IncomeForm({ propertyId, initialData, onSubmit, trigger }: Incom
                 onChange={(e) => update("montant", Number(e.target.value))}
                 required
               />
+              {errors.montant && <p className="text-xs text-red-500">{errors.montant}</p>}
             </div>
             <div className="space-y-2">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date debut</Label>
@@ -140,6 +150,7 @@ export function IncomeForm({ propertyId, initialData, onSubmit, trigger }: Incom
                 value={form.dateDebut}
                 onChange={(e) => update("dateDebut", e.target.value)}
               />
+              {errors.dateDebut && <p className="text-xs text-red-500">{errors.dateDebut}</p>}
             </div>
           </div>
           <Button type="submit" className="w-full mt-2">Ajouter</Button>

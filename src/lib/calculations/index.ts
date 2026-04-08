@@ -4,6 +4,7 @@ import { calculerMensualite, calculerMensualiteAmortissable } from './loan';
 import { rendementBrut, rendementNet, rendementNetNet } from './rendement';
 import { calculerTRI } from './irr';
 import { projeterAvecRegime, type YearComputed } from './regimes';
+import { round2 } from '@/lib/round';
 
 function resolveAssuranceAnnuelle(inputs: CalculatorInputs): number {
   if (inputs.assurancePretMode === 'pct') {
@@ -75,9 +76,9 @@ function creditAnnee(
       if (m < differeMois) {
         // Differe: only interest, no capital
       } else {
-        const interet = crd * tauxMensuel;
-        const capital = mensualiteAmort - interet;
-        crd = Math.max(0, crd - capital);
+        const interet = round2(crd * tauxMensuel);
+        const capital = round2(mensualiteAmort - interet);
+        crd = round2(Math.max(0, crd - capital));
       }
     }
   }
@@ -89,24 +90,24 @@ function creditAnnee(
     if (crd <= 0) break;
 
     if (m < differeMois) {
-      const interet = crd * tauxMensuel;
-      totalPaye += interet + assuranceMensuelle;
-      totalInterets += interet;
+      const interet = round2(crd * tauxMensuel);
+      totalPaye = round2(totalPaye + interet + assuranceMensuelle);
+      totalInterets = round2(totalInterets + interet);
     } else {
       if (typePret === 'in_fine') {
-        const interet = crd * tauxMensuel;
-        totalPaye += interet + assuranceMensuelle;
-        totalInterets += interet;
+        const interet = round2(crd * tauxMensuel);
+        totalPaye = round2(totalPaye + interet + assuranceMensuelle);
+        totalInterets = round2(totalInterets + interet);
         if (m === totalMoisCredit - 1) {
-          totalPaye += crd;
+          totalPaye = round2(totalPaye + crd);
           crd = 0;
         }
       } else {
-        const interet = crd * tauxMensuel;
-        const capital = mensualiteAmort - interet;
-        totalPaye += mensualiteAmort + assuranceMensuelle;
-        totalInterets += interet;
-        crd = Math.max(0, crd - capital);
+        const interet = round2(crd * tauxMensuel);
+        const capital = round2(mensualiteAmort - interet);
+        totalPaye = round2(totalPaye + mensualiteAmort + assuranceMensuelle);
+        totalInterets = round2(totalInterets + interet);
+        crd = round2(Math.max(0, crd - capital));
       }
     }
   }
@@ -182,28 +183,28 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
     const yr = annee - 1;
 
     // Evolving loyer
-    let yrLoyerBrut = loyerAnnuelBrut * Math.pow(1 + evo('lopiloyer'), yr);
+    let yrLoyerBrut = round2(loyerAnnuelBrut * Math.pow(1 + evo('lopiloyer'), yr));
     if (differeLoyer > 0 && annee === 1) {
       const moisAvecLoyer = Math.max(0, 12 - differeLoyer);
-      yrLoyerBrut = (loyerMensuelTotal * moisAvecLoyer) + inputs.autresRevenusAnnuels;
+      yrLoyerBrut = round2((loyerMensuelTotal * moisAvecLoyer) + inputs.autresRevenusAnnuels);
     }
-    const yrLoyerNet = yrLoyerBrut * (1 - inputs.tauxVacance);
+    const yrLoyerNet = round2(yrLoyerBrut * (1 - inputs.tauxVacance));
 
     // Evolving charges
-    const yrCopro = inputs.chargesCopro * Math.pow(1 + evo('chargesCopro'), yr);
-    const yrTF = inputs.taxeFonciere * Math.pow(1 + evo('taxeFonciere'), yr);
-    const yrPNO = inputs.assurancePNO * Math.pow(1 + evo('assurancePNO'), yr);
-    const yrGestion = baseGestionLoc * Math.pow(1 + evo('gestionLocative'), yr);
-    const yrCompta = baseCompta * Math.pow(1 + evo('comptabilite'), yr);
-    const yrCFE = inputs.cfeCrl * Math.pow(1 + evo('cfeCrl'), yr);
-    const yrEntretien = inputs.entretien * Math.pow(1 + evo('entretien'), yr);
-    const yrGLI = inputs.gli * Math.pow(1 + evo('gli'), yr);
-    const yrAutres = inputs.autresChargesAnnuelles * Math.pow(1 + evo('autresCharges'), yr);
-    const yrCharges = yrCopro + yrTF + yrPNO + yrGestion + yrCompta + yrCFE + yrEntretien + yrGLI + yrAutres;
+    const yrCopro = round2(inputs.chargesCopro * Math.pow(1 + evo('chargesCopro'), yr));
+    const yrTF = round2(inputs.taxeFonciere * Math.pow(1 + evo('taxeFonciere'), yr));
+    const yrPNO = round2(inputs.assurancePNO * Math.pow(1 + evo('assurancePNO'), yr));
+    const yrGestion = round2(baseGestionLoc * Math.pow(1 + evo('gestionLocative'), yr));
+    const yrCompta = round2(baseCompta * Math.pow(1 + evo('comptabilite'), yr));
+    const yrCFE = round2(inputs.cfeCrl * Math.pow(1 + evo('cfeCrl'), yr));
+    const yrEntretien = round2(inputs.entretien * Math.pow(1 + evo('entretien'), yr));
+    const yrGLI = round2(inputs.gli * Math.pow(1 + evo('gli'), yr));
+    const yrAutres = round2(inputs.autresChargesAnnuelles * Math.pow(1 + evo('autresCharges'), yr));
+    const yrCharges = round2(yrCopro + yrTF + yrPNO + yrGestion + yrCompta + yrCFE + yrEntretien + yrGLI + yrAutres);
 
     const valeurBienInitiale = inputs.prixAchat + inputs.montantTravaux;
-    const valeurBien = valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee);
-    const plusValue = valeurBien - valeurBienInitiale;
+    const valeurBien = round2(valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee));
+    const plusValue = round2(valeurBien - valeurBienInitiale);
 
     const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, assuranceMensuelle, annee, inputs.typePret);
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
-import type { AppData } from "@/types";
+import type { AppData, PropertyStatus } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { formatCurrency, mensualiserMontant, annualiserMontant } from "@/lib/utils";
 import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
@@ -144,6 +144,28 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
   return months;
 }
 
+/** Statuts pre-acte: le bien n'est pas encore acquis, pas de flux financiers */
+const PRE_ACTE_STATUSES: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
+
+function isPropertyActive(statut: PropertyStatus | undefined): boolean {
+  if (!statut) return true; // backward compat: no status = assume active
+  return !PRE_ACTE_STATUSES.includes(statut);
+}
+
+/** Filter AppData to only include financially active properties (post-acte) */
+function filterActiveProperties(data: AppData): AppData {
+  const activeIds = new Set(data.properties.filter((p) => isPropertyActive(p.statut)).map((p) => p.id));
+  return {
+    ...data,
+    properties: data.properties.filter((p) => activeIds.has(p.id)),
+    incomes: data.incomes.filter((i) => activeIds.has(i.propertyId)),
+    expenses: data.expenses.filter((e) => activeIds.has(e.propertyId)),
+    loans: data.loans.filter((l) => activeIds.has(l.propertyId)),
+    lots: (data.lots ?? []).filter((l) => activeIds.has(l.propertyId)),
+    rentTracking: (data.rentTracking ?? []).filter((r) => activeIds.has(r.propertyId)),
+  };
+}
+
 const fmtEur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v).replace(/\u00A0/g, " ").replace(/\u202F/g, " ");
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -169,21 +191,23 @@ export default function Finances() {
   const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null); // null = all
   const [projectionYears, setProjectionYears] = useState(10);
 
-  // Build filtered data based on selection (null → all properties)
+  // Build filtered data: exclude pre-acte properties, then apply user selection
+  const activeData = useMemo(() => data ? filterActiveProperties(data) : null, [data]);
+
   const filteredData = useMemo(() => {
-    if (!data) return null;
-    if (selectedIds === null) return data;
+    if (!activeData) return null;
+    if (selectedIds === null) return activeData;
     const propertyIds = selectedIds;
     return {
-      ...data,
-      properties: data.properties.filter((p) => propertyIds.has(p.id)),
-      incomes: data.incomes.filter((i) => propertyIds.has(i.propertyId)),
-      expenses: data.expenses.filter((e) => propertyIds.has(e.propertyId)),
-      loans: data.loans.filter((l) => propertyIds.has(l.propertyId)),
-      lots: (data.lots ?? []).filter((l) => propertyIds.has(l.propertyId)),
-      rentTracking: (data.rentTracking ?? []).filter((r) => propertyIds.has(r.propertyId)),
+      ...activeData,
+      properties: activeData.properties.filter((p) => propertyIds.has(p.id)),
+      incomes: activeData.incomes.filter((i) => propertyIds.has(i.propertyId)),
+      expenses: activeData.expenses.filter((e) => propertyIds.has(e.propertyId)),
+      loans: activeData.loans.filter((l) => propertyIds.has(l.propertyId)),
+      lots: (activeData.lots ?? []).filter((l) => propertyIds.has(l.propertyId)),
+      rentTracking: (activeData.rentTracking ?? []).filter((r) => propertyIds.has(r.propertyId)),
     };
-  }, [data, selectedIds]);
+  }, [activeData, selectedIds]);
 
   const cashFlowData = useMemo(() => filteredData ? buildMonthlyCashFlow(filteredData) : [], [filteredData]);
   const patrimoineData = useMemo(() => filteredData ? buildPatrimoine(filteredData, projectionYears) : [], [filteredData, projectionYears]);
@@ -200,9 +224,10 @@ export default function Finances() {
   const totalDepenses = filteredData.expenses.reduce((s, e) => s + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
   const cashFlowAnnuel = totalRevenus - totalDepenses;
 
-  const allIds = new Set(data.properties.map((p) => p.id));
+  const activeProperties = activeData?.properties ?? [];
+  const allIds = new Set(activeProperties.map((p) => p.id));
   const activeIds = selectedIds ?? allIds;
-  const allSelected = selectedIds === null || selectedIds.size === data.properties.length;
+  const allSelected = selectedIds === null || selectedIds.size === activeProperties.length;
 
   const toggleProperty = (id: string) => {
     setSelectedIds((prev) => {
@@ -212,7 +237,7 @@ export default function Finances() {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       // Collapse to null when everyone is selected (keeps "Tous" visually active)
-      if (next.size === data.properties.length) return null;
+      if (next.size === activeProperties.length) return null;
       return next;
     });
   };
@@ -231,7 +256,7 @@ export default function Finances() {
       <h1>Finances</h1>
 
       {/* Property filter */}
-      {data.properties.length > 1 && (
+      {activeProperties.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Biens :</span>
           <button
@@ -242,9 +267,9 @@ export default function Finances() {
                 : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
             }`}
           >
-            Tous ({data.properties.length})
+            Tous ({activeProperties.length})
           </button>
-          {data.properties.map((p) => {
+          {activeProperties.map((p) => {
             const active = activeIds.has(p.id);
             return (
               <button
@@ -267,7 +292,9 @@ export default function Finances() {
 
       {filteredData.properties.length === 0 && (
         <div className="border border-dashed border-muted-foreground/30 rounded-md p-4 text-sm text-muted-foreground text-center">
-          Aucun bien selectionne.
+          {activeProperties.length === 0
+            ? "Aucun bien post-acte. Les biens en prospection, offre ou compromis ne sont pas inclus dans les finances."
+            : "Aucun bien selectionne."}
         </div>
       )}
 

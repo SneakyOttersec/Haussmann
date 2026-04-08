@@ -1,39 +1,169 @@
 "use client";
 
-import type { PropertyStatus } from "@/types";
+import { useRef } from "react";
+import type { PropertyStatus, StatusDocument } from "@/types";
 import { PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
 
 interface PropertyStatusBarProps {
   statut: PropertyStatus;
+  statusDates?: Partial<Record<PropertyStatus, string>>;
+  statusDocs?: Partial<Record<PropertyStatus, StatusDocument>>;
   onChange: (s: PropertyStatus) => void;
+  onDateChange?: (s: PropertyStatus, date: string) => void;
+  onDocChange?: (s: PropertyStatus, doc: StatusDocument | null) => void;
 }
 
-export function PropertyStatusBar({ statut, onChange }: PropertyStatusBarProps) {
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
+function DocCell({ status, doc, isActive, onDocChange }: {
+  status: PropertyStatus;
+  doc: StatusDocument | undefined;
+  isActive: boolean;
+  onDocChange?: (s: PropertyStatus, doc: StatusDocument | null) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !onDocChange) return;
+    if (file.size > MAX_FILE_SIZE) {
+      alert("Fichier trop volumineux (max 5 Mo)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      onDocChange(status, {
+        nom: file.name,
+        data: reader.result as string,
+        type: file.type,
+        taille: file.size,
+      });
+    };
+    reader.readAsDataURL(file);
+    // Reset so re-uploading the same file works
+    e.target.value = "";
+  };
+
+  const handleDownload = () => {
+    if (!doc) return;
+    const a = document.createElement("a");
+    a.href = doc.data;
+    a.download = doc.nom;
+    a.click();
+  };
+
+  if (!isActive) {
+    return <span className="text-[9px] text-muted-foreground/30 select-none">—</span>;
+  }
+
+  return (
+    <div className="flex items-center justify-center gap-1">
+      <input ref={inputRef} type="file" className="hidden" onChange={handleFile} />
+      {doc ? (
+        <>
+          <button
+            type="button"
+            onClick={handleDownload}
+            title={`${doc.nom} (${formatSize(doc.taille)})`}
+            className="text-[9px] text-primary truncate max-w-[80px] hover:underline"
+          >
+            {doc.nom}
+          </button>
+          <button
+            type="button"
+            onClick={() => onDocChange?.(status, null)}
+            title="Retirer"
+            className="text-[9px] text-destructive hover:opacity-70"
+          >
+            x
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          title="Ajouter un document"
+          className="text-[9px] text-muted-foreground hover:text-primary transition-colors"
+        >
+          + doc
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function PropertyStatusBar({ statut, statusDates, statusDocs, onChange, onDateChange, onDocChange }: PropertyStatusBarProps) {
   const currentIdx = PROPERTY_STATUS_ORDER.indexOf(statut);
 
   return (
-    <div className="flex items-center gap-0.5">
-      {PROPERTY_STATUS_ORDER.map((s, i) => {
-        const isActive = i <= currentIdx;
-        const isCurrent = s === statut;
-        return (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onChange(s)}
-            className={`relative flex-1 py-1.5 text-[10px] text-center transition-colors rounded-sm ${
-              isCurrent
-                ? "bg-primary text-primary-foreground font-bold"
-                : isActive
-                ? "bg-primary/20 text-primary font-medium"
-                : "bg-muted text-muted-foreground hover:bg-muted/80"
-            }`}
-            title={PROPERTY_STATUS_LABELS[s]}
-          >
-            {PROPERTY_STATUS_LABELS[s]}
-          </button>
-        );
-      })}
+    <div className="space-y-1">
+      {/* Status buttons */}
+      <div className="flex items-center gap-0.5">
+        {PROPERTY_STATUS_ORDER.map((s, i) => {
+          const isActive = i <= currentIdx;
+          const isCurrent = s === statut;
+          return (
+            <button
+              key={s}
+              type="button"
+              onClick={() => onChange(s)}
+              className={`relative flex-1 py-1.5 text-[10px] text-center transition-colors rounded-sm ${
+                isCurrent
+                  ? "bg-primary text-primary-foreground font-bold"
+                  : isActive
+                  ? "bg-primary/20 text-primary font-medium"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              }`}
+              title={PROPERTY_STATUS_LABELS[s]}
+            >
+              {PROPERTY_STATUS_LABELS[s]}
+            </button>
+          );
+        })}
+      </div>
+      {/* Date row */}
+      <div className="flex items-center gap-0.5">
+        {PROPERTY_STATUS_ORDER.map((s, i) => {
+          const isActive = i <= currentIdx;
+          const date = statusDates?.[s] ?? "";
+          return (
+            <div key={s} className="flex-1 text-center">
+              {isActive ? (
+                <input
+                  type="date"
+                  value={date}
+                  onChange={(e) => onDateChange?.(s, e.target.value)}
+                  className="w-full text-[9px] text-center bg-transparent border-b border-dotted border-muted-foreground/30 focus:border-primary outline-none py-0.5 tabular-nums text-muted-foreground"
+                />
+              ) : (
+                <span className="text-[9px] text-muted-foreground/30 select-none">—</span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {/* Document row */}
+      <div className="flex items-center gap-0.5">
+        {PROPERTY_STATUS_ORDER.map((s, i) => {
+          const isActive = i <= currentIdx;
+          return (
+            <div key={s} className="flex-1 text-center min-w-0">
+              <DocCell
+                status={s}
+                doc={statusDocs?.[s]}
+                isActive={isActive}
+                onDocChange={onDocChange}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

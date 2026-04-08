@@ -1,4 +1,5 @@
 import { PRELEVEMENTS_SOCIAUX } from '../constants';
+import { round2 } from '@/lib/round';
 
 export function calculerImpotIR(
   revenusFonciers: number,
@@ -6,5 +7,5 @@ export function calculerImpotIR(
 ): number {
   if (revenusFonciers <= 0) return 0;
   const tauxTotal = trancheMarginalePct + PRELEVEMENTS_SOCIAUX;
-  return revenusFonciers * tauxTotal;
+  return round2(revenusFonciers * tauxTotal);
 }

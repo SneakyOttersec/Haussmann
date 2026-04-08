@@ -85,6 +85,13 @@ export const PROPERTY_STATUS_ORDER: PropertyStatus[] = [
   'prospection', 'offre', 'compromis', 'acte', 'travaux', 'location', 'exploitation',
 ];
 
+export interface StatusDocument {
+  nom: string;
+  data: string;
+  type: string;
+  taille: number;
+}
+
 export interface AllocationCredit {
   bien: number;
   travaux: number;
@@ -110,7 +117,12 @@ export interface Property {
   notes?: string;
   statut?: PropertyStatus;
   allocationCredit?: AllocationCredit;
+  /** Date (YYYY-MM-DD) at which each status phase was reached */
+  statusDates?: Partial<Record<PropertyStatus, string>>;
+  /** Document attached to each status phase */
+  statusDocs?: Partial<Record<PropertyStatus, StatusDocument>>;
   simulationId?: string;
+  deletedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

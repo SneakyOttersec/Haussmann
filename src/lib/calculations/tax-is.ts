@@ -1,13 +1,14 @@
 import { IS_TAUX_REDUIT, IS_SEUIL_REDUIT, IS_TAUX_NORMAL } from '../constants';
 import type { CalculatorInputs, LotTravaux } from '@/types';
 import { AMORT_DUREES } from '@/types';
+import { round2 } from '@/lib/round';
 
 export function calculerImpotIS(resultatFiscal: number): number {
   if (resultatFiscal <= 0) return 0;
   if (resultatFiscal <= IS_SEUIL_REDUIT) {
-    return resultatFiscal * IS_TAUX_REDUIT;
+    return round2(resultatFiscal * IS_TAUX_REDUIT);
   }
-  return IS_SEUIL_REDUIT * IS_TAUX_REDUIT + (resultatFiscal - IS_SEUIL_REDUIT) * IS_TAUX_NORMAL;
+  return round2(IS_SEUIL_REDUIT * IS_TAUX_REDUIT + (resultatFiscal - IS_SEUIL_REDUIT) * IS_TAUX_NORMAL);
 }
 
 /**
@@ -56,7 +57,7 @@ export function calculerAmortissementAnnee(
     total += inputs.montantTravaux / 18;
   }
 
-  return total;
+  return round2(total);
 }
 
 // Keep old function for backward compat (not used in new code)

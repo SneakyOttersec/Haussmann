@@ -19,6 +19,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { loanSchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
 type LoanFormData = Omit<LoanDetails, "id">;
 
@@ -40,8 +41,16 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
     assuranceAnnuelle: initialData?.assuranceAnnuelle ?? 0,
   });
 
+  const [errors, setErrors] = useState<ValidationErrors>({});
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const result = validateForm(loanSchema, form);
+    if (!result.success) {
+      setErrors(result.errors);
+      return;
+    }
+    setErrors({});
     onSubmit(form);
     setOpen(false);
   };
@@ -70,6 +79,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
                 onChange={(e) => update("montantEmprunte", Number(e.target.value))}
                 required
               />
+              {errors.montantEmprunte && <p className="text-xs text-red-500">{errors.montantEmprunte}</p>}
             </div>
             <div className="space-y-2">
               <Label>Type de pret</Label>
@@ -93,6 +103,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
                 onChange={(e) => update("tauxAnnuel", Number(e.target.value) / 100)}
                 required
               />
+              {errors.tauxAnnuel && <p className="text-xs text-red-500">{errors.tauxAnnuel}</p>}
             </div>
             <div className="space-y-2">
               <Label>Duree (annees)</Label>
