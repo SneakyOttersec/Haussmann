@@ -17,6 +17,7 @@ import type { PropertyStatus, Property, LoanDetails, AllocationCredit } from "@/
 import { PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency, checkFileSize } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
+import { mensualiteAmortissement, mensualitePendantDiffere } from "@/lib/calculations/loan";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import { PropertyStatusBar } from "@/components/property/PropertyStatusBar";
 import { ExpenseList } from "@/components/property/ExpenseList";
@@ -121,15 +122,23 @@ function LoanExtras({ loan, onUpdate }: {
             onChange={(e) => setBanqueDraft(e.target.value)}
             onBlur={() => { onUpdate({ banque: banqueDraft || undefined }); setEditBanque(false); }}
             onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") setEditBanque(false); }}
-            className="h-6 px-2 text-sm border border-input rounded bg-transparent outline-none focus:border-ring flex-1"
+            className="h-7 px-2 text-sm border border-input rounded bg-transparent outline-none focus:border-ring flex-1"
             placeholder="Nom de la banque"
           />
         ) : (
           <button
             onClick={() => { setBanqueDraft(loan.banque || ""); setEditBanque(true); }}
-            className="text-sm hover:text-primary transition-colors"
+            title="Cliquer pour modifier"
+            className="inline-flex items-center gap-1.5 text-sm px-2 py-0.5 rounded border border-dashed border-muted-foreground/40 hover:border-primary/60 hover:bg-primary/5 hover:text-primary transition-colors"
           >
-            {loan.banque || <span className="text-muted-foreground text-xs">+ Definir</span>}
+            {loan.banque ? (
+              <>
+                <span>{loan.banque}</span>
+                <span className="text-[10px] opacity-60">✎</span>
+              </>
+            ) : (
+              <span className="text-muted-foreground text-xs">+ Ajouter une banque</span>
+            )}
           </button>
         )}
       </div>
@@ -291,13 +300,28 @@ function PropertyDetailContent() {
     );
   }
 
-  const mensualiteCredit = loan
-    ? calculerMensualite(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees, loan.type)
-    : 0;
+  // Mensualite shown in the credit card = post-defer amortization payment.
+  // For pre-acte loans with a defer, this is what the user will pay starting
+  // month N+1 — it's the most informative number for the validation tickbox.
+  const mensualiteCredit = loan ? mensualiteAmortissement(loan) : 0;
+  const dM = loan?.differeMois ?? 0;
+  const mensualiteDifferee = loan && dM > 0 ? mensualitePendantDiffere(loan) : 0;
+
+  // Pre-acte = the property is still being prospected/negotiated. While in this
+  // state, financial values are projections — we color each price green when the
+  // user has validated it against a real contract/offer, orange otherwise. Once
+  // the property is post-acte, prices are real and stay in the default colour.
+  const isPreActe = !isPostActe(property.statut);
+  const creditValide = !!loan?.offerValidated;
+  const priceClass = (validated: boolean): string =>
+    isPreActe ? (validated ? "text-green-600" : "text-amber-600") : "";
 
   const handleSetLoan = (loanData: Parameters<typeof setLoan>[0]) => {
     setLoan(loanData);
-    const mensualite = calculerMensualite(loanData.montantEmprunte, loanData.tauxAnnuel, loanData.dureeAnnees, loanData.type);
+    // The auto-created "credit" expense holds the post-defer monthly payment.
+    // The Cash Flow chart and fiscal bilan compute the real per-month cost
+    // from the loan helpers, so they correctly handle the defer phase.
+    const mensualite = mensualiteAmortissement(loanData);
     const assuranceMensuelle = loanData.assuranceAnnuelle / 12;
     const montantTotal = Math.round((mensualite + assuranceMensuelle) * 100) / 100;
     const creditExpense = expenses.find((e) => e.categorie === "credit");
@@ -544,15 +568,28 @@ function PropertyDetailContent() {
                 </div>
                 <div>
                   <p className="text-muted-foreground">Taux</p>
-                  <p className="font-bold">{(loan.tauxAnnuel * 100).toFixed(2)} %</p>
+                  <p className={`font-bold ${priceClass(creditValide)}`}>{(loan.tauxAnnuel * 100).toFixed(2)} %</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Duree</p>
-                  <p className="font-bold">{loan.dureeAnnees} ans</p>
+                  <p className={`font-bold ${priceClass(creditValide)}`}>{loan.dureeAnnees} ans</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Mensualite</p>
-                  <p className="font-bold">{formatCurrency(mensualiteCredit + (loan.assuranceAnnuelle / 12), true)}</p>
+                  <p className="text-muted-foreground">
+                    Mensualite{dM > 0 ? " (post-differe)" : ""}
+                  </p>
+                  <p className={`font-bold ${priceClass(creditValide)}`}>
+                    {formatCurrency(mensualiteCredit + (loan.assuranceAnnuelle / 12), true)}
+                  </p>
+                  {dM > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      Pendant {dM}m :{" "}
+                      <span className="tabular-nums">
+                        {formatCurrency(mensualiteDifferee + (loan.assuranceAnnuelle / 12), true)}
+                      </span>{" "}
+                      ({loan.differeType === "total" ? "differe total" : "differe partiel"})
+                    </p>
+                  )}
                 </div>
               </div>
               {/* Allocation du credit */}
@@ -570,6 +607,19 @@ function PropertyDetailContent() {
                 Supprimer le credit
               </button>
               <LoanAmortizationTable loan={loan} />
+              {isPreActe && (
+                <label className="flex items-center gap-2 mt-4 pt-3 border-t border-dashed border-muted-foreground/15 text-xs cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={creditValide}
+                    onChange={(e) => setLoan({ ...loan, offerValidated: e.target.checked })}
+                    className="accent-primary"
+                  />
+                  <span className={creditValide ? "text-foreground font-medium" : "text-muted-foreground"}>
+                    Offre bancaire validee
+                  </span>
+                </label>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -587,14 +637,21 @@ function PropertyDetailContent() {
             <ExpenseForm propertyId={id} onSubmit={addExpense} />
           </CardHeader>
           <CardContent>
-            <ExpenseList expenses={expenses} onDelete={deleteExpense} onUpdate={updateExpense} />
+            <ExpenseList expenses={expenses} onDelete={deleteExpense} onUpdate={updateExpense} colorByValidation={isPreActe} />
           </CardContent>
         </Card>
       </section>
 
       {/* Lots */}
       <section>
-        <LotSection lots={lots} onAdd={handleAddLot} onUpdate={handleUpdateLot} onDelete={handleDeleteLot} propertyId={id} propertyStatut={property.statut} />
+        <LotSection
+          lots={lots}
+          onAdd={handleAddLot}
+          onUpdate={handleUpdateLot}
+          onDelete={handleDeleteLot}
+          propertyId={id}
+          propertyStatut={property.statut}
+        />
       </section>
 
 
@@ -606,7 +663,7 @@ function PropertyDetailContent() {
               <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
             </CardHeader>
             <CardContent>
-              <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} />
+              <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} loan={loan} />
             </CardContent>
           </Card>
         </section>
@@ -615,7 +672,13 @@ function PropertyDetailContent() {
       {/* Reel vs Simule */}
       {property.simulationId && (
         <section>
-          <RealVsSimulatedSection property={property} incomes={incomes} expenses={expenses} />
+          <RealVsSimulatedSection
+            property={property}
+            incomes={incomes}
+            expenses={expenses}
+            rentEntries={rentEntries}
+            loan={loan}
+          />
         </section>
       )}
 

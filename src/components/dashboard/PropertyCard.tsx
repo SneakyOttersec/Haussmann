@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import type { Property, Expense, Income, RentMonthEntry, PropertyStatus } from "@/types";
+import type { Property, Expense, Income, LoanDetails, RentMonthEntry, PropertyStatus } from "@/types";
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
@@ -15,6 +15,7 @@ interface PropertyCardProps {
   expenses: Expense[];
   incomes: Income[];
   rentEntries: RentMonthEntry[];
+  loan?: LoanDetails | null;
   onDelete?: (id: string) => void;
 }
 
@@ -28,16 +29,16 @@ function isEnLocation(statut?: PropertyStatus): boolean {
   return PROPERTY_STATUS_ORDER.indexOf(statut) >= PROPERTY_STATUS_ORDER.indexOf("location");
 }
 
-export function PropertyCard({ property, expenses, incomes, rentEntries, onDelete }: PropertyCardProps) {
+export function PropertyCard({ property, expenses, incomes, rentEntries, loan, onDelete }: PropertyCardProps) {
   const router = useRouter();
   const postActe = isPostActe(property.statut);
   const enLocation = isEnLocation(property.statut);
 
   const stats = useMemo(() => {
     if (!postActe) return { global: 0, lastMonth: 0, last6Months: null, nbMois: 0 };
-    const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries);
+    const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
     return computeCashflowStats(monthly);
-  }, [property, incomes, expenses, rentEntries, postActe]);
+  }, [property, incomes, expenses, rentEntries, loan, postActe]);
 
   const cfTheorique = useMemo(
     () => computeTheoreticalMonthlyCashflow(incomes, expenses),

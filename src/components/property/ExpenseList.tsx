@@ -21,6 +21,12 @@ interface ExpenseListProps {
   expenses: Expense[];
   onDelete: (id: string) => void;
   onUpdate?: (id: string, updates: Partial<Expense>) => void;
+  /**
+   * When true, color each Montant cell based on `priceValidated`:
+   * green = confirmed by contract, amber = still a projection.
+   * Used in pre-acte properties; defaults to false (neutral colors) post-acte.
+   */
+  colorByValidation?: boolean;
 }
 
 function EditableCell({
@@ -287,7 +293,7 @@ function YearSelector({
 
 /* ── Main list ── */
 
-export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) {
+export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }: ExpenseListProps) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [reviseTarget, setReviseTarget] = useState<Expense | null>(null);
@@ -346,6 +352,7 @@ export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                   <TableHead className="text-right">Montant {selectedYear}</TableHead>
                   <TableHead>Frequence</TableHead>
                   <TableHead className="text-right">Annualise</TableHead>
+                  <TableHead className="text-center" title="Cocher si un contrat / une offre confirme ce prix">Contrat</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -354,6 +361,10 @@ export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                   const montantEffectif = getMontantForYear(expense, selectedYear);
                   const nbRevisions = (expense.revisions ?? []).length;
                   const hasDelta = montantEffectif !== expense.montant;
+                  const validated = !!expense.priceValidated;
+                  const montantColor = colorByValidation
+                    ? validated ? "text-green-600" : "text-amber-600"
+                    : "";
                   return (
                     <TableRow key={expense.id}>
                       <TableCell className="font-medium">
@@ -368,7 +379,7 @@ export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{EXPENSE_CATEGORY_LABELS[expense.categorie]}</TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className={`text-right ${montantColor}`}>
                         <span className="inline-flex items-center gap-1.5 tabular-nums">
                           {formatCurrency(montantEffectif)}
                           {nbRevisions > 0 && (
@@ -393,6 +404,16 @@ export function ExpenseList({ expenses, onDelete, onUpdate }: ExpenseListProps) 
                         {expense.frequence !== "ponctuel"
                           ? formatCurrency(annualiserMontant(montantEffectif, expense.frequence))
                           : "—"}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <input
+                          type="checkbox"
+                          checked={!!expense.priceValidated}
+                          disabled={!onUpdate}
+                          onChange={(e) => onUpdate?.(expense.id, { priceValidated: e.target.checked })}
+                          className="accent-primary cursor-pointer disabled:cursor-not-allowed"
+                          title={expense.priceValidated ? "Prix confirme par contrat" : "Cocher si un contrat / une offre confirme ce prix"}
+                        />
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-0.5">

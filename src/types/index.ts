@@ -291,6 +291,11 @@ export interface Expense {
   notes?: string;
   /** Historique des revisions de prix. Ordre indifferent — trie par dateEffet a l'utilisation. */
   revisions?: ExpenseRevision[];
+  /**
+   * True once the user has confirmed that a real contract / quote backs this
+   * amount (used during pre-acte to mark which simulated charges are now firm).
+   */
+  priceValidated?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -317,17 +322,36 @@ export interface LoanPJ {
   ajouteLe: string;
 }
 
+/**
+ * Differe type for a loan:
+ * - "partiel": during the defer period, only the interest is paid (no capital).
+ * - "total":   during the defer period, nothing is paid; interest is capitalized.
+ *              The loan starts amortizing on the inflated principal afterwards.
+ */
+export type DifferType = "partiel" | "total";
+
 export interface LoanDetails {
   id: string;
   propertyId: string;
   type: LoanType;
   montantEmprunte: number;
   tauxAnnuel: number;
+  /** Total duration in years, INCLUDING any defer period. */
   dureeAnnees: number;
   dateDebut: string;
   assuranceAnnuelle: number;
   banque?: string;
   documents?: LoanPJ[];
+  /**
+   * True once the user has confirmed that the loan reflects a real bank offer
+   * (and not just a simulation). Drives the "Theorique"/"Reel" label on the
+   * Credit section in pre-acte properties.
+   */
+  offerValidated?: boolean;
+  /** Number of months of defer at the start of the loan (0 = no defer). */
+  differeMois?: number;
+  /** Defer type — only meaningful if differeMois > 0. */
+  differeType?: DifferType;
 }
 
 export interface LotLoyer {

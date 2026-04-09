@@ -17,6 +17,8 @@ interface Props {
   onDelete: (id: string) => void;
   propertyId: string;
   propertyStatut?: PropertyStatus;
+  /** Optional override for the section card title (defaults to "Lots"). */
+  title?: string;
 }
 
 function isEnLocation(statut?: PropertyStatus): boolean {
@@ -149,7 +151,7 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation }: {
   );
 }
 
-export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut }: Props) {
+export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut, title }: Props) {
   const enLocation = isEnLocation(propertyStatut);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut });
@@ -175,7 +177,7 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
   return (
     <Card className="border-dotted">
       <CardHeader className="flex flex-row items-center justify-between pb-3">
-        <CardTitle className="text-base">Lots</CardTitle>
+        <CardTitle className="text-base">{title ?? "Lots"}</CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger render={<Button variant="outline" size="sm" />}>+ Lot</DialogTrigger>
           <DialogContent>

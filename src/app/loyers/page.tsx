@@ -188,12 +188,16 @@ function LoyersContent() {
 
   const propertiesWithData = useMemo(() => {
     if (!data) return [];
-    return data.properties.map((p) => ({
-      property: p,
-      lots: allLots.filter((l) => l.propertyId === p.id),
-      expenses: allExpenses.filter((e) => e.propertyId === p.id),
-      exploitable: isExploitable(p.statut),
-    }));
+    // Exclude soft-deleted properties so they disappear from /loyers as soon as
+    // the user moves them to the bin from the dashboard.
+    return data.properties
+      .filter((p) => !p.deletedAt)
+      .map((p) => ({
+        property: p,
+        lots: allLots.filter((l) => l.propertyId === p.id),
+        expenses: allExpenses.filter((e) => e.propertyId === p.id),
+        exploitable: isExploitable(p.statut),
+      }));
   }, [data, allLots, allExpenses]);
 
   // Global rent KPIs (exploitable properties, current calendar year)
@@ -286,7 +290,7 @@ function LoyersContent() {
         ))}
       </div>
 
-      {data.properties.length === 0 ? (
+      {propertiesWithData.length === 0 ? (
         <div className="border border-dashed border-muted-foreground/30 rounded-md p-8 text-center">
           <p className="text-sm text-muted-foreground">
             Aucun bien enregistre.

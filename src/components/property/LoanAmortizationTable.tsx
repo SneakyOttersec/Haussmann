@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LoanDetails } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { calculerMensualiteAmortissable, capitalRestantDu } from "@/lib/calculations/loan";
+import { crdAtMonth, interetsAnneeForLoan, totalMensualitesAnnee } from "@/lib/calculations/loan";
 
 interface LoanAmortizationTableProps {
   loan: LoanDetails;
@@ -17,37 +17,41 @@ interface AmortRow {
   assurance: number;
   totalPaye: number;
   crdFin: number;
+  /** True if this year is fully or partially in the defer phase. */
+  isDiffere: boolean;
+  differeType?: "partiel" | "total";
 }
 
 function buildAmortization(loan: LoanDetails): AmortRow[] {
   const rows: AmortRow[] = [];
-  const mensualite = loan.type === "in_fine"
-    ? loan.montantEmprunte * loan.tauxAnnuel / 12
-    : calculerMensualiteAmortissable(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees);
-
-  const assuranceMensuelle = loan.assuranceAnnuelle / 12;
+  const totalMois = loan.dureeAnnees * 12;
+  const dM = Math.max(0, loan.differeMois ?? 0);
 
   for (let annee = 1; annee <= loan.dureeAnnees; annee++) {
-    const crdDebut = annee === 1
-      ? loan.montantEmprunte
-      : capitalRestantDu(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees, annee - 1, loan.type);
+    const moisDebutAnnee = (annee - 1) * 12;
+    const moisFinAnnee = Math.min(annee * 12 - 1, totalMois - 1);
 
-    const crdFin = capitalRestantDu(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees, annee, loan.type);
-
-    const capitalRembourse = crdDebut - crdFin;
-    const totalMensualites = mensualite * 12;
-    const interets = totalMensualites - capitalRembourse;
+    const crdDebut = annee === 1 ? loan.montantEmprunte : crdAtMonth(loan, moisDebutAnnee - 1);
+    const crdFin = crdAtMonth(loan, moisFinAnnee);
+    const capitalRembourse = Math.max(0, crdDebut - crdFin);
+    const totalMensualites = totalMensualitesAnnee(loan, annee);
+    const interets = interetsAnneeForLoan(loan, annee);
     const assurance = loan.assuranceAnnuelle;
     const totalPaye = totalMensualites + assurance;
+
+    // Year overlaps the defer window if any of its months sit before `dM`.
+    const isDiffere = moisDebutAnnee < dM;
 
     rows.push({
       annee,
       crdDebut,
-      interets: Math.max(0, interets),
+      interets,
       capital: capitalRembourse,
       assurance,
       totalPaye,
-      crdFin: Math.max(0, crdFin),
+      crdFin,
+      isDiffere,
+      differeType: isDiffere ? loan.differeType : undefined,
     });
   }
 
@@ -61,6 +65,7 @@ export function LoanAmortizationTable({ loan }: LoanAmortizationTableProps) {
   const totalInterets = rows.reduce((s, r) => s + r.interets, 0);
   const totalAssurance = rows.reduce((s, r) => s + r.assurance, 0);
   const totalPaye = rows.reduce((s, r) => s + r.totalPaye, 0);
+  const totalCapitalRembourse = rows.reduce((s, r) => s + r.capital, 0);
   const coutCredit = totalPaye - loan.montantEmprunte;
 
   return (
@@ -96,8 +101,18 @@ export function LoanAmortizationTable({ loan }: LoanAmortizationTableProps) {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.annee} className="hover:bg-muted/20 transition-colors">
-                  <td className="py-1.5 px-3 font-medium">A{r.annee}</td>
+                <tr
+                  key={r.annee}
+                  className={`hover:bg-muted/20 transition-colors ${r.isDiffere ? "bg-amber-500/5" : ""}`}
+                >
+                  <td className="py-1.5 px-3 font-medium">
+                    A{r.annee}
+                    {r.isDiffere && (
+                      <span className="ml-1.5 text-[9px] uppercase tracking-wider text-amber-700" title={`Differe ${r.differeType}`}>
+                        {r.differeType === "total" ? "DT" : "DP"}
+                      </span>
+                    )}
+                  </td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{formatCurrency(r.crdDebut)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums text-destructive">{formatCurrency(r.interets)}</td>
                   <td className="py-1.5 px-3 text-right tabular-nums">{formatCurrency(r.capital)}</td>
@@ -112,7 +127,7 @@ export function LoanAmortizationTable({ loan }: LoanAmortizationTableProps) {
                 <td className="py-2 px-3">Total</td>
                 <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(loan.montantEmprunte)}</td>
                 <td className="py-2 px-3 text-right tabular-nums text-destructive">{formatCurrency(totalInterets)}</td>
-                <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(loan.montantEmprunte)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(totalCapitalRembourse)}</td>
                 <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatCurrency(totalAssurance)}</td>
                 <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(totalPaye)}</td>
                 <td className="py-2 px-3 text-right tabular-nums">0 EUR</td>

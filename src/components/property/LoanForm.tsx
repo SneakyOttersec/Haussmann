@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { LoanDetails, LoanType } from "@/types";
+import type { LoanDetails, LoanType, DifferType } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,6 +39,8 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
     dureeAnnees: initialData?.dureeAnnees ?? 20,
     dateDebut: initialData?.dateDebut ?? new Date().toISOString().slice(0, 10),
     assuranceAnnuelle: initialData?.assuranceAnnuelle ?? 0,
+    differeMois: initialData?.differeMois ?? 0,
+    differeType: initialData?.differeType ?? "partiel",
   });
 
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -136,6 +138,48 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
               />
             </div>
           </div>
+
+          {/* Differe */}
+          <div className="border-t border-dashed border-muted-foreground/15 pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Differe (optionnel)</Label>
+              <p className="text-[10px] text-muted-foreground">Inclus dans la duree totale</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Duree du differe (mois)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={form.dureeAnnees * 12 - 1}
+                  value={form.differeMois ?? 0}
+                  onChange={(e) => update("differeMois", Math.max(0, Number(e.target.value) || 0))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Type de differe</Label>
+                <Select
+                  value={form.differeType ?? "partiel"}
+                  onValueChange={(v) => update("differeType", v as DifferType)}
+                  disabled={!form.differeMois || form.differeMois <= 0}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="partiel">Partiel (interets seulement)</SelectItem>
+                    <SelectItem value="total">Total (capitalisation)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {(form.differeMois ?? 0) > 0 && (
+              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                {form.differeType === "total"
+                  ? `Pendant ${form.differeMois} mois, aucun paiement. Les interets sont capitalises (ajoutes au capital). L'amortissement commence ensuite sur le capital majore.`
+                  : `Pendant ${form.differeMois} mois, seuls les interets sont payes. Le capital reste intact, l'amortissement commence ensuite sur la duree restante.`}
+              </p>
+            )}
+          </div>
+
           <Button type="submit" className="w-full">
             {initialData ? "Modifier" : "Ajouter"}
           </Button>

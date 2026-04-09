@@ -1,6 +1,7 @@
-import type { Property, Income, Expense, RentMonthEntry } from "@/types";
+import type { Property, Income, Expense, RentMonthEntry, LoanDetails } from "@/types";
 import { getMontantEffectif } from "./expenseRevisions";
 import { getPropertyAcquisitionDate } from "./utils";
+import { mensualiteAtMonth } from "./calculations/loan";
 
 export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"
@@ -65,13 +66,17 @@ function monthlyContribution(
 /**
  * Build monthly flow data for a property from exploitation start up to current month.
  * - Loyer incomes are taken from RentMonthEntry.loyerPercu (actual tracked values).
- * - Non-loyer incomes + expenses + credit are projected from recurring entries.
+ * - Non-loyer incomes + expenses are projected from recurring entries.
+ * - Credit: if `loan` is provided, the per-month payment is computed from the
+ *   loan helpers (taking defer into account). Otherwise, the legacy behavior
+ *   reads the auto-created "credit" expense — which doesn't model defer.
  */
 export function buildMonthlyFlow(
   property: Property,
   incomes: Income[],
   expenses: Expense[],
   rentEntries: RentMonthEntry[],
+  loan?: LoanDetails | null,
 ): MonthFlowData[] {
   const startYM = propertyStartYM(property);
   const [sy, sm] = startYM.split("-").map(Number);
@@ -88,6 +93,9 @@ export function buildMonthlyFlow(
     rentByYM.set(e.yearMonth, (rentByYM.get(e.yearMonth) ?? 0) + e.loyerPercu);
   }
 
+  // Pre-compute loan start cursor for the per-month credit calculation.
+  const loanStart = loan ? new Date(loan.dateDebut) : null;
+
   while (ymKey(cursor) <= currentYM) {
     const yearMonth = ymKey(cursor);
     let revenusAutres = 0;
@@ -99,10 +107,21 @@ export function buildMonthlyFlow(
       revenusAutres += monthlyContribution(inc.dateDebut, inc.dateFin, inc.montant, inc.frequence, cursor);
     }
     for (const exp of expenses) {
+      // Skip the auto-created credit expense when we have a loan: we recompute
+      // it from the loan schedule below to handle defer correctly.
+      if (loan && exp.categorie === "credit") continue;
       const montantEff = getMontantEffectif(exp, cursor);
       const montant = monthlyContribution(exp.dateDebut, exp.dateFin, montantEff, exp.frequence, cursor);
       if (exp.categorie === "credit") credit += montant;
       else depenses += montant;
+    }
+
+    if (loan && loanStart && !isNaN(loanStart.getTime())) {
+      const monthIdx = (cursor.getFullYear() - loanStart.getFullYear()) * 12
+        + (cursor.getMonth() - loanStart.getMonth());
+      if (monthIdx >= 0 && monthIdx < loan.dureeAnnees * 12) {
+        credit += mensualiteAtMonth(loan, monthIdx) + loan.assuranceAnnuelle / 12;
+      }
     }
 
     const revenusLoyers = rentByYM.get(yearMonth) ?? 0;

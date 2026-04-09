@@ -1,6 +1,6 @@
 "use client";
 
-import type { Expense, Income, Property, RentMonthEntry } from "@/types";
+import type { Expense, Income, LoanDetails, Property, RentMonthEntry } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { buildMonthlyFlow, computeCashflowStats } from "@/lib/monthlyFlow";
 import {
@@ -21,6 +21,8 @@ interface CashFlowChartProps {
   incomes: Income[];
   expenses: Expense[];
   rentEntries: RentMonthEntry[];
+  /** Optional loan — when provided, monthly credit is computed from the loan schedule (handles defer). */
+  loan?: LoanDetails | null;
 }
 
 const fmtEur = (v: number) =>
@@ -69,8 +71,8 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export function CashFlowChart({ property, incomes, expenses, rentEntries }: CashFlowChartProps) {
-  const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries);
+export function CashFlowChart({ property, incomes, expenses, rentEntries, loan }: CashFlowChartProps) {
+  const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan);
 
   if (monthly.length === 0) {
     return (

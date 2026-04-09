@@ -13,6 +13,7 @@ export function simulationToBien(
 ): string {
   const propertyId = generateId();
   const timestamp = now();
+  const today = new Date().toISOString().slice(0, 10);
 
   const fraisNotaire = Math.round(inputs.prixAchat * inputs.fraisNotairePct);
   const fraisAgence = inputs.fraisAgence || 0;
@@ -26,7 +27,7 @@ export function simulationToBien(
     adresse: inputs.adresse || "",
     type: "appartement",
     prixAchat: inputs.prixAchat,
-    dateSaisie: new Date().toISOString().slice(0, 10),
+    dateSaisie: today,
     fraisNotaire,
     fraisAgence,
     fraisDossier,
@@ -35,6 +36,12 @@ export function simulationToBien(
     montantMobilier: inputs.montantMobilierTotal || 0,
     surfaceM2: inputs.surfaceM2 || undefined,
     simulationId,
+    // A property born from a simulation is still being prospected — not yet
+    // owned. The user moves the timeline forward as the deal progresses
+    // (offre → compromis → acte). Until then, finances/loyers/charges treat
+    // it as theoretical projections (see isPostActe / pre-acte gating).
+    statut: "prospection",
+    statusDates: { prospection: today },
     allocationCredit: inputs.montantEmprunte > 0 ? (() => {
       // L'apport couvre une partie du prix du bien — le credit finance le reste
       const autresCouts = inputs.montantTravaux + fraisNotaire + fraisAgence + autreAlloc;

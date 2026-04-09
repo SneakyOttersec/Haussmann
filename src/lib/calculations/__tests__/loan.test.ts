@@ -5,6 +5,15 @@ import {
   calculerMensualite,
   capitalRestantDu,
   interetsAnnuels,
+  capitalApresDiffere,
+  mensualiteAmortissement,
+  mensualitePendantDiffere,
+  mensualiteAtMonth,
+  crdAtMonth,
+  crdAtYearEnd,
+  interetsAnneeForLoan,
+  totalMensualitesAnnee,
+  type LoanLike,
 } from '../loan';
 
 describe('calculerMensualiteAmortissable', () => {
@@ -115,5 +124,110 @@ describe('interetsAnnuels', () => {
     const i10 = interetsAnnuels(200_000, 0.036, 20, 10, 'in_fine');
     expect(i1).toBeCloseTo(7200, 2); // 200000 * 0.036
     expect(i10).toBeCloseTo(7200, 2);
+  });
+});
+
+// ── Differe (partial / total) ──
+
+const baseLoan: LoanLike = {
+  montantEmprunte: 200_000,
+  tauxAnnuel: 0.036,
+  dureeAnnees: 20, // 240 months total
+  type: 'amortissable',
+};
+
+describe('differe partiel — 12 mois', () => {
+  const loan: LoanLike = { ...baseLoan, differeMois: 12, differeType: 'partiel' };
+
+  it('capital effectif inchange apres differe partiel', () => {
+    expect(capitalApresDiffere(loan)).toBe(200_000);
+  });
+
+  it('mensualite pendant le differe = interets seulement', () => {
+    // 200_000 * 0.036 / 12 = 600
+    expect(mensualitePendantDiffere(loan)).toBeCloseTo(600, 2);
+    expect(mensualiteAtMonth(loan, 0)).toBeCloseTo(600, 2);
+    expect(mensualiteAtMonth(loan, 11)).toBeCloseTo(600, 2);
+  });
+
+  it('mensualite apres differe est calculee sur 19 ans (228 mois)', () => {
+    const m = mensualiteAmortissement(loan);
+    // 200_000 sur 228 mois @ 3.6%/an
+    const expected = calculerMensualiteAmortissable(200_000, 0.036, 19);
+    expect(m).toBeCloseTo(expected, 2);
+    expect(mensualiteAtMonth(loan, 12)).toBeCloseTo(expected, 2);
+  });
+
+  it('CRD constant pendant le differe partiel', () => {
+    expect(crdAtMonth(loan, 0)).toBe(200_000);
+    expect(crdAtMonth(loan, 11)).toBe(200_000);
+  });
+
+  it('CRD = 0 a la fin de la duree totale', () => {
+    expect(crdAtMonth(loan, 240 - 1)).toBeCloseTo(0, 0);
+    expect(crdAtYearEnd(loan, 20)).toBeCloseTo(0, 0);
+  });
+
+  it('interets de l annee 1 = 12 * (capital * t/12)', () => {
+    const i1 = interetsAnneeForLoan(loan, 1);
+    expect(i1).toBeCloseTo(7200, 0); // 12 * 600
+  });
+
+  it('total mensualites annee 1 = 12 * 600', () => {
+    expect(totalMensualitesAnnee(loan, 1)).toBeCloseTo(7200, 0);
+  });
+
+  it('total mensualites annee 2 = 12 * mensualite amortissement', () => {
+    const m = mensualiteAmortissement(loan);
+    expect(totalMensualitesAnnee(loan, 2)).toBeCloseTo(m * 12, 0);
+  });
+});
+
+describe('differe total — 12 mois', () => {
+  const loan: LoanLike = { ...baseLoan, differeMois: 12, differeType: 'total' };
+
+  it('capital apres differe = capital * (1+t)^12', () => {
+    const expected = 200_000 * Math.pow(1 + 0.036 / 12, 12);
+    expect(capitalApresDiffere(loan)).toBeCloseTo(expected, 2);
+  });
+
+  it('mensualite pendant le differe = 0', () => {
+    expect(mensualitePendantDiffere(loan)).toBe(0);
+    expect(mensualiteAtMonth(loan, 0)).toBe(0);
+    expect(mensualiteAtMonth(loan, 11)).toBe(0);
+  });
+
+  it('CRD croit pendant le differe total', () => {
+    const t = 0.036 / 12;
+    expect(crdAtMonth(loan, 0)).toBeCloseTo(200_000 * (1 + t), 2);
+    expect(crdAtMonth(loan, 11)).toBeCloseTo(200_000 * Math.pow(1 + t, 12), 2);
+  });
+
+  it('mensualite apres differe sur capital inflate', () => {
+    const capital = capitalApresDiffere(loan);
+    const m = mensualiteAmortissement(loan);
+    const expected = calculerMensualiteAmortissable(capital, 0.036, 19);
+    expect(m).toBeCloseTo(expected, 2);
+  });
+
+  it('interets payes annee 1 = 0 (capitalises)', () => {
+    expect(interetsAnneeForLoan(loan, 1)).toBe(0);
+  });
+
+  it('CRD ≈ 0 a la fin', () => {
+    expect(crdAtMonth(loan, 240 - 1)).toBeCloseTo(0, 0);
+  });
+});
+
+describe('differe nul (compatibilite)', () => {
+  it('comportement identique a un pret sans differe', () => {
+    const loanSansDiffere: LoanLike = { ...baseLoan, differeMois: 0 };
+    const m1 = mensualiteAmortissement(loanSansDiffere);
+    const m2 = calculerMensualiteAmortissable(200_000, 0.036, 20);
+    expect(m1).toBeCloseTo(m2, 2);
+    expect(crdAtMonth(loanSansDiffere, 11)).toBeCloseTo(
+      capitalRestantDu(200_000, 0.036, 20, 1, 'amortissable'),
+      0,
+    );
   });
 });

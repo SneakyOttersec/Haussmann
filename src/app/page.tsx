@@ -20,13 +20,15 @@ const PropertyMap = dynamic(
 
 export default function Dashboard() {
   const { data, setData } = useAppData();
-  const { deleteProperty } = useProperties(data, setData);
+  // useProperties returns the soft-delete-filtered list, so deleted cards
+  // disappear from the dashboard immediately after the user confirms a delete.
+  const { properties, deleteProperty } = useProperties(data, setData);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
   if (!data) return null;
 
-  const { properties, settings } = data;
+  const { settings } = data;
 
   const handleDeleteRequest = (id: string) => {
     const prop = properties.find((p) => p.id === id);
@@ -120,7 +122,7 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mes biens ({properties.filter(p => !p.deletedAt).length})</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mes biens ({properties.length})</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {properties.map((property) => (
             <PropertyCard
@@ -129,6 +131,7 @@ export default function Dashboard() {
               expenses={data.expenses.filter((e) => e.propertyId === property.id)}
               incomes={data.incomes.filter((i) => i.propertyId === property.id)}
               rentEntries={(data.rentTracking ?? []).filter((e) => e.propertyId === property.id)}
+              loan={data.loans.find((l) => l.propertyId === property.id) ?? null}
               onDelete={handleDeleteRequest}
             />
           ))}

@@ -8,7 +8,7 @@ import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal
 import { toast } from "sonner";
 import { formatCurrency, mensualiserMontant, annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
-import { capitalRestantDu } from "@/lib/calculations/loan";
+import { crdAtMonth } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MonthlyFinance, PatrimoineMonth } from "@/components/finances/FinancesCharts";
 
@@ -172,8 +172,9 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
       const loanStartMonth = new Date(loanStart.getFullYear(), loanStart.getMonth(), 1);
       if (loanStartMonth > d) continue; // loan not yet started
       const monthsElapsed = (d.getFullYear() - loanStart.getFullYear()) * 12 + (d.getMonth() - loanStart.getMonth());
-      const yearsElapsed = Math.min(Math.max(0, monthsElapsed / 12), loan.dureeAnnees);
-      totalCRD += capitalRestantDu(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees, yearsElapsed, loan.type);
+      const cappedMonth = Math.min(Math.max(0, monthsElapsed), loan.dureeAnnees * 12 - 1);
+      // crdAtMonth handles defer (partiel/total) correctly.
+      totalCRD += crdAtMonth(loan, cappedMonth);
     }
 
     months.push({ mois: label, valeurBiens: Math.round(totalValeur), capitalRestantDu: Math.round(totalCRD), patrimoineNet: Math.round(totalValeur - totalCRD) });
@@ -193,9 +194,11 @@ function isPropertyActive(statut: PropertyStatus | undefined): boolean {
   return !PRE_ACTE_STATUSES.includes(statut);
 }
 
-/** Filter AppData to only include financially active properties (post-acte) */
+/** Filter AppData to only include financially active properties (post-acte AND not soft-deleted) */
 function filterActiveProperties(data: AppData): AppData {
-  const activeIds = new Set(data.properties.filter((p) => isPropertyActive(p.statut)).map((p) => p.id));
+  const activeIds = new Set(
+    data.properties.filter((p) => !p.deletedAt && isPropertyActive(p.statut)).map((p) => p.id),
+  );
   return {
     ...data,
     properties: data.properties.filter((p) => activeIds.has(p.id)),

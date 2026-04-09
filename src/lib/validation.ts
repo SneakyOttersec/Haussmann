@@ -66,7 +66,12 @@ export const loanSchema = z.object({
   dureeAnnees: z.number().int().min(1, 'Min 1 an').max(30, 'Max 30 ans'),
   dateDebut: z.string().min(1, 'Date requise'),
   assuranceAnnuelle: nonNegativeAmount,
-});
+  differeMois: z.number().int().min(0, 'Min 0 mois').max(60, 'Max 60 mois').optional(),
+  differeType: z.enum(['partiel', 'total']).optional(),
+}).refine(
+  (data) => !data.differeMois || data.differeMois < data.dureeAnnees * 12,
+  { message: 'Le differe doit etre strictement inferieur a la duree totale', path: ['differeMois'] },
+);
 
 // --- Calculator Inputs (partial, key fields) ---
 

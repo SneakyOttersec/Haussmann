@@ -114,3 +114,133 @@ export function dataUriToBytes(dataUri: string): Uint8Array {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+
+// ── Metadata-only listing (for UI display) ──
+
+export type DocumentSource = 'phase' | 'document' | 'loan' | 'intervention';
+
+export interface DocumentListEntry {
+  /** Stable unique key for React */
+  key: string;
+  source: DocumentSource;
+  sourceLabel: string;
+  /** Source property (always defined for the 4 known sources) */
+  propertyId: string;
+  propertyName: string;
+  /** Original uploaded filename */
+  fileName: string;
+  /** MIME type, e.g. "application/pdf" */
+  fileType: string;
+  /** Size in bytes */
+  fileSize: number;
+  /** ISO date — best-effort: phase date / ajouteLe / intervention date */
+  date: string;
+  /** Full data URI — kept so the UI can offer a download action */
+  dataUri: string;
+}
+
+/**
+ * Walks AppData and returns one entry per uploaded file across the 4 sources
+ * (property phases, generic documents, loan PJs, intervention PJs).
+ * Metadata is enough for a settings-page listing — we keep dataUri so the
+ * caller can build a download link without re-walking the tree.
+ */
+export function listAllDocuments(data: AppData): DocumentListEntry[] {
+  const entries: DocumentListEntry[] = [];
+  const propName = (id: string) => data.properties.find((p) => p.id === id)?.nom ?? id;
+
+  // 1. Property statusDocs (phases)
+  for (const p of data.properties) {
+    if (!p.statusDocs) continue;
+    for (const [phase, doc] of Object.entries(p.statusDocs)) {
+      if (!doc || !isDataUri(doc.data)) continue;
+      const phaseLabel = PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase;
+      const phaseDate = p.statusDates?.[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? '';
+      entries.push({
+        key: `phase:${p.id}:${phase}`,
+        source: 'phase',
+        sourceLabel: `Phase ${phaseLabel}`,
+        propertyId: p.id,
+        propertyName: p.nom,
+        fileName: doc.nom,
+        fileType: doc.type,
+        fileSize: doc.taille,
+        date: phaseDate,
+        dataUri: doc.data,
+      });
+    }
+  }
+
+  // 2. PropertyDocuments
+  for (const doc of (data.documents ?? [])) {
+    if (!isDataUri(doc.data)) continue;
+    const catLabel = DOCUMENT_CATEGORY_LABELS[doc.categorie] ?? doc.categorie;
+    entries.push({
+      key: `doc:${doc.id}`,
+      source: 'document',
+      sourceLabel: catLabel,
+      propertyId: doc.propertyId,
+      propertyName: propName(doc.propertyId),
+      fileName: doc.nom,
+      fileType: doc.type,
+      fileSize: doc.taille,
+      date: doc.ajouteLe,
+      dataUri: doc.data,
+    });
+  }
+
+  // 3. Loan documents
+  for (const loan of (data.loans ?? [])) {
+    const docs = loan.documents ?? [];
+    for (let i = 0; i < docs.length; i++) {
+      const doc = docs[i];
+      if (!isDataUri(doc.data)) continue;
+      entries.push({
+        key: `loan:${loan.id}:${i}`,
+        source: 'loan',
+        sourceLabel: 'Pret',
+        propertyId: loan.propertyId,
+        propertyName: propName(loan.propertyId),
+        fileName: doc.nom,
+        fileType: doc.type,
+        fileSize: doc.taille,
+        date: doc.ajouteLe ?? loan.dateDebut,
+        dataUri: doc.data,
+      });
+    }
+  }
+
+  // 4. Intervention PJ
+  for (const inter of (data.interventions ?? [])) {
+    if (!inter.pieceJointe || !isDataUri(inter.pieceJointe.data)) continue;
+    entries.push({
+      key: `inter:${inter.id}`,
+      source: 'intervention',
+      sourceLabel: inter.interventionType === 'travaux' ? 'Travaux' : 'Intervention',
+      propertyId: inter.propertyId,
+      propertyName: propName(inter.propertyId),
+      fileName: inter.pieceJointe.nom,
+      fileType: inter.pieceJointe.type,
+      fileSize: inter.pieceJointe.taille,
+      date: inter.date,
+      dataUri: inter.pieceJointe.data,
+    });
+  }
+
+  // Sort by date desc (most recent first), then by filename for stability.
+  entries.sort((a, b) => {
+    if (a.date && b.date) return b.date.localeCompare(a.date);
+    if (a.date) return -1;
+    if (b.date) return 1;
+    return a.fileName.localeCompare(b.fileName);
+  });
+
+  return entries;
+}
+
+/** Format a byte count as a human-readable string (e.g. "1.2 MB"). */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} Ko`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+}

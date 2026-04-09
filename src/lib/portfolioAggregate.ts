@@ -1,7 +1,7 @@
 import type { AppData, CalculatorInputs } from "@/types";
 import { mensualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
-import { calculerMensualite, capitalRestantDu } from "@/lib/calculations/loan";
+import { crdAtMonth, mensualiteAtMonth } from "@/lib/calculations/loan";
 import { computeYearlyFinancials } from "@/lib/calculations";
 
 /**
@@ -73,28 +73,19 @@ export function computePortfolioSnapshot(
     return s + base * Math.pow(1 + appreciationAnnuelle, years);
   }, 0);
 
-  // Credits: CRD actuel + mensualite (incluant assurance)
+  // Credits: CRD actuel + mensualite courante (defer-aware)
   let capitalRestantDuTotal = 0;
   let mensualitesCreditTotal = 0;
   let totalEmprunte = 0;
   for (const loan of loans) {
     totalEmprunte += loan.montantEmprunte;
-    const yearsElapsed = yearsElapsedSince(loan.dateDebut);
-    const crd = capitalRestantDu(
-      loan.montantEmprunte,
-      loan.tauxAnnuel,
-      loan.dureeAnnees,
-      Math.min(yearsElapsed, loan.dureeAnnees),
-      loan.type,
+    const monthsElapsed = Math.max(
+      0,
+      Math.floor(yearsElapsedSince(loan.dateDebut) * 12),
     );
-    capitalRestantDuTotal += crd;
-    const mensualite = calculerMensualite(
-      loan.montantEmprunte,
-      loan.tauxAnnuel,
-      loan.dureeAnnees,
-      loan.type,
-    );
-    mensualitesCreditTotal += mensualite + (loan.assuranceAnnuelle ?? 0) / 12;
+    const cappedMonth = Math.min(monthsElapsed, loan.dureeAnnees * 12 - 1);
+    capitalRestantDuTotal += crdAtMonth(loan, cappedMonth);
+    mensualitesCreditTotal += mensualiteAtMonth(loan, cappedMonth) + (loan.assuranceAnnuelle ?? 0) / 12;
   }
 
   const apportGlobal = Math.max(0, coutAcquisition - totalEmprunte);

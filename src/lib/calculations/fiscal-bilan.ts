@@ -1,7 +1,7 @@
 import type { AppData, Property, CalculatorInputs } from "@/types";
 import { annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
-import { interetsAnnuels } from "./loan";
+import { interetsAnneeForLoan } from "./loan";
 import { calculerImpotIR } from "./tax-ir";
 import { calculerImpotIS, calculerAmortissementAnnee } from "./tax-is";
 
@@ -128,7 +128,9 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
       const loanStartYear = parseInt(loan.dateDebut.slice(0, 4));
       const loanAnnee = annee - loanStartYear + 1;
       if (loanAnnee >= 1 && loanAnnee <= loan.dureeAnnees) {
-        interets = interetsAnnuels(loan.montantEmprunte, loan.tauxAnnuel, loan.dureeAnnees, loanAnnee, loan.type);
+        // Use the differe-aware helper: during a "differe total", interest is
+        // capitalized (not paid → not deductible that year).
+        interets = interetsAnneeForLoan(loan, loanAnnee);
         assurance = loan.assuranceAnnuelle;
       }
     }
