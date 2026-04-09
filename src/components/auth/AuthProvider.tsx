@@ -158,35 +158,11 @@ function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
   );
 }
 
+// Auth feature disabled — pass-through wrapper. The login screen, GIS loader,
+// session helpers and auth state machine above are kept in place so the feature
+// can be re-enabled by restoring the previous implementation here. Sidebar
+// consumers of useAuth() will receive the default context value (user = null),
+// which their `{user && ...}` guards already handle gracefully.
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const authState = useSyncExternalStore(subscribeAuth, getAuthSnapshot, () => LOADING_STATE);
-
-  const handleLogin = useCallback((u: User) => {
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(u));
-    setAuthState({ phase: "logged-in", user: u });
-    // Redirect to basePath root after login
-    const basePath = process.env.__NEXT_ROUTER_BASEPATH || "";
-    if (basePath && !window.location.pathname.startsWith(basePath)) {
-      window.location.href = basePath;
-    }
-  }, []);
-
-  const handleSignOut = useCallback(() => {
-    sessionStorage.removeItem(SESSION_KEY);
-    setAuthState({ phase: "logged-out" });
-  }, []);
-
-  if (authState.phase === "loading") return null;
-
-  // No client ID configured → skip login (allow setup)
-  if (authState.phase === "bypass") return <>{children}</>;
-
-  // Not logged in → show login screen
-  if (authState.phase === "logged-out") return <LoginScreen onLogin={handleLogin} />;
-
-  return (
-    <AuthContext.Provider value={{ user: authState.user, loading: false, signOut: handleSignOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <>{children}</>;
 }
