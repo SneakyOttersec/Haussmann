@@ -7,19 +7,27 @@ const DB_NAME = 'sci-immobilier-blobs';
 const STORE_NAME = 'blobs';
 const DB_VERSION = 1;
 
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+// Cache the DB connection: opening IndexedDB is async overhead — reuse one connection for the lifetime of the page.
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = () => {
       req.result.createObjectStore(STORE_NAME);
     };
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    req.onerror = () => {
+      dbPromise = null; // allow retry on failure
+      reject(req.error);
+    };
   });
+  return dbPromise;
 }
 
 export async function putBlob(key: string, data: string): Promise<void> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).put(data, key);
@@ -29,7 +37,7 @@ export async function putBlob(key: string, data: string): Promise<void> {
 }
 
 export async function getBlob(key: string): Promise<string | null> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
     const req = tx.objectStore(STORE_NAME).get(key);
@@ -39,7 +47,7 @@ export async function getBlob(key: string): Promise<string | null> {
 }
 
 export async function deleteBlob(key: string): Promise<void> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     tx.objectStore(STORE_NAME).delete(key);
@@ -49,7 +57,7 @@ export async function deleteBlob(key: string): Promise<void> {
 }
 
 export async function deleteBlobsWithPrefix(prefix: string): Promise<void> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);

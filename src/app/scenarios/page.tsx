@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import type { SavedSimulation, CalculatorInputs } from "@/types";
@@ -88,30 +88,40 @@ function DeltaCell({ delta, format, invert }: { delta: number; format: Row["form
   );
 }
 
+// Cached snapshot for useSyncExternalStore — must be referentially stable.
+const EMPTY_SIMS: SavedSimulation[] = [];
+let cachedSims: SavedSimulation[] | null = null;
+const getSimsSnapshot = (): SavedSimulation[] => {
+  if (cachedSims === null) cachedSims = loadSimulations();
+  return cachedSims;
+};
+const subscribeNoop = () => () => {};
+
 export default function ScenariosPage() {
   const { data } = useAppData();
-  const [simulations, setSimulations] = useState<SavedSimulation[]>([]);
-  const [selectedSimId, setSelectedSimId] = useState<string>("");
-  const [simInputs, setSimInputs] = useState<CalculatorInputs | null>(null);
+  // SSR-safe localStorage read without setState in effect.
+  const simulations = useSyncExternalStore(subscribeNoop, getSimsSnapshot, () => EMPTY_SIMS);
+  // Default to first sim, but let manual selection override it.
+  const [manualSelectedId, setManualSelectedId] = useState<string | null>(null);
+  const selectedSimId = manualSelectedId ?? simulations[0]?.id ?? "";
+  const setSelectedSimId = setManualSelectedId;
+  // Hydrated inputs are cached by sim id — derived below from `selectedSimId`,
+  // so there's no need to clear state synchronously when the selection changes.
+  const [hydratedBySim, setHydratedBySim] = useState<Record<string, CalculatorInputs>>({});
 
   useEffect(() => {
-    const sims = loadSimulations();
-    setSimulations(sims);
-    if (sims.length > 0) setSelectedSimId(sims[0].id);
-  }, []);
-
-  // Hydrate selected simulation
-  useEffect(() => {
-    if (!selectedSimId) {
-      setSimInputs(null);
-      return;
-    }
+    if (!selectedSimId || hydratedBySim[selectedSimId]) return;
     const sim = simulations.find((s) => s.id === selectedSimId);
     if (!sim) return;
     hydrateSimulation(sim).then((hydrated) => {
-      setSimInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
+      setHydratedBySim((prev) => ({
+        ...prev,
+        [selectedSimId]: { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated },
+      }));
     });
-  }, [selectedSimId, simulations]);
+  }, [selectedSimId, simulations, hydratedBySim]);
+
+  const simInputs: CalculatorInputs | null = selectedSimId ? hydratedBySim[selectedSimId] ?? null : null;
 
   const current = useMemo(
     () => (data ? computePortfolioSnapshot(data) : null),

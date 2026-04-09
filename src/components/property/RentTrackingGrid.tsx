@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import type { Lot, RentMonthEntry, RentMonthStatus } from "@/types";
+import type { Lot, RentMonthEntry, RentMonthStatus, PartielRaison } from "@/types";
 import { RENT_MONTH_STATUS_LABELS } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -28,14 +28,15 @@ const MONTH_LABELS = [
   "Juil", "Aout", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function monthsWindow(count: number): string[] {
-  const now = new Date();
+function monthsRange(minYM: string, maxYM: string): string[] {
+  const [sy, sm] = minYM.split("-").map(Number);
+  const [ey, em] = maxYM.split("-").map(Number);
   const months: string[] = [];
-  for (let i = count - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    months.push(`${yyyy}-${mm}`);
+  let y = sy, m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    months.push(`${y}-${String(m).padStart(2, "0")}`);
+    m++;
+    if (m > 12) { m = 1; y++; }
   }
   return months;
 }
@@ -52,26 +53,22 @@ function toYM(d: Date): string {
 
 /**
  * Compute the editable range for rent tracking:
- * - minYM: max of (M-12) and dateExploitation month
+ * - minYM: dateExploitation month (or M-12 fallback if not set)
  * - maxYM: M+1 (next month)
  */
 function editableRange(dateExploitation?: string): { minYM: string; maxYM: string } {
   const now = new Date();
-  // M+1
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const maxYM = toYM(nextMonth);
-  // M-12
-  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
-  let minYM = toYM(twelveMonthsAgo);
-  // Clamp to dateExploitation if later
+  // Use acquisition date as start, fallback to M-12
   if (dateExploitation) {
     const expl = new Date(dateExploitation);
     if (!isNaN(expl.getTime())) {
-      const explYM = toYM(expl);
-      if (explYM > minYM) minYM = explYM;
+      return { minYM: toYM(expl), maxYM };
     }
   }
-  return { minYM, maxYM };
+  const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+  return { minYM: toYM(twelveMonthsAgo), maxYM };
 }
 
 function statusColor(status: RentMonthStatus): { bg: string; border: string; text: string } {
@@ -113,6 +110,7 @@ function CellEditor({
   onClose,
 }: CellEditorProps) {
   const [statut, setStatut] = useState<RentMonthStatus>(entry?.statut ?? "paye");
+  const [partielRaison, setPartielRaison] = useState<PartielRaison>(entry?.partielRaison ?? "impaye");
   const [loyerPercu, setLoyerPercu] = useState<string>(
     String(entry?.loyerPercu ?? loyerAttendu),
   );
@@ -124,6 +122,7 @@ function CellEditor({
       statut,
       loyerAttendu,
       loyerPercu: percu,
+      partielRaison: statut === "partiel" ? partielRaison : undefined,
       notes: notes || undefined,
     });
     onClose();
@@ -204,6 +203,44 @@ function CellEditor({
           />
         </div>
       )}
+
+      {statut === "partiel" && (() => {
+        const percu = Number(loyerPercu) || 0;
+        const prorata = loyerAttendu > 0 ? Math.round((percu / loyerAttendu) * 100) : 0;
+        const joursOccupes = loyerAttendu > 0 ? Math.round((percu / loyerAttendu) * 30) : 0;
+        return (
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Raison</label>
+            <div className="flex flex-col gap-1.5 mt-1">
+              <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                <input
+                  type="radio"
+                  name="partielRaison"
+                  checked={partielRaison === "impaye"}
+                  onChange={() => setPartielRaison("impaye")}
+                  className="accent-primary"
+                />
+                <span className={partielRaison === "impaye" ? "text-foreground font-medium" : "text-muted-foreground"}>Impaye partiel</span>
+              </label>
+              <label className="flex items-center gap-2 text-[11px] cursor-pointer">
+                <input
+                  type="radio"
+                  name="partielRaison"
+                  checked={partielRaison === "vacance_partielle"}
+                  onChange={() => setPartielRaison("vacance_partielle")}
+                  className="accent-primary"
+                />
+                <span className={partielRaison === "vacance_partielle" ? "text-foreground font-medium" : "text-muted-foreground"}>Vacance partielle du mois</span>
+              </label>
+            </div>
+            {partielRaison === "vacance_partielle" && loyerAttendu > 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1.5 italic">
+                Occupation : ~{joursOccupes}j/30 ({prorata}%) — taux d&apos;occupation ajuste au prorata
+              </p>
+            )}
+          </div>
+        );
+      })()}
 
       <div>
         <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Note</label>
@@ -312,32 +349,56 @@ function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete 
 }
 
 export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, onUpsert, onDelete }: Props) {
-  const [monthCount, setMonthCount] = useState(12);
-  const months = useMemo(() => monthsWindow(monthCount), [monthCount]);
   const now = new Date();
   const currentYM = toYM(now);
-  const { minYM, maxYM } = useMemo(() => editableRange(dateExploitation), [dateExploitation]);
+  const { minYM, maxYM } = editableRange(dateExploitation);
+  const allMonths = monthsRange(minYM, maxYM);
+
+  // Year-based navigation
+  const availableYears = Array.from(
+    new Set(allMonths.map(m => Number(m.split("-")[0])))
+  ).sort((a, b) => a - b);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+  const months = allMonths.filter(m => m.startsWith(String(selectedYear)));
 
   // Compute KPIs across displayed window — excluding future months (beyond current month)
-  const kpis = useMemo(() => {
+  const kpis = (() => {
     const pastMonths = months.filter((m) => m <= currentYM);
     const windowEntries = entries.filter((e) => pastMonths.includes(e.yearMonth));
-    const totalAttendu = lots.reduce((s, l) => s + l.loyerMensuel, 0) * pastMonths.length;
+    const loyerMensuel = lots.reduce((s, l) => s + l.loyerMensuel, 0);
+    const totalAttendu = loyerMensuel * 12;
     const totalPercu = windowEntries.reduce((s, e) => s + e.loyerPercu, 0);
+
+    // Impayes: only count actual non-payment, NOT vacance partielle
     const totalImpayes = windowEntries
-      .filter((e) => e.statut === "impaye" || e.statut === "partiel")
+      .filter((e) => e.statut === "impaye" || (e.statut === "partiel" && e.partielRaison !== "vacance_partielle"))
       .reduce((s, e) => s + Math.max(0, e.loyerAttendu - e.loyerPercu), 0);
 
-    const moisOccupes = windowEntries.filter((e) => e.statut === "paye" || e.statut === "partiel").length;
+    // Taux d'occupation:
+    // - Full vacant/travaux = 0% for that lot-month
+    // - Vacance partielle = prorata (loyerPercu / loyerAttendu)
+    // - Everything else (paye, partiel impaye, unrecorded) = 100%
     const totalMoisLots = lots.length * pastMonths.length;
-    // Unrecorded months count as occupied; only explicit "vacant" reduces the rate.
-    const moisVacants = windowEntries.filter((e) => e.statut === "vacant" || e.statut === "travaux").length;
-    const tauxOccupation = totalMoisLots > 0
-      ? ((totalMoisLots - moisVacants) / totalMoisLots) * 100
-      : 0;
+    let occupationUnits = totalMoisLots; // start assuming full occupation
+    for (const e of windowEntries) {
+      if (e.statut === "vacant" || e.statut === "travaux") {
+        occupationUnits -= 1; // fully vacant
+      } else if (e.statut === "partiel" && e.partielRaison === "vacance_partielle" && e.loyerAttendu > 0) {
+        occupationUnits -= (1 - e.loyerPercu / e.loyerAttendu); // prorata vacancy
+      }
+    }
+    const tauxOccupation = totalMoisLots > 0 ? (occupationUnits / totalMoisLots) * 100 : 0;
 
-    return { totalAttendu, totalPercu, totalImpayes, tauxOccupation, moisOccupes, nbMois: pastMonths.length };
-  }, [entries, lots, months, currentYM]);
+    // Attendu to date: for current year = Jan→now, for past years = full year
+    const nowDate = new Date();
+    const currentYear = nowDate.getFullYear();
+    const currentMonth = nowDate.getMonth() + 1; // 1-12
+    const selYear = Number(months[0]?.split("-")[0]) || currentYear;
+    const moisToDate = selYear === currentYear ? currentMonth : (selYear < currentYear ? 12 : 0);
+    const attenduToDate = loyerMensuel * moisToDate;
+
+    return { totalAttendu, attenduToDate, moisToDate, totalPercu, totalImpayes, tauxOccupation, nbMois: pastMonths.length };
+  })();
 
   if (lots.length === 0) {
     return null;
@@ -353,15 +414,16 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
         </div>
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Loyer percu ({monthCount}m)
+            Loyer percu ({selectedYear})
           </p>
           <p className="text-sm font-bold">{formatCurrency(kpis.totalPercu)}</p>
         </div>
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Loyer attendu ({monthCount}m)
+            Attendu a ce jour ({kpis.moisToDate}m)
           </p>
-          <p className="text-sm font-bold text-muted-foreground">{formatCurrency(kpis.totalAttendu)}</p>
+          <p className="text-sm font-bold">{formatCurrency(kpis.attenduToDate)}</p>
+          <p className="text-[9px] text-muted-foreground">Annee complete : {formatCurrency(kpis.totalAttendu)}</p>
         </div>
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Impayes</p>
@@ -371,20 +433,20 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Year navigation */}
       <div className="flex items-center justify-between">
         <div className="flex gap-1">
-          {[12, 24, 36].map((n) => (
+          {availableYears.map((y) => (
             <button
-              key={n}
-              onClick={() => setMonthCount(n)}
+              key={y}
+              onClick={() => setSelectedYear(y)}
               className={`text-[11px] px-2 py-1 rounded border transition-colors ${
-                monthCount === n
-                  ? "border-primary/40 bg-primary/10 text-primary"
+                selectedYear === y
+                  ? "border-primary/40 bg-primary/10 text-primary font-semibold"
                   : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
               }`}
             >
-              {n} mois
+              {y}
             </button>
           ))}
         </div>

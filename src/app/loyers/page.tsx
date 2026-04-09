@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAppData } from "@/hooks/useLocalStorage";
@@ -10,7 +10,7 @@ import { useLots } from "@/hooks/useLots";
 import { useExpenses } from "@/hooks/useExpenses";
 import { RentTrackingGrid } from "@/components/property/RentTrackingGrid";
 import { ChargeTrackingGrid } from "@/components/property/ChargeTrackingGrid";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { PROPERTY_TYPE_LABELS } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,16 +28,6 @@ function isExploitable(statut?: PropertyStatus): boolean {
 
 /* ── Shared helpers ── */
 
-function monthsWindow(count: number): string[] {
-  const now = new Date();
-  const months: string[] = [];
-  for (let i = count - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-  }
-  return months;
-}
-
 function currentMonthStr(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
@@ -47,17 +37,33 @@ function computeRentKpis(lots: Lot[], entries: RentMonthEntry[], months: string[
   const currentYM = currentMonthStr();
   const pastMonths = months.filter((m) => m <= currentYM);
   const windowEntries = entries.filter((e) => pastMonths.includes(e.yearMonth));
-  const totalAttendu = lots.reduce((s, l) => s + l.loyerMensuel, 0) * pastMonths.length;
+  const loyerMensuelTotal = lots.reduce((s, l) => s + l.loyerMensuel, 0);
+  const totalAttendu = loyerMensuelTotal * 12; // projection annee complete
   const totalPercu = windowEntries.reduce((s, e) => s + e.loyerPercu, 0);
+
+  // Impayes: exclude vacance partielle (not a non-payment)
   const totalImpayes = windowEntries
-    .filter((e) => e.statut === "impaye" || e.statut === "partiel")
+    .filter((e) => e.statut === "impaye" || (e.statut === "partiel" && e.partielRaison !== "vacance_partielle"))
     .reduce((s, e) => s + Math.max(0, e.loyerAttendu - e.loyerPercu), 0);
-  const moisVacants = windowEntries.filter((e) => e.statut === "vacant" || e.statut === "travaux").length;
+
+  // Taux d'occupation with prorata for vacance partielle
   const totalMoisLots = lots.length * pastMonths.length;
-  const tauxOccupation = totalMoisLots > 0
-    ? ((totalMoisLots - moisVacants) / totalMoisLots) * 100
-    : 0;
-  return { totalAttendu, totalPercu, totalImpayes, tauxOccupation };
+  let occupationUnits = totalMoisLots;
+  for (const e of windowEntries) {
+    if (e.statut === "vacant" || e.statut === "travaux") {
+      occupationUnits -= 1;
+    } else if (e.statut === "partiel" && e.partielRaison === "vacance_partielle" && e.loyerAttendu > 0) {
+      occupationUnits -= (1 - e.loyerPercu / e.loyerAttendu);
+    }
+  }
+  const tauxOccupation = totalMoisLots > 0 ? (occupationUnits / totalMoisLots) * 100 : 0;
+
+  // Attendu to date: from Jan 1 of current year to current month
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1; // 1-12
+  const attenduToDate = loyerMensuelTotal * currentMonth;
+
+  return { totalAttendu, attenduToDate, moisToDate: currentMonth, totalPercu, totalImpayes, tauxOccupation };
 }
 
 /* ── Tab type ── */
@@ -78,7 +84,14 @@ function PropertyRentCard({
   onClick: () => void;
 }) {
   const exploitable = isExploitable(property.statut);
-  const kpis = useMemo(() => computeRentKpis(lots, entries, monthsWindow(12)), [lots, entries]);
+  const kpis = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const cm = now.getMonth() + 1;
+    const months: string[] = [];
+    for (let m = 1; m <= cm; m++) months.push(`${year}-${String(m).padStart(2, "0")}`);
+    return computeRentKpis(lots, entries, months);
+  }, [lots, entries]);
   const loyerTheoriqueMensuel = lots.reduce((s, l) => s + l.loyerMensuel, 0);
 
   return (
@@ -108,12 +121,13 @@ function PropertyRentCard({
               <p className="font-bold">{kpis.tauxOccupation.toFixed(0)}%</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Percu 12m</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Percu ({kpis.moisToDate}m)</p>
               <p className="font-bold text-green-600">{formatCurrency(kpis.totalPercu)}</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Attendu 12m</p>
-              <p className="font-bold text-muted-foreground">{formatCurrency(kpis.totalAttendu)}</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Attendu ({kpis.moisToDate}m)</p>
+              <p className="font-bold">{formatCurrency(kpis.attenduToDate)}</p>
+              <p className="text-[9px] text-muted-foreground">12m : {formatCurrency(kpis.totalAttendu)}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Impayes</p>
@@ -129,11 +143,11 @@ function PropertyRentCard({
               <p className="font-bold text-muted-foreground/40">N/A</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Percu 12m</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Percu ({kpis.moisToDate}m)</p>
               <p className="font-bold text-muted-foreground/40">N/A</p>
             </div>
             <div>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Attendu 12m</p>
+              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Attendu</p>
               <p className="font-bold text-muted-foreground/40">N/A</p>
             </div>
             <div>
@@ -165,11 +179,12 @@ function LoyersContent() {
   const tabFromUrl = searchParams.get("tab") as TabId | null;
 
   const [activeTab, setActiveTab] = useState<TabId>(tabFromUrl === "charges" ? "charges" : "loyers");
-  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (propertyIdFromUrl) setSelectedPropertyId(propertyIdFromUrl);
-  }, [propertyIdFromUrl]);
+  // Derive the active selection from local state OR the URL param. The URL is the
+  // source of truth on first load (e.g. coming from a "View rents" link); the local
+  // state takes over once the user makes a manual selection in this page.
+  const [manualSelectedId, setManualSelectedId] = useState<string | null>(null);
+  const selectedPropertyId = manualSelectedId ?? propertyIdFromUrl ?? null;
+  const setSelectedPropertyId = setManualSelectedId;
 
   const propertiesWithData = useMemo(() => {
     if (!data) return [];
@@ -181,18 +196,28 @@ function LoyersContent() {
     }));
   }, [data, allLots, allExpenses]);
 
-  // Global rent KPIs (exploitable properties only)
+  // Global rent KPIs (exploitable properties, current calendar year)
   const globalRentKpis = useMemo(() => {
-    const months = monthsWindow(12);
+    const now = new Date();
+    const year = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    // Generate months from Jan of current year to current month
+    const months: string[] = [];
+    for (let m = 1; m <= currentMonth; m++) {
+      months.push(`${year}-${String(m).padStart(2, "0")}`);
+    }
     const allDisplayedLots = propertiesWithData.filter((x) => x.exploitable).flatMap((x) => x.lots);
     const kpis = computeRentKpis(allDisplayedLots, allRentEntries, months);
     return { ...kpis, totalLots: allDisplayedLots.length };
   }, [allRentEntries, propertiesWithData]);
 
-  // Global charge KPIs (current year)
+  // Global charge KPIs (current year, with prorata to date)
   const globalChargeKpis = useMemo(() => {
-    const year = new Date().getFullYear();
-    let totalAttendu = 0;
+    const now = new Date();
+    const year = now.getFullYear();
+    const currentMonth = now.getMonth() + 1; // 1-12
+    let totalAttenduAnnee = 0;
+    let totalAttenduToDate = 0;
     let totalPaye = 0;
     let nbCharges = 0;
 
@@ -202,14 +227,15 @@ function LoyersContent() {
         if (exp.frequence === "ponctuel" || exp.categorie === "credit") continue;
         nbCharges++;
         const montant = getCurrentMontant(exp);
-        let periodsCount = 0;
-        if (exp.frequence === "mensuel") periodsCount = 12;
-        else if (exp.frequence === "trimestriel") periodsCount = 4;
-        else if (exp.frequence === "annuel") periodsCount = 1;
+        let periodsAnnee = 0;
+        let periodsToDate = 0;
+        if (exp.frequence === "mensuel") { periodsAnnee = 12; periodsToDate = currentMonth; }
+        else if (exp.frequence === "trimestriel") { periodsAnnee = 4; periodsToDate = Math.ceil(currentMonth / 3); }
+        else if (exp.frequence === "annuel") { periodsAnnee = 1; periodsToDate = 1; }
 
-        totalAttendu += montant * periodsCount;
+        totalAttenduAnnee += montant * periodsAnnee;
+        totalAttenduToDate += montant * periodsToDate;
 
-        // Sum actually tracked payments
         const expEntries = allChargeEntries.filter(
           (e) => e.expenseId === exp.id && e.periode.startsWith(String(year)),
         );
@@ -217,8 +243,8 @@ function LoyersContent() {
       }
     }
 
-    const couverture = totalAttendu > 0 ? (totalPaye / totalAttendu) * 100 : 0;
-    return { totalAttendu, totalPaye, ecart: totalAttendu - totalPaye, couverture, nbCharges };
+    const couverture = totalAttenduToDate > 0 ? (totalPaye / totalAttenduToDate) * 100 : 0;
+    return { totalAttenduAnnee, totalAttenduToDate, moisToDate: currentMonth, totalPaye, ecart: totalAttenduToDate - totalPaye, couverture, nbCharges };
   }, [propertiesWithData, allChargeEntries]);
 
   if (!data) return null;
@@ -273,22 +299,23 @@ function LoyersContent() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Taux d&apos;occupation (12m)
+                  Taux d&apos;occupation ({new Date().getFullYear()})
                 </p>
                 <p className="text-xl font-bold">{globalRentKpis.tauxOccupation.toFixed(0)} %</p>
                 <p className="text-[10px] text-muted-foreground">{globalRentKpis.totalLots} lot{globalRentKpis.totalLots > 1 ? "s" : ""}</p>
               </div>
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Loyers percus (12m)
+                  Loyers percus ({globalRentKpis.moisToDate}m/{new Date().getFullYear()})
                 </p>
                 <p className="text-xl font-bold text-green-600">{formatCurrency(globalRentKpis.totalPercu)}</p>
               </div>
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Loyers attendus (12m)
+                  Attendu a ce jour ({globalRentKpis.moisToDate}m)
                 </p>
-                <p className="text-xl font-bold text-muted-foreground">{formatCurrency(globalRentKpis.totalAttendu)}</p>
+                <p className="text-xl font-bold">{formatCurrency(globalRentKpis.attenduToDate)}</p>
+                <p className="text-[9px] text-muted-foreground">12m : {formatCurrency(globalRentKpis.totalAttendu)}</p>
               </div>
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -305,10 +332,10 @@ function LoyersContent() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                  Total attendu ({new Date().getFullYear()})
+                  Attendu a ce jour ({globalChargeKpis.moisToDate}m)
                 </p>
-                <p className="text-xl font-bold text-muted-foreground">{formatCurrency(globalChargeKpis.totalAttendu)}</p>
-                <p className="text-[10px] text-muted-foreground">{globalChargeKpis.nbCharges} charge{globalChargeKpis.nbCharges > 1 ? "s" : ""}</p>
+                <p className="text-xl font-bold">{formatCurrency(globalChargeKpis.totalAttenduToDate)}</p>
+                <p className="text-[9px] text-muted-foreground">Annee : {formatCurrency(globalChargeKpis.totalAttenduAnnee)} · {globalChargeKpis.nbCharges} charge{globalChargeKpis.nbCharges > 1 ? "s" : ""}</p>
               </div>
               <div className="border border-dotted rounded-md p-3">
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -360,7 +387,7 @@ function LoyersContent() {
                   propertyId={selected.property.id}
                   lots={selected.lots}
                   entries={allRentEntries.filter((e) => e.propertyId === selected.property.id)}
-                  dateExploitation={selected.property.dateAchat}
+                  dateExploitation={getPropertyAcquisitionDate(selected.property)}
                   onUpsert={upsertRent}
                   onDelete={deleteRent}
                 />
@@ -371,6 +398,7 @@ function LoyersContent() {
                   entries={allChargeEntries.filter((e) => e.propertyId === selected.property.id)}
                   onUpsert={upsertCharge}
                   onDelete={deleteCharge}
+                  dateSaisie={getPropertyAcquisitionDate(selected.property)}
                 />
               )}
             </div>

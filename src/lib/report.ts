@@ -1,4 +1,4 @@
-import jsPDF from "jspdf";
+import type jsPDF from "jspdf";
 import type { CalculatorInputs, CalculatorResults } from "@/types";
 import { AMORT_DUREES } from "@/types";
 
@@ -105,7 +105,8 @@ function footer(doc: jsPDF, page: number, total: number) {
 
 export async function generateReport(inputs: CalculatorInputs, results: CalculatorResults): Promise<void> {
 
-  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const { default: JsPDF } = await import("jspdf");
+  const doc = new JsPDF({ unit: "mm", format: "a4" });
   doc.setFont("courier");
 
   const mobilierTotal = (inputs.lotsMobilier ?? []).reduce((s, l) => s + (l.montant || 0), 0);

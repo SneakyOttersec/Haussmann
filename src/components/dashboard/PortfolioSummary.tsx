@@ -2,7 +2,7 @@
 
 import type { AppData, PropertyStatus } from "@/types";
 import { PROPERTY_STATUS_ORDER } from "@/types";
-import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
+import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { rendementBrut } from "@/lib/calculations/rendement";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,11 +66,9 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   // Window = min(12, months since earliest property acquisition).
   // If the portfolio is younger than 12 months, we extrapolate from the available data.
   const now = new Date();
-  const acquisitionDates = properties
-    .map((p) => new Date(p.dateAchat))
-    .filter((d) => !isNaN(d.getTime()));
-  const earliestAchat = acquisitionDates.length > 0
-    ? acquisitionDates.reduce((min, d) => (d < min ? d : min))
+  const allDates = properties.map(p => new Date(getPropertyAcquisitionDate(p))).filter((d) => !isNaN(d.getTime()));
+  const earliestAchat = allDates.length > 0
+    ? allDates.reduce((min, d) => (d < min ? d : min))
     : now;
   const monthsSinceStart = (now.getFullYear() - earliestAchat.getFullYear()) * 12
     + (now.getMonth() - earliestAchat.getMonth()) + 1;

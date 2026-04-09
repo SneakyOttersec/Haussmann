@@ -4,6 +4,7 @@ import { useRef } from "react";
 import type { PropertyStatus, StatusDocument } from "@/types";
 import { PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
 import { checkFileSize } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface PropertyStatusBarProps {
   statut: PropertyStatus;
@@ -128,13 +129,42 @@ export function PropertyStatusBar({ statut, statusDates, statusDocs, onChange, o
         {PROPERTY_STATUS_ORDER.map((s, i) => {
           const isActive = i <= currentIdx;
           const date = statusDates?.[s] ?? "";
+          // Find the latest date among ALL earlier phases and earliest date among ALL later phases
+          let prevDate: string | undefined;
+          let prevLabel = "";
+          for (let j = i - 1; j >= 0; j--) {
+            const d = statusDates?.[PROPERTY_STATUS_ORDER[j]];
+            if (d) { prevDate = d; prevLabel = PROPERTY_STATUS_LABELS[PROPERTY_STATUS_ORDER[j]]; break; }
+          }
+          let nextDate: string | undefined;
+          let nextLabel = "";
+          for (let j = i + 1; j < PROPERTY_STATUS_ORDER.length; j++) {
+            const d = statusDates?.[PROPERTY_STATUS_ORDER[j]];
+            if (d) { nextDate = d; nextLabel = PROPERTY_STATUS_LABELS[PROPERTY_STATUS_ORDER[j]]; break; }
+          }
+
+          const handleDateChange = (newDate: string) => {
+            if (!newDate) { onDateChange?.(s, newDate); return; }
+            if (prevDate && newDate < prevDate) {
+              toast.error(`Date invalide`, { description: `${PROPERTY_STATUS_LABELS[s]} ne peut pas etre avant ${prevLabel} (${prevDate})` });
+              return;
+            }
+            if (nextDate && newDate > nextDate) {
+              toast.error(`Date invalide`, { description: `${PROPERTY_STATUS_LABELS[s]} ne peut pas etre apres ${nextLabel} (${nextDate})` });
+              return;
+            }
+            onDateChange?.(s, newDate);
+          };
+
           return (
             <div key={s} className="flex-1 text-center">
               {isActive ? (
                 <input
                   type="date"
                   value={date}
-                  onChange={(e) => onDateChange?.(s, e.target.value)}
+                  min={prevDate || undefined}
+                  max={nextDate || undefined}
+                  onChange={(e) => handleDateChange(e.target.value)}
                   className="w-full text-[9px] text-center bg-transparent border-b border-dotted border-muted-foreground/30 focus:border-primary outline-none py-0.5 tabular-nums text-muted-foreground"
                 />
               ) : (

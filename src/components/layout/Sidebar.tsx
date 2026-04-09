@@ -2,29 +2,37 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { cn } from "@/lib/utils";
 import { importData, loadDataWithBlobs, saveData, exportDataAsZip, importDataFromZip } from "@/lib/storage";
 import { signIn, saveToGDrive, loadFromGDrive, isSignedIn } from "@/lib/gdrive";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { toast } from "sonner";
 
-function useCurrentDate() {
-  const [date, setDate] = useState<string | null>(null);
-  useEffect(() => {
-    const format = () =>
-      new Date().toLocaleDateString("fr-FR", {
-        weekday: "short",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      });
-    setDate(format());
-    // Refresh at midnight in case the session stays open
-    const ms = new Date().setHours(24, 0, 0, 0) - Date.now();
-    const timeout = setTimeout(() => setDate(format()), ms + 1000);
-    return () => clearTimeout(timeout);
-  }, []);
-  return date;
+const formatToday = () =>
+  new Date().toLocaleDateString("fr-FR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+
+function subscribeToMidnight(callback: () => void): () => void {
+  // Schedule a re-read at midnight (+1s buffer) so the date stays accurate during long sessions.
+  const ms = new Date().setHours(24, 0, 0, 0) - Date.now() + 1000;
+  const timeout = setTimeout(callback, ms);
+  return () => clearTimeout(timeout);
+}
+
+// useSyncExternalStore is the canonical pattern for "value derived from a non-React source
+// that may differ between server snapshot and client": React handles the post-hydration
+// switch without triggering set-state-in-effect, and it lets us subscribe for midnight rollover.
+function useCurrentDate(): string {
+  return useSyncExternalStore(
+    subscribeToMidnight,
+    formatToday,           // client snapshot — the live date
+    () => "",              // server snapshot — empty at build time, replaced after hydration
+  );
 }
 
 const gestionItems = [
@@ -56,6 +64,8 @@ export function Sidebar() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const today = useCurrentDate();
   const [driveBusy, setDriveBusy] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
+  const { user, signOut: authSignOut } = useAuth();
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/" || pathname.startsWith("/biens");
@@ -126,7 +136,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="hidden md:flex flex-col w-48 shrink-0 border-r border-dashed border-muted-foreground/20 bg-background sticky top-0 h-screen">
+    <aside className="hidden md:flex flex-col w-60 shrink-0 border-r border-dashed border-muted-foreground/20 bg-background sticky top-0 h-screen">
       {/* Logo */}
       <div className="px-4 py-5 border-b border-dashed border-muted-foreground/20">
         <Link href="/" className="text-primary font-bold text-base hover:opacity-80 transition-opacity">
@@ -250,6 +260,33 @@ export function Sidebar() {
           ))}
         </div>
       </nav>
+
+      {/* User footer */}
+      {user && (
+        <div className="border-t border-dashed border-muted-foreground/20 px-3 py-3 relative">
+          <button onClick={() => setShowLogout(prev => !prev)} className="flex items-center gap-2 w-full text-left">
+            {/* eslint-disable-next-line @next/next/no-img-element -- external Google avatar URL, no need for next/image optimization */}
+            <img src={user.picture} alt="" className="w-6 h-6 rounded-full shrink-0" referrerPolicy="no-referrer" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-medium truncate">{user.name}</p>
+              <p className="text-[9px] text-muted-foreground truncate">{user.email}</p>
+            </div>
+          </button>
+          {showLogout && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setShowLogout(false)} />
+              <div className="absolute bottom-full left-3 right-3 mb-1 z-50 bg-background border border-muted-foreground/20 rounded-md shadow-lg py-1">
+                <button
+                  onClick={() => { setShowLogout(false); authSignOut(); }}
+                  className="w-full text-[11px] text-destructive hover:bg-destructive/10 px-3 py-1.5 transition-colors text-left"
+                >
+                  Se deconnecter
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <input
         ref={fileInputRef}

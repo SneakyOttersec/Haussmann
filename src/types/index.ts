@@ -106,7 +106,7 @@ export interface Property {
   adresse: string;
   type: PropertyType;
   prixAchat: number;
-  dateAchat: string;
+  dateSaisie: string;
   fraisNotaire: number;
   fraisAgence: number;
   fraisDossier: number;
@@ -243,6 +243,7 @@ export interface Lot {
 // --- Rent tracking (month by month) ---
 
 export type RentMonthStatus = 'paye' | 'partiel' | 'impaye' | 'vacant' | 'travaux';
+export type PartielRaison = 'impaye' | 'vacance_partielle';
 
 export const RENT_MONTH_STATUS_LABELS: Record<RentMonthStatus, string> = {
   paye: 'Paye',
@@ -263,6 +264,8 @@ export interface RentMonthEntry {
   /** Loyer effectivement percu (0 pour vacant/impaye) */
   loyerPercu: number;
   statut: RentMonthStatus;
+  /** Raison du paiement partiel (impaye ou vacance partielle du mois) */
+  partielRaison?: PartielRaison;
   notes?: string;
   createdAt: string;
   updatedAt: string;
@@ -527,6 +530,9 @@ export interface Associe {
 export interface AppSettings {
   regimeFiscal: TaxRegime;
   nomSCI: string;
+  siren?: string;
+  adresseSiege?: string;
+  capitalSocial?: number;
   associes: Associe[];
   seuilAlerteTresorerie?: number;
   googleClientId?: string;

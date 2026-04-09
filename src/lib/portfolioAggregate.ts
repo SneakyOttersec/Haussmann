@@ -66,10 +66,10 @@ export function computePortfolioSnapshot(
 
   const coutAcquisition = properties.reduce((s, p) => s + coutTotalBien(p), 0);
 
-  // Valeur estimee = prixAchat + travaux, projetee avec appreciation depuis dateAchat
+  // Valeur estimee = prixAchat + travaux, projetee avec appreciation depuis dateSaisie
   const valeurPatrimoine = properties.reduce((s, p) => {
     const base = p.prixAchat + p.montantTravaux;
-    const years = yearsElapsedSince(p.dateAchat);
+    const years = yearsElapsedSince(p.dateSaisie);
     return s + base * Math.pow(1 + appreciationAnnuelle, years);
   }, 0);
 

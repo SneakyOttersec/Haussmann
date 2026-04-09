@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useSyncExternalStore } from "react";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
@@ -21,14 +21,27 @@ function KpiCell({ value, isBest, format }: { value: number; isBest: boolean; fo
   );
 }
 
+// Stable empty array for the SSR snapshot — must be referentially equal across calls
+// to avoid infinite re-renders in useSyncExternalStore.
+const EMPTY_SIMS: SavedSimulation[] = [];
+
+// loadSimulations() returns a fresh array on each call. Cache the result so the
+// snapshot is referentially stable between renders; bust the cache when the user
+// triggers a known mutation (none in this read-only page).
+let cachedSims: SavedSimulation[] | null = null;
+const getSimsSnapshot = (): SavedSimulation[] => {
+  if (cachedSims === null) cachedSims = loadSimulations();
+  return cachedSims;
+};
+const subscribeNoop = () => () => {};
+
 export default function Comparateur() {
-  const [simulations, setSimulations] = useState<SavedSimulation[]>([]);
+  // useSyncExternalStore handles the localStorage read with a clean SSR/client split:
+  // build-time renders an empty list, hydration swaps in the real one — no
+  // setState-in-effect, no React Compiler bailout.
+  const simulations = useSyncExternalStore(subscribeNoop, getSimsSnapshot, () => EMPTY_SIMS);
   const [selected, setSelected] = useState<ComparedSimulation[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
-
-  useEffect(() => {
-    setSimulations(loadSimulations());
-  }, []);
 
   const toggleSim = async (sim: SavedSimulation) => {
     const existing = selected.find((s) => s.sim.id === sim.id);

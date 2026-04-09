@@ -29,7 +29,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
     adresse: initialData?.adresse ?? "",
     type: initialData?.type ?? "appartement",
     prixAchat: initialData?.prixAchat ?? 0,
-    dateAchat: initialData?.dateAchat ?? new Date().toISOString().slice(0, 10),
+    dateSaisie: initialData?.dateSaisie ?? new Date().toISOString().slice(0, 10),
     fraisNotaire: initialData?.fraisNotaire ?? 0,
     fraisAgence: initialData?.fraisAgence ?? 0,
     fraisDossier: initialData?.fraisDossier ?? 0,
@@ -168,15 +168,15 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="dateAchat">Date d&apos;achat</Label>
+          <Label htmlFor="dateSaisie">Date d&apos;achat</Label>
           <Input
-            id="dateAchat"
+            id="dateSaisie"
             type="date"
-            value={form.dateAchat}
+            value={form.dateSaisie}
             max={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => update("dateAchat", e.target.value)}
+            onChange={(e) => update("dateSaisie", e.target.value)}
           />
-          {errors.dateAchat && <p className="text-xs text-red-500">{errors.dateAchat}</p>}
+          {errors.dateSaisie && <p className="text-xs text-red-500">{errors.dateSaisie}</p>}
         </div>
         <div className="space-y-2">
           <Label htmlFor="surfaceM2">Surface (m²)</Label>

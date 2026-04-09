@@ -11,14 +11,22 @@ import { SimulationCard, BienCard, ChargesCard, FinancementCard, FiscaliteCard }
 import { CalculatorResultsPanel } from "@/components/calculator/CalculatorResults";
 import { RegimesComparison } from "@/components/calculator/RegimesComparison";
 import { SensitivityChart } from "@/components/calculator/SensitivityChart";
-import { HistoryModal } from "@/components/calculator/HistoryModal";
-import { ResultsChart } from "@/components/calculator/ResultsChart";
+import dynamic from "next/dynamic";
+// recharts (~8.5 MB) lives only inside ResultsChart — lazy-load it.
+const ResultsChart = dynamic(
+  () => import("@/components/calculator/ResultsChart").then((m) => m.ResultsChart),
+  { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
+);
+// HistoryModal: only loaded when the user opens it (see conditional render below).
+const HistoryModal = dynamic(
+  () => import("@/components/calculator/HistoryModal").then((m) => m.HistoryModal),
+  { ssr: false }
+);
 import type { CalculatorInputs, SavedSimulation, Attachment } from "@/types";
 import { AttachmentsPanel } from "@/components/calculator/AttachmentsPanel";
 import { bienToSimulation } from "@/lib/bienToSimulation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { generateReport } from "@/lib/report";
 import { simulationToBien } from "@/lib/simulationToBien";
 import { useRouter } from "next/navigation";
 
@@ -316,7 +324,13 @@ function SimulateurContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={async () => { toast.info("Generation en cours..."); await generateReport(inputs, results); toast.success("Dossier PDF genere"); }}
+                onClick={async () => {
+                  toast.info("Generation en cours...");
+                  // Lazy-load report module + jspdf only when the user clicks.
+                  const { generateReport } = await import("@/lib/report");
+                  await generateReport(inputs, results);
+                  toast.success("Dossier PDF genere");
+                }}
                 className="text-xs shrink-0"
               >
                 Generer le dossier PDF
@@ -376,13 +390,15 @@ function SimulateurContent() {
         </div>
       </div>
 
-      <HistoryModal
-        open={historyOpen}
-        simulationNom={activeSim?.nom ?? inputs.nomSimulation}
-        history={activeHistory}
-        onClose={() => setHistoryOpen(false)}
-        onRestore={handleRestoreSnapshot}
-      />
+      {historyOpen && (
+        <HistoryModal
+          open={historyOpen}
+          simulationNom={activeSim?.nom ?? inputs.nomSimulation}
+          history={activeHistory}
+          onClose={() => setHistoryOpen(false)}
+          onRestore={handleRestoreSnapshot}
+        />
+      )}
     </>
   );
 }

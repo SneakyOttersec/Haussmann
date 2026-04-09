@@ -25,13 +25,37 @@ import { IncomeList } from "@/components/property/IncomeList";
 import { IncomeForm } from "@/components/property/IncomeForm";
 import { LoanForm } from "@/components/property/LoanForm";
 import { LoanAmortizationTable } from "@/components/property/LoanAmortizationTable";
-import { CashFlowChart } from "@/components/property/CashFlowChart";
-import { InterventionSection } from "@/components/property/InterventionSection";
-import { ContactSection } from "@/components/property/ContactSection";
-import { DocumentSection } from "@/components/property/DocumentSection";
-import { LotSection } from "@/components/property/LotSection";
+import dynamic from "next/dynamic";
 import { useRentTracking } from "@/hooks/useRentTracking";
-import { RealVsSimulatedSection } from "@/components/property/RealVsSimulatedSection";
+
+// recharts (~8.5 MB) is only used by these two — lazy-load to keep /biens cold-load light.
+const CashFlowChart = dynamic(
+  () => import("@/components/property/CashFlowChart").then((m) => m.CashFlowChart),
+  { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
+);
+const RealVsSimulatedSection = dynamic(
+  () => import("@/components/property/RealVsSimulatedSection").then((m) => m.RealVsSimulatedSection),
+  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+);
+
+// Below-the-fold sections — lazy-load to shrink /biens initial bundle.
+// Each section is large (forms, tables, dialogs) and only relevant when the user scrolls to it.
+const LotSection = dynamic(
+  () => import("@/components/property/LotSection").then((m) => m.LotSection),
+  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+);
+const InterventionSection = dynamic(
+  () => import("@/components/property/InterventionSection").then((m) => m.InterventionSection),
+  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+);
+const ContactSection = dynamic(
+  () => import("@/components/property/ContactSection").then((m) => m.ContactSection),
+  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+);
+const DocumentSection = dynamic(
+  () => import("@/components/property/DocumentSection").then((m) => m.DocumentSection),
+  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+);
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -398,7 +422,7 @@ function PropertyDetailContent() {
             </div>
             <p className="text-muted-foreground mt-1">{property.adresse}</p>
             <p className="text-sm text-muted-foreground">
-              Achat : {formatCurrency(property.prixAchat)} — {property.dateAchat}
+              Achat : {formatCurrency(property.prixAchat)} — {property.dateSaisie}
               {property.surfaceM2 ? ` — ${property.surfaceM2} m²` : ""}
             </p>
           </div>

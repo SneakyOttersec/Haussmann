@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 interface Props {
   propertyId: string;
   expenses: Expense[];
+  /** Property acquisition date — extends year range */
+  dateSaisie?: string;
   entries: ChargePaymentEntry[];
   onUpsert: (
     propertyId: string,
@@ -245,7 +247,7 @@ function Cell({
 
 /* ── Main grid ── */
 
-export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, onDelete }: Props) {
+export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, onDelete, dateSaisie }: Props) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
@@ -255,17 +257,23 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
     [expenses],
   );
 
-  // Year options
+  // Year options: from acquisition year to current year
   const years = useMemo(() => {
     const ys = new Set<number>();
     ys.add(currentYear);
-    ys.add(currentYear - 1);
+    // Include all years from acquisition
+    if (dateSaisie) {
+      const achatYear = parseInt(dateSaisie.slice(0, 4));
+      if (!isNaN(achatYear)) {
+        for (let y = achatYear; y <= currentYear; y++) ys.add(y);
+      }
+    }
     for (const e of expenses) {
       const y = new Date(e.dateDebut).getFullYear();
-      if (!isNaN(y) && y >= 2020) ys.add(y);
+      if (!isNaN(y) && y >= 2000) ys.add(y);
     }
     return Array.from(ys).sort((a, b) => a - b);
-  }, [expenses, currentYear]);
+  }, [expenses, currentYear, dateSaisie]);
 
   // KPIs
   const kpis = useMemo(() => {

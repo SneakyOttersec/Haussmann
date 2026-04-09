@@ -18,7 +18,7 @@ export const propertySchema = z.object({
   adresse: z.string().min(1, 'Adresse requise').max(200, 'Max 200 caracteres'),
   type: z.enum(['appartement', 'maison', 'immeuble', 'local_commercial', 'parking']),
   prixAchat: positiveAmount,
-  dateAchat: notFutureDate,
+  dateSaisie: notFutureDate,
   fraisNotaire: nonNegativeAmount,
   fraisAgence: nonNegativeAmount,
   fraisDossier: nonNegativeAmount,

@@ -26,7 +26,7 @@ export function simulationToBien(
     adresse: inputs.adresse || "",
     type: "appartement",
     prixAchat: inputs.prixAchat,
-    dateAchat: new Date().toISOString().slice(0, 10),
+    dateSaisie: new Date().toISOString().slice(0, 10),
     fraisNotaire,
     fraisAgence,
     fraisDossier,

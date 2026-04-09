@@ -1,63 +1,95 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useAppData } from "@/hooks/useLocalStorage";
-import type { AppData, PropertyStatus } from "@/types";
+import type { AppData, Property, PropertyStatus } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
-import { formatCurrency, mensualiserMontant, annualiserMontant } from "@/lib/utils";
+import { toast } from "sonner";
+import { formatCurrency, mensualiserMontant, annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
 import { capitalRestantDu } from "@/lib/calculations/loan";
-import { coutTotalBien } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, ReferenceLine,
-} from "recharts";
+import type { MonthlyFinance, PatrimoineMonth } from "@/components/finances/FinancesCharts";
 
-interface MonthlyFinance {
-  mois: string;
-  revenus: number;
-  depenses: number;
-  credit: number;
-  cashFlow: number;
-  cumulCashFlow: number;
-}
+// recharts (~8.5 MB) lives only inside FinancesCharts — lazy-load to keep /finances cold-load light.
+const CashFlowChartFinances = dynamic(
+  () => import("@/components/finances/FinancesCharts").then((m) => m.CashFlowChartFinances),
+  { ssr: false, loading: () => <div className="h-[300px] border border-dotted rounded-md" /> }
+);
+const PatrimoineChart = dynamic(
+  () => import("@/components/finances/FinancesCharts").then((m) => m.PatrimoineChart),
+  { ssr: false, loading: () => <div className="h-[250px] border border-dotted rounded-md" /> }
+);
 
-interface PatrimoineMonth {
-  mois: string;
-  valeurBiens: number;
-  capitalRestantDu: number;
-  patrimoineNet: number;
-}
+/** Hard cap so charts stay snappy even when a property has very old prospection dates. */
+const MAX_HISTORY_MONTHS = 60;
 
 function buildMonthlyCashFlow(data: AppData): MonthlyFinance[] {
   const now = new Date();
   const months: MonthlyFinance[] = [];
   let cumul = 0;
 
-  // Determine start month: earliest property acquisition (capped at 60 months back)
-  const acquisitionDates = data.properties
-    .map((p) => new Date(p.dateAchat))
-    .filter((d) => !isNaN(d.getTime()));
-  const minCap = new Date(now.getFullYear(), now.getMonth() - 60, 1);
-  const earliest = acquisitionDates.length > 0
-    ? acquisitionDates.reduce((min, d) => (d < min ? d : min))
+  // Determine start month: earliest known date across all properties, capped to MAX_HISTORY_MONTHS back.
+  const allDates = data.properties.map((p) => earliestDate(p));
+  const minCap = new Date(now.getFullYear(), now.getMonth() - MAX_HISTORY_MONTHS, 1);
+  const earliestRaw = allDates.length > 0
+    ? allDates.reduce((min, d) => (d < min ? d : min))
     : new Date(now.getFullYear(), now.getMonth() - 23, 1);
-  const startDate = earliest > minCap ? earliest : minCap;
-  const startMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const earliest = earliestRaw > minCap ? earliestRaw : minCap;
+  const startMonth = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
 
   // Build range from startMonth to current month (inclusive)
   const totalMonths = (now.getFullYear() - startMonth.getFullYear()) * 12
     + (now.getMonth() - startMonth.getMonth()) + 1;
 
+  // Pre-index rent tracking entries by YYYY-MM for fast lookup
+  const rentByYM = new Map<string, number>();
+  for (const e of (data.rentTracking ?? [])) {
+    rentByYM.set(e.yearMonth, (rentByYM.get(e.yearMonth) ?? 0) + e.loyerPercu);
+  }
+
+  // Pre-index charge payments by YYYY-MM
+  // Trimestriel "YYYY-Q1" → spread across 3 months, Annuel "YYYY" → spread across 12
+  const chargeByYM = new Map<string, number>();
+  for (const cp of (data.chargePayments ?? [])) {
+    if (cp.montantPaye <= 0) continue;
+    if (cp.periode.includes("-Q")) {
+      // Quarterly: "2025-Q1" → jan, feb, mar
+      const [y, q] = cp.periode.split("-Q");
+      const startM = (Number(q) - 1) * 3 + 1;
+      for (let m = startM; m < startM + 3; m++) {
+        const key = `${y}-${String(m).padStart(2, "0")}`;
+        chargeByYM.set(key, (chargeByYM.get(key) ?? 0) + cp.montantPaye / 3);
+      }
+    } else if (cp.periode.length === 4) {
+      // Annual: "2025" → spread across 12 months
+      for (let m = 1; m <= 12; m++) {
+        const key = `${cp.periode}-${String(m).padStart(2, "0")}`;
+        chargeByYM.set(key, (chargeByYM.get(key) ?? 0) + cp.montantPaye / 12);
+      }
+    } else {
+      // Monthly: "2025-03"
+      chargeByYM.set(cp.periode, (chargeByYM.get(cp.periode) ?? 0) + cp.montantPaye);
+    }
+  }
+
+  // Track which expenses have real payment data
+  const expensesWithPayments = new Set((data.chargePayments ?? []).map(cp => cp.expenseId));
+
   for (let i = totalMonths - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const label = d.toLocaleDateString("fr-FR", { month: "short", year: "2-digit" });
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
 
     let revenus = 0, depenses = 0, credit = 0;
 
+    // Revenus: use rent tracking (actual) for loyers, incomes for other revenue
+    revenus += rentByYM.get(ym) ?? 0;
+
     for (const inc of data.incomes) {
+      if (inc.categorie === "loyer") continue;
       const start = new Date(inc.dateDebut);
       const end = inc.dateFin ? new Date(inc.dateFin) : null;
       if (start > monthEnd || (end && end < d)) continue;
@@ -68,7 +100,12 @@ function buildMonthlyCashFlow(data: AppData): MonthlyFinance[] {
       }
     }
 
+    // Depenses: use charge payments (actual) when available, fallback to projection
+    // Add real charge payments for this month
+    depenses += chargeByYM.get(ym) ?? 0;
+
     for (const exp of data.expenses) {
+      if (expensesWithPayments.has(exp.id)) continue; // already counted via chargePayments
       const start = new Date(exp.dateDebut);
       const end = exp.dateFin ? new Date(exp.dateFin) : null;
       if (start > monthEnd || (end && end < d)) continue;
@@ -95,13 +132,13 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
   const months: PatrimoineMonth[] = [];
   const now = new Date();
 
-  // Start: earliest property acquisition date (month-level)
-  const acquisitionDates = data.properties
-    .map((p) => new Date(p.dateAchat))
-    .filter((d) => !isNaN(d.getTime()));
-  if (acquisitionDates.length === 0) return months;
+  // Start: earliest known date across all properties, capped to MAX_HISTORY_MONTHS back.
+  const allDates = data.properties.map((p) => earliestDate(p));
+  if (allDates.length === 0) return months;
 
-  const earliest = acquisitionDates.reduce((min, d) => (d < min ? d : min));
+  const minCap = new Date(now.getFullYear(), now.getMonth() - MAX_HISTORY_MONTHS, 1);
+  const earliestRaw = allDates.reduce((min, d) => (d < min ? d : min));
+  const earliest = earliestRaw > minCap ? earliestRaw : minCap;
   const startMonth = new Date(earliest.getFullYear(), earliest.getMonth(), 1);
   // End: current month + projectionYears years
   const endMonth = new Date(now.getFullYear(), now.getMonth() + projectionYears * 12, 1);
@@ -116,7 +153,7 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
     let totalValeur = 0, totalCRD = 0;
 
     for (const p of data.properties) {
-      const achat = new Date(p.dateAchat);
+      const achat = new Date(getPropertyAcquisitionDate(p));
       if (isNaN(achat.getTime())) continue;
       // Compare at month granularity — include the acquisition month itself
       const achatMonth = new Date(achat.getFullYear(), achat.getMonth(), 1);
@@ -144,6 +181,10 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
   return months;
 }
 
+function earliestDate(p: Property): Date {
+  return new Date(getPropertyAcquisitionDate(p));
+}
+
 /** Statuts pre-acte: le bien n'est pas encore acquis, pas de flux financiers */
 const PRE_ACTE_STATUSES: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
 
@@ -163,27 +204,9 @@ function filterActiveProperties(data: AppData): AppData {
     loans: data.loans.filter((l) => activeIds.has(l.propertyId)),
     lots: (data.lots ?? []).filter((l) => activeIds.has(l.propertyId)),
     rentTracking: (data.rentTracking ?? []).filter((r) => activeIds.has(r.propertyId)),
+    chargePayments: (data.chargePayments ?? []).filter((c) => activeIds.has(c.propertyId)),
   };
 }
-
-const fmtEur = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v).replace(/\u00A0/g, " ").replace(/\u202F/g, " ");
-
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function CashFlowTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const get = (key: string) => payload.find((p: any) => p.dataKey === key)?.value ?? 0;
-  return (
-    <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 6, padding: "8px 12px", fontSize: 11, lineHeight: 1.7, boxShadow: "0 2px 8px rgba(0,0,0,0.08)" }}>
-      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#34d399" }}>Revenus</span><span style={{ fontWeight: 600 }}>{fmtEur(get("revenus"))}</span></div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#fb923c" }}>Charges</span><span>{fmtEur(get("depenses"))}</span></div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#60a5fa" }}>Credit</span><span>{fmtEur(get("credit"))}</span></div>
-      <div style={{ borderTop: "1px dashed #ccc", marginTop: 4, paddingTop: 4, display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ fontWeight: 700 }}>Cash flow</span><span style={{ fontWeight: 700, color: get("cashFlow") >= 0 ? "#16a34a" : "#991b1b" }}>{fmtEur(get("cashFlow"))}</span></div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span>Cumule</span><span style={{ fontWeight: 600, color: get("cumulCashFlow") >= 0 ? "#16a34a" : "#991b1b" }}>{fmtEur(get("cumulCashFlow"))}</span></div>
-    </div>
-  );
-}
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 export default function Finances() {
   const { data } = useAppData();
@@ -206,6 +229,7 @@ export default function Finances() {
       loans: activeData.loans.filter((l) => propertyIds.has(l.propertyId)),
       lots: (activeData.lots ?? []).filter((l) => propertyIds.has(l.propertyId)),
       rentTracking: (activeData.rentTracking ?? []).filter((r) => propertyIds.has(r.propertyId)),
+      chargePayments: (activeData.chargePayments ?? []).filter((c) => propertyIds.has(c.propertyId)),
     };
   }, [activeData, selectedIds]);
 
@@ -324,80 +348,71 @@ export default function Finances() {
         </div>
       )}
 
-      {/* Cash flow chart */}
-      <div className="border border-dotted rounded-md p-4">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">Flux mensuels (24 derniers mois)</p>
-        <ResponsiveContainer width="100%" height={300}>
-          <ComposedChart data={cashFlowData} margin={{ top: 10, right: 10, left: 5, bottom: 5 }} stackOffset="sign">
-            <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-            <XAxis dataKey="mois" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
-            <Tooltip content={<CashFlowTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-            <Bar dataKey="revenus" stackId="stack" fill="#34d399" name="Revenus" />
-            <Bar dataKey="depenses" stackId="stack" fill="#fb923c" name="Charges" />
-            <Bar dataKey="credit" stackId="stack" fill="#60a5fa" name="Credit" />
-            <Line type="monotone" dataKey="cashFlow" stroke="#991b1b" strokeWidth={2} dot={{ r: 1.5 }} name="Cash flow" />
-            <Line type="monotone" dataKey="cumulCashFlow" stroke="#7c3aed" strokeWidth={2} strokeDasharray="6 3" dot={false} name="Cumule" />
-            <ReferenceLine y={0} stroke="#999" strokeWidth={1} />
-            {seuil > 0 && <ReferenceLine y={seuil} stroke="#dc2626" strokeWidth={1} strokeDasharray="4 4" />}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Warning: incomes/expenses dateDebut mismatch */}
+      {(() => {
+        if (!filteredData || filteredData.properties.length === 0) return null;
+        const exploitStart = filteredData.properties.reduce((min, p) => {
+          const d = earliestDate(p);
+          return d < min ? d : min;
+        }, new Date());
+        const incomeStarts = filteredData.incomes.map(i => new Date(i.dateDebut)).filter(d => !isNaN(d.getTime()));
+        const expenseStarts = filteredData.expenses.map(e => new Date(e.dateDebut)).filter(d => !isNaN(d.getTime()));
+        const dataStart = [...incomeStarts, ...expenseStarts].length > 0
+          ? [...incomeStarts, ...expenseStarts].reduce((min, d) => d < min ? d : min)
+          : null;
+        if (dataStart && exploitStart < dataStart) {
+          const gap = (dataStart.getFullYear() - exploitStart.getFullYear()) * 12 + (dataStart.getMonth() - exploitStart.getMonth());
+          if (gap > 1) {
+            return (
+              <div className="border border-dashed border-amber-500/30 rounded-md p-3 bg-amber-500/5 text-sm text-amber-700">
+                Les revenus/depenses commencent {gap} mois apres la date d&apos;exploitation.
+                Modifiez la &quot;Date debut&quot; de vos revenus et depenses pour couvrir toute la periode.
+              </div>
+            );
+          }
+        }
+        return null;
+      })()}
 
-      {/* Patrimoine chart */}
-      <div className="border border-dotted rounded-md p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            Patrimoine net (depuis l&apos;acquisition, projection {projectionYears} ans)
-          </p>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-muted-foreground mr-1">Projection :</span>
-            {[3, 5, 10, 15, 20].map((y) => (
-              <button
-                key={y}
-                onClick={() => setProjectionYears(y)}
-                className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
-                  projectionYears === y
-                    ? "border-primary/40 bg-primary/10 text-primary font-semibold"
-                    : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {y}a
-              </button>
-            ))}
-          </div>
-        </div>
-        <ResponsiveContainer width="100%" height={250}>
-          <ComposedChart data={patrimoineData} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
-            <XAxis dataKey="mois" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={30} />
-            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} domain={[0, "auto"]} />
-            <Tooltip formatter={(value) => [fmtEur(Number(value))]} contentStyle={{ fontSize: 11, borderRadius: 6 }} />
-            <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-            <Line type="monotone" dataKey="valeurBiens" stroke="#34d399" strokeWidth={1.5} dot={false} name="Valeur biens" />
-            <Line type="monotone" dataKey="capitalRestantDu" stroke="#60a5fa" strokeWidth={1.5} dot={false} name="Capital restant du" />
-            <Line type="monotone" dataKey="patrimoineNet" stroke="oklch(0.52 0.07 175)" strokeWidth={2.5} dot={{ r: 2 }} name="Patrimoine net" />
-            <ReferenceLine
-              x={new Date().toLocaleDateString("fr-FR", { month: "short", year: "2-digit" })}
-              stroke="#999"
-              strokeDasharray="4 4"
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
+      {/* Cash flow chart (lazy-loaded) */}
+      <CashFlowChartFinances data={cashFlowData} seuil={seuil} />
+
+      {/* Patrimoine chart (lazy-loaded) */}
+      <PatrimoineChart data={patrimoineData} projectionYears={projectionYears} onProjectionChange={setProjectionYears} />
 
       {/* Bilan fiscal */}
       {bilan && bilan.rows.length > 0 && (
         <div className="border border-dotted rounded-md p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Bilan fiscal — SC a l&apos;{bilan.regime}</p>
-            <div className="flex items-center gap-1">
-              {availableYears.map((y) => (
-                <button key={y} onClick={() => setBilanYear(y)}
-                  className={`px-2 py-0.5 text-[10px] rounded transition-colors ${bilanYear === y ? "bg-primary text-primary-foreground font-bold" : "text-muted-foreground hover:bg-muted"}`}
-                >{y}</button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                {availableYears.map((y) => (
+                  <button key={y} onClick={() => setBilanYear(y)}
+                    className={`px-2 py-0.5 text-[10px] rounded transition-colors ${bilanYear === y ? "bg-primary text-primary-foreground font-bold" : "text-muted-foreground hover:bg-muted"}`}
+                  >{y}</button>
+                ))}
+              </div>
+              {data && (
+                <button
+                  onClick={async () => {
+                    toast.info("Generation en cours...");
+                    // Lazy-load the liasse module + jspdf only when the user actually clicks.
+                    if (bilan.regime === "IR") {
+                      const { generateLiasse2072 } = await import("@/lib/reports/liasse-2072");
+                      await generateLiasse2072(data, bilanYear);
+                      toast.success("Liasse 2072-S generee");
+                    } else {
+                      const { generateLiasseIS } = await import("@/lib/reports/liasse-is");
+                      await generateLiasseIS(data, bilanYear);
+                      toast.success("Liasse IS generee");
+                    }
+                  }}
+                  className="px-2.5 py-0.5 text-[10px] rounded border border-primary/30 text-primary hover:bg-primary/10 transition-colors font-medium"
+                >
+                  {bilan.regime === "IR" ? "2072-S PDF" : "Liasse IS PDF"}
+                </button>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">

@@ -58,6 +58,24 @@ export function coutTotalBien(p: { prixAchat: number; fraisNotaire: number; frai
   return p.prixAchat + p.fraisNotaire + (p.fraisAgence ?? 0) + (p.fraisDossier ?? 0) + (p.fraisCourtage ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
 }
 
+/**
+ * Returns the effective acquisition date of a property.
+ * Priority: statusDates.acte > earliest statusDate > dateSaisie > createdAt
+ * dateSaisie is the date the property was entered in the app (not the real purchase date).
+ */
+export function getPropertyAcquisitionDate(p: { dateSaisie?: string; statusDates?: Partial<Record<string, string>>; createdAt?: string }): string {
+  // statusDates.acte = actual signing date (best source)
+  if (p.statusDates?.acte) return p.statusDates.acte;
+  // Earliest statusDate (prospection, offre, compromis, etc.)
+  if (p.statusDates) {
+    const dates = Object.values(p.statusDates).filter(Boolean).sort();
+    if (dates.length > 0) return dates[0]!;
+  }
+  // Fallback to dateSaisie (entry date) then createdAt
+  if (p.dateSaisie) return p.dateSaisie;
+  return p.createdAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+}
+
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo
 
 /** Returns true if file is within size limit. Shows a toast and returns false otherwise. */

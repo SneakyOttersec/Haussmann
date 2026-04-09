@@ -65,6 +65,35 @@ export default function Parametres() {
             placeholder="Ma SCI"
           />
         </div>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">SIREN</Label>
+            <Input
+              value={settings.siren ?? ""}
+              onChange={(e) => updateSettings({ siren: e.target.value })}
+              placeholder="123 456 789"
+              className="font-mono"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Capital social (EUR)</Label>
+            <Input
+              type="number"
+              min={0}
+              value={settings.capitalSocial ?? ""}
+              onChange={(e) => updateSettings({ capitalSocial: Number(e.target.value) || 0 })}
+              placeholder="1000"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Adresse du siege</Label>
+            <Input
+              value={settings.adresseSiege ?? ""}
+              onChange={(e) => updateSettings({ adresseSiege: e.target.value })}
+              placeholder="12 rue de la Paix, 75001 Paris"
+            />
+          </div>
+        </div>
         <div className="space-y-2">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">Regime fiscal</Label>
           <div className="flex gap-2">

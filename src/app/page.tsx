@@ -2,15 +2,21 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { useProperties } from "@/hooks/useProperties";
 import { PropertyCard } from "@/components/dashboard/PropertyCard";
 import { PortfolioSummary } from "@/components/dashboard/PortfolioSummary";
-import { PropertyMap } from "@/components/dashboard/PropertyMap";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+
+// PropertyMap pulls in leaflet (~3.9 MB) — lazy-load to keep dashboard cold-load light.
+const PropertyMap = dynamic(
+  () => import("@/components/dashboard/PropertyMap").then((m) => m.PropertyMap),
+  { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
+);
 
 export default function Dashboard() {
   const { data, setData } = useAppData();

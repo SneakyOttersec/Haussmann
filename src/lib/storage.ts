@@ -34,6 +34,11 @@ function migrateData(data: AppData): AppData {
     if (migrated.fraisDossier == null) migrated.fraisDossier = 0;
     if (migrated.fraisCourtage == null) migrated.fraisCourtage = 0;
     if (migrated.montantMobilier == null) migrated.montantMobilier = 0;
+    // Migrate legacy dateAchat → dateSaisie
+    if ('dateAchat' in migrated && !migrated.dateSaisie) {
+      migrated.dateSaisie = (migrated as Record<string, unknown>).dateAchat as string;
+      delete (migrated as Record<string, unknown>).dateAchat;
+    }
     return migrated;
   });
   data.interventions = data.interventions ?? [];
@@ -160,8 +165,9 @@ export async function loadDataWithBlobs(): Promise<AppData> {
 export function saveData(data: AppData): void {
   if (typeof window === 'undefined') return;
 
-  // Clone to avoid mutating in-memory state
-  const clone: AppData = JSON.parse(JSON.stringify(data));
+  // Clone to avoid mutating in-memory state. structuredClone is the native, much faster
+  // alternative to JSON.parse(JSON.stringify(...)) — meaningful with photos as data URIs.
+  const clone: AppData = structuredClone(data);
   const blobs = extractBlobs(clone);
 
   // Write blobs to IndexedDB (fire-and-forget — fast enough for small counts)
@@ -172,6 +178,52 @@ export function saveData(data: AppData): void {
 
   // Save stripped data to localStorage
   localStorage.setItem(STORAGE_KEY, JSON.stringify(clone));
+}
+
+// ── Debounced save ──
+//
+// Form fields call setData on every keystroke, which historically meant
+// structuredClone(entire-state) + localStorage.setItem on every character.
+// We coalesce rapid writes into a single flush ~250 ms after the last call,
+// while keeping a hard guarantee that data is flushed on tab unload / hidden.
+
+const SAVE_DEBOUNCE_MS = 250;
+let saveTimeout: ReturnType<typeof setTimeout> | null = null;
+let pendingData: AppData | null = null;
+
+function flushPendingSave(): void {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+    saveTimeout = null;
+  }
+  if (pendingData) {
+    const data = pendingData;
+    pendingData = null;
+    saveData(data);
+  }
+}
+
+export function saveDataDebounced(data: AppData): void {
+  if (typeof window === 'undefined') return;
+  pendingData = data;
+  if (saveTimeout) clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(flushPendingSave, SAVE_DEBOUNCE_MS);
+}
+
+/** Force any pending debounced save to flush immediately. Safe to call from unload handlers. */
+export function flushSave(): void {
+  flushPendingSave();
+}
+
+// Best-effort durability: flush on tab close / page hide. `pagehide` covers iOS Safari
+// and bfcache scenarios where `beforeunload` doesn't fire.
+if (typeof window !== 'undefined') {
+  const flushOnExit = () => flushPendingSave();
+  window.addEventListener('beforeunload', flushOnExit);
+  window.addEventListener('pagehide', flushOnExit);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushPendingSave();
+  });
 }
 
 const EXPORT_VERSION = 2;

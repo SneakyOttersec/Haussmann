@@ -1,5 +1,6 @@
 import type { Property, Income, Expense, RentMonthEntry } from "@/types";
 import { getMontantEffectif } from "./expenseRevisions";
+import { getPropertyAcquisitionDate } from "./utils";
 
 export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"
@@ -24,14 +25,14 @@ function monthLabel(d: Date): string {
 
 /**
  * Returns YYYY-MM for the start of the property's exploitation window.
- * Uses dateAchat as a proxy. Capped at `maxMonthsBack` months ago to avoid huge ranges.
+ * Uses dateSaisie as a proxy. Capped at `maxMonthsBack` months ago to avoid huge ranges.
  */
-export function propertyStartYM(property: Property, maxMonthsBack = 60): string {
+export function propertyStartYM(property: Property): string {
+  const acqDate = getPropertyAcquisitionDate(property);
+  const d = new Date(acqDate);
+  if (!isNaN(d.getTime())) return ymKey(d);
   const now = new Date();
-  const minDate = new Date(now.getFullYear(), now.getMonth() - maxMonthsBack, 1);
-  const achat = property.dateAchat ? new Date(property.dateAchat) : null;
-  const start = achat && !isNaN(achat.getTime()) && achat > minDate ? achat : minDate;
-  return ymKey(start);
+  return ymKey(new Date(now.getFullYear(), now.getMonth() - 24, 1));
 }
 
 /** Amount of a recurring income/expense contributed to a specific month, proratized if needed. */

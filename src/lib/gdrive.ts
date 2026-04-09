@@ -247,7 +247,7 @@ async function restoreMarkers(obj: Record<string, unknown> | unknown[]): Promise
 // ── Public API ──
 
 export async function saveToGDrive(data: AppData): Promise<{ savedAt: string; docsUploaded: number }> {
-  const clone: AppData = JSON.parse(JSON.stringify(data));
+  const clone: AppData = structuredClone(data);
   const extracted = extractAllDocuments(clone, ROOT_FOLDER);
   let docsUploaded = 0;
 
@@ -316,6 +316,10 @@ export async function loadFromGDrive(): Promise<AppData> {
 declare global {
   const google: {
     accounts: {
+      id: {
+        initialize(config: { client_id: string; callback: (response: { credential: string }) => void }): void;
+        prompt(): void;
+      };
       oauth2: {
         initTokenClient(config: {
           client_id: string;
