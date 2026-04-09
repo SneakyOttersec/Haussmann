@@ -54,22 +54,29 @@ interface ChartPoint {
   realBreakdown: RealBreakdown | null;
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-function BreakdownTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  const point = payload[0]?.payload as ChartPoint | undefined;
-  if (!point) return null;
-  const sim = point.simBreakdown;
-  const real = point.realBreakdown;
-  const ecart = real ? real.cashFlow - sim.cashFlowAvantImpot : 0;
-
-  const Row = ({ label, value, color, indent }: { label: string; value: number; color?: string; indent?: boolean }) => (
-    <div style={{ display: "flex", justifyContent: "space-between", gap: 16, paddingLeft: indent ? 8 : 0 }}>
+// Tooltip rows are hoisted out of the parent function so React Compiler can
+// memoize them properly (defining components inside render confuses the compiler).
+function TooltipRow({
+  label,
+  value,
+  color,
+}: {
+  label: string;
+  value: number;
+  color?: string;
+}) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
       <span style={{ color: color ?? "#666" }}>{label}</span>
-      <span style={{ fontWeight: 600, color: color ?? undefined, fontVariantNumeric: "tabular-nums" }}>{fmtEur(value)}</span>
+      <span style={{ fontWeight: 600, color: color ?? undefined, fontVariantNumeric: "tabular-nums" }}>
+        {fmtEur(value)}
+      </span>
     </div>
   );
-  const Total = ({ label, value }: { label: string; value: number }) => (
+}
+
+function TooltipTotal({ label, value }: { label: string; value: number }) {
+  return (
     <div
       style={{
         display: "flex",
@@ -86,6 +93,16 @@ function BreakdownTooltip({ active, payload, label }: any) {
       </span>
     </div>
   );
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function BreakdownTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload as ChartPoint | undefined;
+  if (!point) return null;
+  const sim = point.simBreakdown;
+  const real = point.realBreakdown;
+  const ecart = real ? real.cashFlow - sim.cashFlowAvantImpot : 0;
 
   return (
     <div
@@ -107,10 +124,10 @@ function BreakdownTooltip({ active, payload, label }: any) {
         <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
           Simule (avant impot)
         </div>
-        <Row label="Loyer net" value={sim.loyerNet} color="#16a34a" />
-        <Row label="− Charges" value={-sim.charges} color="#fb923c" />
-        <Row label="− Mensualites credit" value={-sim.mensualitesCredit} color="#60a5fa" />
-        <Total label="= Cash flow" value={sim.cashFlowAvantImpot} />
+        <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
+        <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
+        <TooltipRow label="− Mensualites credit" value={-sim.mensualitesCredit} color="#60a5fa" />
+        <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
       </div>
 
       {/* Reel — only on the matching year */}
@@ -119,11 +136,11 @@ function BreakdownTooltip({ active, payload, label }: any) {
           <div style={{ color: "#16a34a", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
             Reel (avant impot){real.isExtrapolated ? ` — extrapole sur ${real.monthsUsed}m` : " — 12 derniers mois"}
           </div>
-          <Row label="Loyers percus" value={real.loyersPercus} color="#16a34a" />
-          {real.revenusAutres !== 0 && <Row label="+ Autres revenus" value={real.revenusAutres} color="#a3e635" />}
-          <Row label="− Charges" value={-real.depenses} color="#fb923c" />
-          <Row label="− Credit" value={-real.credit} color="#60a5fa" />
-          <Total label="= Cash flow" value={real.cashFlow} />
+          <TooltipRow label="Loyers percus" value={real.loyersPercus} color="#16a34a" />
+          {real.revenusAutres !== 0 && <TooltipRow label="+ Autres revenus" value={real.revenusAutres} color="#a3e635" />}
+          <TooltipRow label="− Charges" value={-real.depenses} color="#fb923c" />
+          <TooltipRow label="− Credit" value={-real.credit} color="#60a5fa" />
+          <TooltipTotal label="= Cash flow" value={real.cashFlow} />
           <div
             style={{
               display: "flex",

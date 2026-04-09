@@ -48,6 +48,7 @@ const outilsItems = [
 ];
 
 const configItems = [
+  { href: "/corbeille", label: "Corbeille", icon: "🗑" },
   { href: "/parametres", label: "Parametres", icon: "☰" },
 ];
 
