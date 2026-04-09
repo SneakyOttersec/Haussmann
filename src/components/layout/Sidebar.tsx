@@ -195,21 +195,6 @@ export function Sidebar() {
 
         <div className="space-y-1">
           <p className="px-3 text-[10px] uppercase tracking-wider text-muted-foreground/60 mb-1">Donnees</p>
-          {donneesNavItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
-                isActive(item.href)
-                  ? "bg-primary/10 text-primary font-semibold"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <span className="text-xs opacity-70">{item.icon}</span>
-              {item.label}
-            </Link>
-          ))}
           {/* Sauvegarder — hover submenu */}
           <div className="group/save relative">
             <button
@@ -260,6 +245,21 @@ export function Sidebar() {
               </button>
             </div>
           </div>
+          {donneesNavItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
+                isActive(item.href)
+                  ? "bg-primary/10 text-primary font-semibold"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              )}
+            >
+              <span className="text-xs opacity-70">{item.icon}</span>
+              {item.label}
+            </Link>
+          ))}
         </div>
 
         <div className="space-y-1">
