@@ -110,6 +110,30 @@ export function isEnveloppeTravauxOuverte(loan: {
  * Priority: statusDates.acte > earliest statusDate > dateSaisie > createdAt
  * dateSaisie is the date the property was entered in the app (not the real purchase date).
  */
+/**
+ * Facteur pro-rata (0..1) pour l'annee d'acquisition d'un bien.
+ * Utilise pour la taxe fonciere : l'annee de signature de l'acte, la taxe
+ * est due au prorata des jours restants (acheteur & vendeur se repartissent
+ * la taxe selon les jours possedes).
+ * - Annee avant l'acte      → 0
+ * - Annee de l'acte         → (jours_acte_vers_31_dec) / jours_annee
+ * - Annee apres l'acte      → 1
+ * - Pas d'acte defini       → 1 (comportement legacy)
+ */
+export function prorataPremiereAnneeFactor(acteDate: string | undefined, annee: number): number {
+  if (!acteDate) return 1;
+  const acte = new Date(acteDate);
+  if (isNaN(acte.getTime())) return 1;
+  if (annee < acte.getFullYear()) return 0;
+  if (annee > acte.getFullYear()) return 1;
+  const endOfYear = new Date(annee, 11, 31);
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const days = Math.max(1, Math.round((endOfYear.getTime() - acte.getTime()) / msPerDay) + 1);
+  const isLeap = (annee % 4 === 0 && annee % 100 !== 0) || annee % 400 === 0;
+  const yearDays = isLeap ? 366 : 365;
+  return Math.min(1, days / yearDays);
+}
+
 export function getPropertyAcquisitionDate(p: { dateSaisie?: string; statusDates?: Partial<Record<string, string>>; createdAt?: string }): string {
   // statusDates.acte = actual signing date (best source)
   if (p.statusDates?.acte) return p.statusDates.acte;

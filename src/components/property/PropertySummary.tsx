@@ -1,12 +1,18 @@
 "use client";
 
-import type { Expense, Income, LoanDetails, Lot, Property, RentMonthEntry } from "@/types";
+import type { Expense, Income, LoanDetails, Lot, Property, PropertyStatus, RentMonthEntry } from "@/types";
+import { PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
+
+function statusAtLeast(statut: PropertyStatus | undefined, min: PropertyStatus): boolean {
+  if (!statut) return true; // backward compat
+  return PROPERTY_STATUS_ORDER.indexOf(statut) >= PROPERTY_STATUS_ORDER.indexOf(min);
+}
 
 interface PropertySummaryProps {
   property: Property;
@@ -108,8 +114,22 @@ export function PropertySummary({
       .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
   }
 
+  // ── Gating sur le statut du bien ──
+  // - Avant l'acte (prospection / offre / compromis) : le bien n'est pas encore
+  //   a nous. Aucune charge ni credit ni loyer a compter dans l'actuel.
+  // - Entre l'acte et la mise en location : charges + credit a payer, mais
+  //   pas de revenu locatif.
+  // - A partir de la mise en location : tout s'applique.
+  // Les valeurs "theorique" restent pleines (elles projettent le regime de
+  // croisiere quelle que soit la phase actuelle).
+  const postActe = statusAtLeast(property.statut, "acte");
+  const enLocation = statusAtLeast(property.statut, "location");
+  const revenuActuelAffiche = enLocation ? revenuMensuel : 0;
+  const depensesActuel = postActe ? depensesMensuelles : 0;
+  const creditActuel = postActe ? creditMensuel : 0;
+
   // Cash flow "actuel" = base sur le revenu effectivement percu ce mois-ci.
-  const cashFlow = revenuMensuel - depensesMensuelles - creditMensuel;
+  const cashFlow = revenuActuelAffiche - depensesActuel - creditActuel;
 
   // If loan has defer, compute the post-defer credit so we can show
   // "Theorique / Apres differe" as the secondary value. Le theorique
@@ -147,8 +167,8 @@ export function PropertySummary({
   const depTheorique = depensesMensuelles + creditPostDiffere;
   const cfTheorique = cashFlowPostDiffere;
 
-  // Depenses et CF "actuel" = ce qui est paye ce mois-ci
-  const depActuel = depensesMensuelles + creditMensuel;
+  // Depenses et CF "actuel" = ce qui est paye ce mois-ci (gates au statut)
+  const depActuel = depensesActuel + creditActuel;
   const cfActuel = cashFlow;
 
   // Depenses et CF post-differe mais sur capital effectivement tire
@@ -216,7 +236,11 @@ export function PropertySummary({
           ? revenuMensuelTheorique
           : revenuFromIncomes;
         const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
-        const showTheo = theo > 0 && !eq(theo, revenuMensuel);
+        // Avant la mise en location, on force le revenu actuel a 0 mais on
+        // garde la ligne "Theorique" visible pour projeter le regime cible.
+        // Apres la mise en location, on n'affiche la ligne Theorique que si
+        // elle differe du percu.
+        const showTheo = theo > 0 && (!enLocation || !eq(theo, revenuActuelAffiche));
 
         // ── Tooltip enrichi : breakdown par lot / income + contexte temporel ──
         const lotRows = (lots ?? []).map((l) => {
@@ -259,19 +283,20 @@ export function PropertySummary({
             <Card className="border-dotted h-full">
               <CardContent className="p-3">
                 <p className="text-xs text-muted-foreground">Revenu mensuel</p>
-                <p className="text-lg font-bold">{fc(revenuMensuel)}</p>
+                <p className="text-lg font-bold">{fc(revenuActuelAffiche)}</p>
                 {showTheo && (
                   <p className="text-[10px] mt-0.5">
                     <span className="text-muted-foreground">Theorique : </span>
                     <span className="font-medium">{fc(theo)}</span>
                   </p>
                 )}
-                {tauxOccupation != null && (
+                {/* Occupation et impayes ne sont pertinents qu'en phase de location */}
+                {enLocation && tauxOccupation != null && (
                   <p className="text-[10px] mt-0.5 text-muted-foreground">
                     Occupation {tauxOccupation.toFixed(0)}% · {lotsOccupes}/{totalLots} lot{totalLots > 1 ? "s" : ""}
                   </p>
                 )}
-                {impayesCurrent > 0 && (
+                {enLocation && impayesCurrent > 0 && (
                   <p className="text-[10px] mt-0.5 text-destructive font-medium">
                     Impayes {fc(impayesCurrent)}
                     {nbLotsImpayes > 0 && ` (${nbLotsImpayes} lot${nbLotsImpayes > 1 ? "s" : ""})`}
@@ -288,10 +313,13 @@ export function PropertySummary({
         actuelValue={depActuel}
         surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
         tooltipRows={[
-          { label: "Charges (hors credit)", value: fc(depensesMensuelles) },
-          { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditMensuel) },
+          { label: "Charges (hors credit)", value: fc(depensesActuel) },
+          { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditActuel) },
           { separator: true, label: "", value: "" },
           { label: "Total actuel", value: fc(depActuel), bold: true },
+          ...(!postActe
+            ? [{ label: "Acte non signe : pas de charges dues", value: "" }]
+            : []),
           ...(hasDiffere
             ? [
                 { separator: true as const, label: "", value: "" },
@@ -315,11 +343,16 @@ export function PropertySummary({
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
-          { label: "Revenus (percu)", value: fc(revenuMensuel), color: "text-green-600" },
-          { label: "Charges (hors credit)", value: `-${fc(depensesMensuelles)}`, color: "text-amber-600" },
-          { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: `-${fc(creditMensuel)}`, color: "text-amber-600" },
+          { label: "Revenus (percu)", value: fc(revenuActuelAffiche), color: "text-green-600" },
+          { label: "Charges (hors credit)", value: `-${fc(depensesActuel)}`, color: "text-amber-600" },
+          { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: `-${fc(creditActuel)}`, color: "text-amber-600" },
           { separator: true, label: "", value: "" },
           { label: "Cash flow actuel", value: fc(cfActuel), bold: true },
+          ...(!postActe
+            ? [{ label: "Acte non signe : aucun flux actuel", value: "" }]
+            : !enLocation
+            ? [{ label: "Pas encore en location", value: "" }]
+            : []),
           {
             separator: true as const, label: "", value: "",
           },

@@ -1,5 +1,5 @@
 import type { AppData, Property, CalculatorInputs } from "@/types";
-import { annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
+import { annualiserMontant, getPropertyAcquisitionDate, prorataPremiereAnneeFactor } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
 import { interetsAnneeForLoan, loanDureeTotaleMois } from "./loan";
 import { calculerImpotIR } from "./tax-ir";
@@ -127,7 +127,14 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
         ? paid.total
         : annualiserMontant(getMontantForYear(e, annee), e.frequence);
       switch (e.categorie) {
-        case 'taxe_fonciere': chargesDetail.taxeFonciere += montant; break;
+        case 'taxe_fonciere': {
+          // Pro-rata temporis pour l'annee d'acquisition : acheteur & vendeur
+          // se partagent la taxe selon les jours de possession. Si acteDate
+          // indefini ou annee differente, factor = 1 (pas d'effet).
+          const factor = prorataPremiereAnneeFactor(p.statusDates?.acte, annee);
+          chargesDetail.taxeFonciere += montant * factor;
+          break;
+        }
         case 'assurance_pno': chargesDetail.assurancePNO += montant; break;
         case 'reparations': case 'travaux': chargesDetail.travauxEntretien += montant; break;
         case 'gestion_locative': chargesDetail.fraisGestion += montant; break;
