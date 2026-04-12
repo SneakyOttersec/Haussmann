@@ -14,7 +14,7 @@ import { useDocuments } from "@/hooks/useDocuments";
 import { useLots } from "@/hooks/useLots";
 import { PROPERTY_TYPE_LABELS } from "@/types";
 import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervention } from "@/types";
-import { PROPERTY_STATUS_ORDER } from "@/types";
+import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
 import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere } from "@/lib/calculations/loan";
@@ -1007,7 +1007,57 @@ function PropertyDetailContent() {
 
       {/* Documents */}
       <section>
-        <DocumentSection documents={documents} onAdd={addDocument} onDelete={handleDeleteDocument} propertyId={id} />
+        <DocumentSection
+          documents={documents}
+          onAdd={addDocument}
+          onDelete={handleDeleteDocument}
+          propertyId={id}
+          linkedDocs={(() => {
+            const ld: import("@/components/property/DocumentSection").LinkedDoc[] = [];
+            // Timeline phase docs (statusDocs)
+            if (property.statusDocs) {
+              for (const [phase, doc] of Object.entries(property.statusDocs)) {
+                if (!doc || !doc.data) continue;
+                ld.push({
+                  key: `phase:${phase}`,
+                  sourceLabel: `Phase ${PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase}`,
+                  fileName: doc.nom,
+                  fileSize: doc.taille,
+                  date: property.statusDates?.[phase as keyof typeof property.statusDates] ?? "",
+                  dataUri: doc.data,
+                });
+              }
+            }
+            // Loan docs
+            if (loan?.documents) {
+              for (let i = 0; i < loan.documents.length; i++) {
+                const doc = loan.documents[i];
+                if (!doc.data) continue;
+                ld.push({
+                  key: `loan:${i}`,
+                  sourceLabel: "Credit",
+                  fileName: doc.nom,
+                  fileSize: doc.taille,
+                  date: doc.ajouteLe ?? loan.dateDebut,
+                  dataUri: doc.data,
+                });
+              }
+            }
+            // Intervention PJs
+            for (const inter of interventions) {
+              if (!inter.pieceJointe?.data) continue;
+              ld.push({
+                key: `inter:${inter.id}`,
+                sourceLabel: inter.interventionType === "travaux" ? "Travaux" : "Intervention",
+                fileName: inter.pieceJointe.nom,
+                fileSize: inter.pieceJointe.taille,
+                date: inter.date,
+                dataUri: inter.pieceJointe.data,
+              });
+            }
+            return ld;
+          })()}
+        />
       </section>
 
     </div>

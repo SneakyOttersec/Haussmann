@@ -8,11 +8,23 @@ import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+/** A read-only doc entry from another source (timeline, credit, intervention). */
+export interface LinkedDoc {
+  key: string;
+  sourceLabel: string;
+  fileName: string;
+  fileSize: number;
+  date: string;
+  dataUri: string;
+}
+
 interface Props {
   documents: PropertyDocument[];
   onAdd: (data: Omit<PropertyDocument, "id">) => void;
   onDelete: (id: string) => void;
   propertyId: string;
+  /** Documents from other sources (timeline phases, loan PJs, intervention PJs). Read-only. */
+  linkedDocs?: LinkedDoc[];
 }
 
 function formatSize(bytes: number): string {
@@ -21,7 +33,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-export function DocumentSection({ documents, onAdd, onDelete, propertyId }: Props) {
+export function DocumentSection({ documents, onAdd, onDelete, propertyId, linkedDocs = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [categorie, setCategorie] = useState<DocumentCategory>("autre");
 
@@ -81,6 +93,24 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId }: Prop
                 <ConfirmDelete label={doc.nom} onConfirm={() => onDelete(doc.id)} />
               </div>
             ))}
+          </div>
+        )}
+        {/* Linked documents from other sources (read-only) */}
+        {linkedDocs.length > 0 && (
+          <div className={documents.length > 0 ? "mt-3 pt-3 border-t border-dashed border-muted-foreground/15" : ""}>
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+              Autres documents ({linkedDocs.length})
+            </p>
+            <div className="space-y-2">
+              {linkedDocs.map((doc) => (
+                <div key={doc.key} className="flex items-center gap-3 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0 opacity-80">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{doc.sourceLabel}</span>
+                  <button onClick={() => download({ nom: doc.fileName, data: doc.dataUri } as PropertyDocument)} className="flex-1 text-left text-primary hover:underline truncate">{doc.fileName}</button>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.fileSize)}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{doc.date ? new Date(doc.date).toLocaleDateString("fr-FR") : "—"}</span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </CardContent>
