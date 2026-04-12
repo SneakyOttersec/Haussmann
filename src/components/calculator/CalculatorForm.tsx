@@ -1,6 +1,6 @@
 "use client";
 
-import type { CalculatorInputs, TaxRegime, LoanType, DifferType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
+import type { CalculatorInputs, TaxRegime, LoanType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
 import { checkFileSize } from "@/lib/utils";
@@ -596,28 +596,17 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
         />
         <NumField label="Taux nominal" suffix="%" step="0.01" value={Math.round(inputs.tauxCredit * 10000) / 100} onChange={(v) => onUpdate("tauxCredit", v / 100)} />
         <NumField label="Duree" suffix="ans" value={inputs.dureeCredit} onChange={(v) => onUpdate("dureeCredit", v)} />
-        <NumField label="Differe" suffix="mois" value={inputs.differePretMois} onChange={(v) => onUpdate("differePretMois", v)} />
+        <NumField label="Differe partiel" suffix="mois" value={inputs.differePretMois} onChange={(v) => onUpdate("differePretMois", v)} />
         {(inputs.differePretMois ?? 0) > 0 && (
-          <>
-            <SelectField
-              label="Type de differe"
-              value={inputs.differePretType ?? "partiel"}
-              onChange={(v) => onUpdate("differePretType", v as DifferType)}
-              options={[
-                { value: "partiel", label: "Partiel (interets seulement)" },
-                { value: "total", label: "Total (capitalisation)" },
-              ]}
-            />
-            <SelectField
-              label="Duree du differe"
-              value={inputs.differePretInclus ? "inclus" : "en_plus"}
-              onChange={(v) => onUpdate("differePretInclus", v === "inclus")}
-              options={[
-                { value: "inclus", label: "Inclus dans la duree" },
-                { value: "en_plus", label: "En plus de la duree" },
-              ]}
-            />
-          </>
+          <SelectField
+            label="Differe"
+            value={inputs.differePretInclus ? "inclus" : "en_plus"}
+            onChange={(v) => onUpdate("differePretInclus", v === "inclus")}
+            options={[
+              { value: "inclus", label: "Inclus dans la duree" },
+              { value: "en_plus", label: "En plus de la duree" },
+            ]}
+          />
         )}
         <SelectField
           label="Assurance pret"

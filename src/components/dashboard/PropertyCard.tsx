@@ -45,11 +45,6 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
     [incomes, expenses],
   );
 
-  // Projection theorique cumule depuis l'acte : cfTheorique × mois depuis l'acte.
-  // Permet de comparer "ou on devrait etre" vs "ou on est reellement".
-  const projectionTheorique = postActe ? cfTheorique * stats.nbMois : 0;
-  const ecartProjection = postActe ? stats.global - projectionTheorique : 0;
-
   const cfClass = (v: number) => (v >= 0 ? "text-green-600" : "text-destructive");
 
   return (
@@ -82,7 +77,7 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             <p className="text-xs text-muted-foreground truncate">{property.adresse}</p>
             <span className="text-[10px] text-muted-foreground/0 group-hover:text-primary transition-colors ml-2 shrink-0">Voir →</span>
           </div>
-          <div className={`grid ${postActe ? "grid-cols-3" : "grid-cols-1"} gap-2 text-xs mb-3`}>
+          <div className={`grid ${postActe ? 'grid-cols-4' : 'grid-cols-1'} gap-2 text-xs mb-3`}>
             <div>
               <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF theorique</p>
               <p className={`font-bold ${cfClass(cfTheorique)}`}>{formatCurrency(cfTheorique)}</p>
@@ -91,11 +86,16 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             {postActe && (
               <>
                 <div>
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF global</p>
+                  <p className={`font-bold ${cfClass(stats.global)}`}>{formatCurrency(stats.global)}</p>
+                  <p className="text-[9px] text-muted-foreground">{stats.nbMois} mois</p>
+                </div>
+                <div>
                   <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Mois dernier</p>
                   <p className={`font-bold ${cfClass(stats.lastMonth)}`}>{formatCurrency(stats.lastMonth)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground text-[10px] uppercase tracking-wider">6 derniers mois</p>
+                  <p className="text-muted-foreground text-[10px] uppercase tracking-wider">6 derniers</p>
                   {stats.last6Months !== null ? (
                     <p className={`font-bold ${cfClass(stats.last6Months)}`}>{formatCurrency(stats.last6Months)}</p>
                   ) : (
@@ -105,25 +105,6 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
               </>
             )}
           </div>
-          {postActe && stats.nbMois > 0 && (
-            <div className="grid grid-cols-3 gap-2 text-xs mb-3 pt-2 border-t border-dashed border-muted-foreground/10">
-              <div>
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Projection</p>
-                <p className={`font-bold ${cfClass(projectionTheorique)}`}>{formatCurrency(projectionTheorique)}</p>
-                <p className="text-[9px] text-muted-foreground">{stats.nbMois} mois × {formatCurrency(cfTheorique)}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Reel cumule</p>
-                <p className={`font-bold ${cfClass(stats.global)}`}>{formatCurrency(stats.global)}</p>
-                <p className="text-[9px] text-muted-foreground">{stats.nbMois} mois</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-[10px] uppercase tracking-wider">Ecart</p>
-                <p className={`font-bold ${cfClass(ecartProjection)}`}>{ecartProjection >= 0 ? "+" : ""}{formatCurrency(ecartProjection)}</p>
-                <p className="text-[9px] text-muted-foreground">{ecartProjection >= 0 ? "en avance" : "en retard"}</p>
-              </div>
-            </div>
-          )}
           {enLocation ? (
             <button
               type="button"

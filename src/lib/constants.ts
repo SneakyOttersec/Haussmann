@@ -73,7 +73,6 @@ export const DEFAULT_CALCULATOR_INPUTS = {
   assurancePretPct: 0.0034,
   differePretMois: 0,
   differePretInclus: true,
-  differePretType: 'partiel' as const,
   differeLoyer: 0,
   chargesCopro: 1200,
   taxeFonciere: 1000,
