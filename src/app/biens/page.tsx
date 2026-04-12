@@ -835,6 +835,8 @@ function PropertyDetailContent() {
             ? mensualiteEffective + loan.assuranceAnnuelle / 12
             : undefined
         }
+        lots={lots}
+        rentEntries={rentEntries}
       />
 
       <Separator className="border-dashed" />

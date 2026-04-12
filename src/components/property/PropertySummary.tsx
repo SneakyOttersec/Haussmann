@@ -1,6 +1,6 @@
 "use client";
 
-import type { Expense, Income, LoanDetails, Property } from "@/types";
+import type { Expense, Income, LoanDetails, Lot, Property, RentMonthEntry } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from "@/lib/calculations/loan";
@@ -25,6 +25,10 @@ interface PropertySummaryProps {
    *  theorique, un sous-montant "Apres differe sur capital utilise" est
    *  affiche sur Depenses et Cash flow. */
   creditApresDiffereSurUtilise?: number;
+  /** Lots pour calculer occupation + loyer theorique et le breakdown. */
+  lots?: Lot[];
+  /** Rent entries pour deriver le loyer percu du mois courant + impayes. */
+  rentEntries?: RentMonthEntry[];
 }
 
 export function PropertySummary({
@@ -35,11 +39,53 @@ export function PropertySummary({
   capitalUtiliseActuel,
   revenuMensuelTheorique,
   creditApresDiffereSurUtilise,
+  lots,
+  rentEntries,
 }: PropertySummaryProps) {
-  const revenuMensuel = incomes.reduce(
+  // ── Loyer actuel : priorite au "percu" du mois courant si des rent entries
+  // existent pour ce mois, sinon on retombe sur la somme des incomes (valeur
+  // attendue/theorique).
+  const now = new Date();
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+
+  const entriesCurrent = (rentEntries ?? []).filter((e) => e.yearMonth === currentYM);
+  const entriesPrev = (rentEntries ?? []).filter((e) => e.yearMonth === prevYM);
+  const loyerPercuCurrent = entriesCurrent.reduce((s, e) => s + e.loyerPercu, 0);
+  const loyerAttenduCurrent = entriesCurrent.reduce((s, e) => s + e.loyerAttendu, 0);
+  const loyerPercuPrev = entriesPrev.reduce((s, e) => s + e.loyerPercu, 0);
+  const impayesCurrent = Math.max(0, loyerAttenduCurrent - loyerPercuCurrent);
+  const nbLotsImpayes = entriesCurrent.filter(
+    (e) => e.statut === "impaye" || e.statut === "partiel" || (e.loyerAttendu > 0 && e.loyerPercu < e.loyerAttendu),
+  ).length;
+
+  const revenuFromIncomes = incomes.reduce(
     (sum, i) => sum + mensualiserMontant(i.montant, i.frequence),
-    0
+    0,
   );
+  // Le "revenu mensuel actuel" = percu du mois si au moins une rent entry existe
+  // pour ce mois; sinon la somme des incomes (cas pre-location / donnees non
+  // encore saisies).
+  const hasCurrentEntries = entriesCurrent.length > 0;
+  // Revenu affiche dans la card = percu reel du mois (ou fallback incomes).
+  const revenuMensuel = hasCurrentEntries ? loyerPercuCurrent : revenuFromIncomes;
+  // Revenu utilise pour le calcul cash flow = toujours theorique (pleine
+  // occupation des lots, sinon incomes). Rend le cashflow independant des
+  // aleas de collecte mensuelle.
+  const revenuMensuelCF = revenuMensuelTheorique && revenuMensuelTheorique > 0
+    ? revenuMensuelTheorique
+    : revenuFromIncomes;
+
+  // Occupation : base sur les lots (statut "occupe"). Sans lots, fallback null.
+  const totalLots = lots?.length ?? 0;
+  const lotsOccupes = (lots ?? []).filter((l) => l.statut === "occupe").length;
+  const tauxOccupation = totalLots > 0 ? (lotsOccupes / totalLots) * 100 : null;
+
+  // Date du dernier paiement encaisse (rent entry la plus recente avec percu > 0).
+  const lastPaidEntry = [...(rentEntries ?? [])]
+    .filter((e) => e.loyerPercu > 0)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const depensesMensuelles = expenses
     .filter((e) => e.categorie !== "credit")
     .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
@@ -62,17 +108,19 @@ export function PropertySummary({
       .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
   }
 
+  // Cash flow "actuel" = base sur le revenu effectivement percu ce mois-ci.
   const cashFlow = revenuMensuel - depensesMensuelles - creditMensuel;
 
   // If loan has defer, compute the post-defer credit so we can show
-  // "Theorique / Apres differe" as the secondary value.
+  // "Theorique / Apres differe" as the secondary value. Le theorique
+  // utilise le revenu a pleine occupation (revenuMensuelCF).
   const hasDiffere = loan != null && (loan.differeMois ?? 0) > 0;
 
   let creditPostDiffere = creditMensuel;
-  let cashFlowPostDiffere = cashFlow;
+  let cashFlowPostDiffere = revenuMensuelCF - depensesMensuelles - creditMensuel;
   if (hasDiffere && loan) {
     creditPostDiffere = mensualiteAmortissement(loan) + loan.assuranceAnnuelle / 12;
-    cashFlowPostDiffere = revenuMensuel - depensesMensuelles - creditPostDiffere;
+    cashFlowPostDiffere = revenuMensuelCF - depensesMensuelles - creditPostDiffere;
   }
 
   const revenuAnnuel = incomes.reduce(
@@ -111,7 +159,7 @@ export function PropertySummary({
     ? depensesMensuelles + creditApresDiffereSurUtilise!
     : depTheorique;
   const cfSurUtilise = showSurUtilise
-    ? revenuMensuel - depSurUtilise
+    ? revenuMensuelCF - depSurUtilise
     : cfTheorique;
 
   const fc = formatCurrency;
@@ -161,39 +209,79 @@ export function PropertySummary({
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-      <CfTooltip rows={[
-        ...incomes.map((i) => ({
-          label: i.label || i.categorie,
-          value: fc(mensualiserMontant(i.montant, i.frequence)),
-        })),
-        ...(incomes.length > 1
-          ? [
-              { separator: true as const, label: "", value: "" },
-              { label: "Total", value: fc(revenuMensuel), bold: true },
-            ]
-          : []),
-      ]}>
-        <Card className="border-dotted h-full">
-          <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">Revenu mensuel</p>
-            <p className="text-lg font-bold">{fc(revenuMensuel)}</p>
-            {(() => {
-              // Fall back to the incomes total when no lots are configured so
-              // the row is always visible, matching the layout of the other cards.
-              const theo = revenuMensuelTheorique && revenuMensuelTheorique > 0
-                ? revenuMensuelTheorique
-                : revenuMensuel;
-              if (theo <= 0) return null;
-              return (
-                <p className="text-[10px] mt-0.5">
-                  <span className="text-muted-foreground">Theorique : </span>
-                  <span className="font-medium">{fc(theo)}</span>
-                </p>
-              );
-            })()}
-          </CardContent>
-        </Card>
-      </CfTooltip>
+      {(() => {
+        // Theorique = loyer a pleine occupation (somme des lots). Fallback sur
+        // les incomes si aucun lot configure, pour que la ligne reste visible.
+        const theo = revenuMensuelTheorique && revenuMensuelTheorique > 0
+          ? revenuMensuelTheorique
+          : revenuFromIncomes;
+        const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
+        const showTheo = theo > 0 && !eq(theo, revenuMensuel);
+
+        // ── Tooltip enrichi : breakdown par lot / income + contexte temporel ──
+        const lotRows = (lots ?? []).map((l) => {
+          const entry = entriesCurrent.find((e) => e.lotId === l.id);
+          const value = entry
+            ? `${fc(entry.loyerPercu)} / ${fc(entry.loyerAttendu)}`
+            : fc(l.loyerMensuel);
+          const color = entry && entry.loyerPercu < entry.loyerAttendu
+            ? "text-destructive"
+            : undefined;
+          return { label: l.nom || "Lot", value, color };
+        });
+        const incomeRows = lotRows.length === 0
+          ? incomes.map((i) => ({
+              label: i.label || i.categorie,
+              value: fc(mensualiserMontant(i.montant, i.frequence)),
+            }))
+          : [];
+        const tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[] = [
+          ...lotRows,
+          ...incomeRows,
+          { separator: true, label: "", value: "" },
+          { label: "Percu ce mois", value: fc(revenuMensuel), bold: true },
+          ...(loyerAttenduCurrent > 0 && !eq(loyerAttenduCurrent, revenuMensuel)
+            ? [{ label: "Attendu ce mois", value: fc(loyerAttenduCurrent) }]
+            : []),
+          ...(theo > 0 && !eq(theo, loyerAttenduCurrent || revenuMensuel)
+            ? [{ label: "Theorique (pleine occ.)", value: fc(theo) }]
+            : []),
+          ...(entriesPrev.length > 0
+            ? [{ label: "Percu mois precedent", value: fc(loyerPercuPrev) }]
+            : []),
+          ...(lastPaidEntry
+            ? [{ label: "Dernier encaissement", value: new Date(lastPaidEntry.updatedAt).toLocaleDateString("fr-FR") }]
+            : []),
+        ];
+
+        return (
+          <CfTooltip rows={tooltipRows}>
+            <Card className="border-dotted h-full">
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground">Revenu mensuel</p>
+                <p className="text-lg font-bold">{fc(revenuMensuel)}</p>
+                {showTheo && (
+                  <p className="text-[10px] mt-0.5">
+                    <span className="text-muted-foreground">Theorique : </span>
+                    <span className="font-medium">{fc(theo)}</span>
+                  </p>
+                )}
+                {tauxOccupation != null && (
+                  <p className="text-[10px] mt-0.5 text-muted-foreground">
+                    Occupation {tauxOccupation.toFixed(0)}% · {lotsOccupes}/{totalLots} lot{totalLots > 1 ? "s" : ""}
+                  </p>
+                )}
+                {impayesCurrent > 0 && (
+                  <p className="text-[10px] mt-0.5 text-destructive font-medium">
+                    Impayes {fc(impayesCurrent)}
+                    {nbLotsImpayes > 0 && ` (${nbLotsImpayes} lot${nbLotsImpayes > 1 ? "s" : ""})`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </CfTooltip>
+        );
+      })()}
       <KpiCard
         label="Depenses mensuelles"
         theoValue={depTheorique}
@@ -227,18 +315,21 @@ export function PropertySummary({
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
-          { label: "Revenus", value: fc(revenuMensuel), color: "text-green-600" },
+          { label: "Revenus (percu)", value: fc(revenuMensuel), color: "text-green-600" },
           { label: "Charges (hors credit)", value: `-${fc(depensesMensuelles)}`, color: "text-amber-600" },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: `-${fc(creditMensuel)}`, color: "text-amber-600" },
           { separator: true, label: "", value: "" },
           { label: "Cash flow actuel", value: fc(cfActuel), bold: true },
+          {
+            separator: true as const, label: "", value: "",
+          },
+          { label: "Revenus (theorique)", value: fc(revenuMensuelCF), color: "text-green-600" },
           ...(hasDiffere
             ? [
-                { separator: true as const, label: "", value: "" },
                 { label: "Credit apres differe", value: `-${fc(creditPostDiffere)}`, color: "text-amber-600" },
-                { label: "Cash flow theorique", value: fc(cfTheorique), bold: true },
               ]
             : []),
+          { label: "Cash flow theorique", value: fc(cfTheorique), bold: true },
           ...(showSurUtilise
             ? [
                 { separator: true as const, label: "", value: "" },
