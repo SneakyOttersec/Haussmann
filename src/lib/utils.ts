@@ -54,7 +54,23 @@ export function now(): string {
   return new Date().toISOString();
 }
 
-export function coutTotalBien(p: { prixAchat: number; fraisNotaire: number; fraisAgence?: number; fraisDossier?: number; fraisCourtage?: number; montantTravaux: number; montantMobilier?: number }): number {
+export function coutTotalBien(p: {
+  prixAchat: number;
+  fraisNotaire: number;
+  fraisAgence?: number;
+  fraisDossier?: number;
+  fraisCourtage?: number;
+  montantTravaux: number;
+  montantMobilier?: number;
+  allocationCredit?: { bien: number; travaux: number; notaire: number; agence: number; autre: number };
+}): number {
+  // When the user has customized the allocation buckets, those become the
+  // source of truth for the project cost — the static property fields are
+  // only historical defaults.
+  if (p.allocationCredit) {
+    const a = p.allocationCredit;
+    return a.bien + a.travaux + a.notaire + a.agence + a.autre;
+  }
   return p.prixAchat + p.fraisNotaire + (p.fraisAgence ?? 0) + (p.fraisDossier ?? 0) + (p.fraisCourtage ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
 }
 
