@@ -167,21 +167,22 @@ function LoanExtras({ loan, onUpdate }: {
 
 /**
  * Compute the credit allocation for a property + loan. Uses the stored
- * allocationCredit when available; otherwise derives a sensible default
- * that fits within the loan amount. Shared by AllocationSection (display)
- * and the InterventionSection call site (enveloppe travaux).
+ * allocationCredit when available; otherwise derives a default that
+ * covers the full project cost (credit + apport). Shared by
+ * AllocationSection (display) and the InterventionSection call site
+ * (enveloppe travaux).
  */
 function computeAllocationCredit(property: Property, loan: LoanDetails): AllocationCredit {
   if (property.allocationCredit) return property.allocationCredit;
-  const travaux = Math.min(property.montantTravaux, loan.montantEmprunte);
-  const notaire = Math.min(property.fraisNotaire, Math.max(0, loan.montantEmprunte - travaux));
-  const agence = Math.min(property.fraisAgence, Math.max(0, loan.montantEmprunte - travaux - notaire));
-  const autre = Math.min(
-    (property.fraisDossier ?? 0) + (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
-    Math.max(0, loan.montantEmprunte - travaux - notaire - agence),
-  );
-  const bien = Math.max(0, loan.montantEmprunte - travaux - notaire - agence - autre);
-  return { bien, travaux, notaire, agence, autre };
+  // Default = full project cost split across buckets; user can then
+  // redistribute to match the credit+apport financing.
+  return {
+    bien: property.prixAchat,
+    travaux: property.montantTravaux,
+    notaire: property.fraisNotaire,
+    agence: property.fraisAgence,
+    autre: (property.fraisDossier ?? 0) + (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
+  };
 }
 
 function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
@@ -314,7 +315,11 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
     { key: "autre", label: "Autre", value: defaultAlloc.autre },
   ];
   const totalAlloue = allocations.reduce((s, a) => s + a.value, 0);
-  const ecart = loan.montantEmprunte - totalAlloue;
+  // L'allocation doit couvrir le financement total = apport + credit, pas
+  // uniquement le credit.
+  const apport = property.apport ?? 0;
+  const financementTotal = loan.montantEmprunte + apport;
+  const ecart = financementTotal - totalAlloue;
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -386,9 +391,12 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
           <div className="flex justify-between pt-1 border-t border-dashed border-muted-foreground/10 font-bold">
             <span>Total alloue</span>
             <span className={`tabular-nums ${ecart === 0 ? "" : "text-amber-600"}`}>
-              {formatCurrency(totalAlloue)} / {formatCurrency(loan.montantEmprunte)}
+              {formatCurrency(totalAlloue)} / {formatCurrency(financementTotal)}
             </span>
           </div>
+          <p className="text-[10px] text-muted-foreground/80 mt-0.5">
+            ↳ credit {formatCurrency(loan.montantEmprunte)} + apport {formatCurrency(apport)}
+          </p>
           {ecart !== 0 && (
             <div className="flex items-center gap-2 mt-1">
               <p className="text-[10px] text-amber-600">
@@ -401,10 +409,10 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
                 Modifier l&apos;allocation
               </button>
               <button
-                onClick={() => onUpdateLoan({ montantEmprunte: totalAlloue })}
+                onClick={() => onUpdateLoan({ montantEmprunte: Math.max(0, totalAlloue - apport) })}
                 className="text-[10px] text-primary hover:underline shrink-0"
               >
-                Ajuster le credit a {formatCurrency(totalAlloue)}
+                Ajuster le credit a {formatCurrency(Math.max(0, totalAlloue - apport))}
               </button>
             </div>
           )}
@@ -433,11 +441,16 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
                 />
               </div>
             ))}
-            <div className="flex items-center justify-between pt-2 border-t border-dashed border-muted-foreground/15 text-sm">
-              <span className="font-bold">Total alloue</span>
-              <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre !== loan.montantEmprunte ? "text-destructive" : "text-green-600"}`}>
-                {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre)} / {formatCurrency(loan.montantEmprunte)}
-              </span>
+            <div className="pt-2 border-t border-dashed border-muted-foreground/15 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="font-bold">Total alloue</span>
+                <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre !== financementTotal ? "text-destructive" : "text-green-600"}`}>
+                  {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre)} / {formatCurrency(financementTotal)}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground/80 mt-0.5 text-right">
+                credit {formatCurrency(loan.montantEmprunte)} + apport {formatCurrency(apport)}
+              </p>
             </div>
             <Button type="submit" className="w-full">Enregistrer</Button>
           </form>
