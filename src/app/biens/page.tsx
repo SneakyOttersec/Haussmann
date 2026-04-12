@@ -173,7 +173,15 @@ function LoanExtras({ loan, onUpdate }: {
  * (enveloppe travaux).
  */
 function computeAllocationCredit(property: Property, loan: LoanDetails): AllocationCredit {
-  if (property.allocationCredit) return property.allocationCredit;
+  // Backfill dossier/garantie on older allocations that predate those buckets.
+  if (property.allocationCredit) {
+    const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie">;
+    return {
+      ...a,
+      dossier: a.dossier ?? 0,
+      garantie: a.garantie ?? 0,
+    };
+  }
   // Default = full project cost split across buckets; user can then
   // redistribute to match the credit+apport financing.
   return {
@@ -181,7 +189,9 @@ function computeAllocationCredit(property: Property, loan: LoanDetails): Allocat
     travaux: property.montantTravaux,
     notaire: property.fraisNotaire,
     agence: property.fraisAgence,
-    autre: (property.fraisDossier ?? 0) + (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
+    dossier: property.fraisDossier ?? 0,
+    garantie: 0,
+    autre: (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
   };
 }
 
@@ -312,6 +322,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
     { key: "travaux", label: "Travaux", value: defaultAlloc.travaux },
     { key: "notaire", label: "Frais de notaire", value: defaultAlloc.notaire },
     { key: "agence", label: "Frais d'agence", value: defaultAlloc.agence },
+    { key: "dossier", label: "Frais de dossier", value: defaultAlloc.dossier ?? 0 },
+    { key: "garantie", label: "Frais de garantie", value: defaultAlloc.garantie ?? 0 },
     { key: "autre", label: "Autre", value: defaultAlloc.autre },
   ];
   const totalAlloue = allocations.reduce((s, a) => s + a.value, 0);
@@ -340,7 +352,9 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
           </button>
         </div>
         <div className="space-y-1 text-sm">
-          {allocations.filter(a => a.value > 0).map((a) => (
+          {allocations
+            .filter((a) => a.value > 0 || a.key === "dossier" || a.key === "garantie")
+            .map((a) => (
             <div key={a.key}>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{a.label}</span>
@@ -428,6 +442,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
               { key: "travaux", label: "Travaux" },
               { key: "notaire", label: "Frais de notaire" },
               { key: "agence", label: "Frais d'agence" },
+              { key: "dossier", label: "Frais de dossier" },
+              { key: "garantie", label: "Frais de garantie" },
               { key: "autre", label: "Autre" },
             ] as const).map((field) => (
               <div key={field.key} className="flex items-center gap-4">
@@ -444,8 +460,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             <div className="pt-2 border-t border-dashed border-muted-foreground/15 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-bold">Total alloue</span>
-                <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre !== financementTotal ? "text-destructive" : "text-green-600"}`}>
-                  {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + edit.autre)} / {formatCurrency(financementTotal)}
+                <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + edit.autre !== financementTotal ? "text-destructive" : "text-green-600"}`}>
+                  {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + edit.autre)} / {formatCurrency(financementTotal)}
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground/80 mt-0.5 text-right">

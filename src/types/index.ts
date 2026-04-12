@@ -97,6 +97,8 @@ export interface AllocationCredit {
   travaux: number;
   notaire: number;
   agence: number;
+  dossier: number;
+  garantie: number;
   autre: number;
 }
 

@@ -51,6 +51,8 @@ export function simulationToBien(
         travaux: inputs.montantTravaux,
         notaire: fraisNotaire,
         agence: fraisAgence,
+        dossier: 0,
+        garantie: 0,
         autre: autreAlloc,
       };
     })() : undefined,
