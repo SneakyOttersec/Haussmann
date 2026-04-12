@@ -38,18 +38,20 @@ export function PropertySummary({ property, expenses, incomes }: PropertySummary
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);
   const rNet = rendementNet(revenuAnnuel, chargesAnnuelles, coutTotal);
 
+  const cfTooltip = `Revenus : ${formatCurrency(revenuMensuel)}/m\nCharges : -${formatCurrency(depensesMensuelles)}/m\nCredit : -${formatCurrency(creditMensuel)}/m\n= Cash flow : ${formatCurrency(cashFlow)}/m`;
+
   const kpis = [
-    { label: "Revenu mensuel", value: formatCurrency(revenuMensuel), accent: false },
-    { label: "Depenses mensuelles", value: formatCurrency(depensesMensuelles + creditMensuel), accent: false },
-    { label: "Cash flow mensuel", value: formatCurrency(cashFlow), accent: true },
-    { label: "Rendement brut", value: formatPercent(rBrut), accent: false },
-    { label: "Rendement net", value: formatPercent(rNet), accent: false },
+    { label: "Revenu mensuel", value: formatCurrency(revenuMensuel), accent: false, tooltip: undefined as string | undefined },
+    { label: "Depenses mensuelles", value: formatCurrency(depensesMensuelles + creditMensuel), accent: false, tooltip: `Charges : ${formatCurrency(depensesMensuelles)}/m\nCredit : ${formatCurrency(creditMensuel)}/m` },
+    { label: "Cash flow mensuel", value: formatCurrency(cashFlow), accent: true, tooltip: cfTooltip },
+    { label: "Rendement brut", value: formatPercent(rBrut), accent: false, tooltip: `Loyer annuel brut : ${formatCurrency(revenuAnnuel)}\nCout total : ${formatCurrency(coutTotal)}` },
+    { label: "Rendement net", value: formatPercent(rNet), accent: false, tooltip: `Loyer annuel : ${formatCurrency(revenuAnnuel)}\nCharges annuelles : -${formatCurrency(chargesAnnuelles)}\nCout total : ${formatCurrency(coutTotal)}` },
   ];
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {kpis.map((kpi) => (
-        <Card key={kpi.label} className="border-dotted">
+        <Card key={kpi.label} className="border-dotted" title={kpi.tooltip}>
           <CardContent className="p-3">
             <p className="text-xs text-muted-foreground">{kpi.label}</p>
             <p className={`text-lg font-bold ${kpi.accent ? (cashFlow >= 0 ? "text-green-600" : "text-destructive") : ""}`}>

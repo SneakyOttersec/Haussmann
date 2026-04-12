@@ -34,7 +34,7 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
 
   return (
     <>
-      <div className="grid grid-cols-[auto_1fr_120px_180px_auto_auto] items-center gap-2 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
+      <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] items-center gap-2 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{CONTACT_ROLE_LABELS[c.role]}</span>
         <button
           className="font-medium text-left hover:text-primary transition-colors cursor-pointer truncate"
@@ -162,7 +162,7 @@ export function ContactSection({ contacts, onAdd, onUpdate, onDelete, propertyId
           <p className="text-sm text-muted-foreground">Aucun contact enregistre.</p>
         ) : (
           <div>
-            <div className="grid grid-cols-[auto_1fr_120px_180px_auto_auto] items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground pb-1.5 mb-1 border-b border-muted-foreground/20">
+            <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground pb-1.5 mb-1 border-b border-muted-foreground/20">
               <span>Role</span>
               <span>Nom</span>
               <span>Telephone</span>

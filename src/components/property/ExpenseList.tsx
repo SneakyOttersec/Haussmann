@@ -447,6 +447,40 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
         );
       })}
 
+      {/* Total mensuel */}
+      {(() => {
+        const totalMensuel = expenses
+          .filter((e) => e.frequence !== "ponctuel")
+          .reduce((s, e) => {
+            const m = getMontantForYear(e, selectedYear);
+            if (e.frequence === "mensuel") return s + m;
+            if (e.frequence === "trimestriel") return s + m / 3;
+            if (e.frequence === "annuel") return s + m / 12;
+            return s;
+          }, 0);
+        const chargesMensuel = expenses
+          .filter((e) => e.frequence !== "ponctuel" && e.categorie !== "credit")
+          .reduce((s, e) => {
+            const m = getMontantForYear(e, selectedYear);
+            if (e.frequence === "mensuel") return s + m;
+            if (e.frequence === "trimestriel") return s + m / 3;
+            if (e.frequence === "annuel") return s + m / 12;
+            return s;
+          }, 0);
+        const creditMensuel = totalMensuel - chargesMensuel;
+        return (
+          <div className="flex items-center justify-end gap-4 mt-3 pt-2 border-t border-dashed border-muted-foreground/15 text-xs text-muted-foreground">
+            {creditMensuel > 0 && (
+              <span>Charges : <strong className="text-foreground">{formatCurrency(chargesMensuel)}/m</strong></span>
+            )}
+            {creditMensuel > 0 && (
+              <span>Credit : <strong className="text-foreground">{formatCurrency(creditMensuel)}/m</strong></span>
+            )}
+            <span>Total : <strong className="text-foreground">{formatCurrency(totalMensuel)}/m</strong></span>
+          </div>
+        );
+      })()}
+
       {reviseTarget && onUpdate && (
         <ReviseDialog
           expense={reviseTarget}
