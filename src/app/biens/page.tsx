@@ -390,9 +390,23 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             </span>
           </div>
           {ecart !== 0 && (
-            <p className="text-[10px] text-amber-600 mt-1">
-              {formatCurrency(Math.abs(ecart))} {ecart > 0 ? "non alloues" : "en trop"} — cliquez &quot;Modifier&quot; pour ajuster.
-            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-[10px] text-amber-600">
+                {formatCurrency(Math.abs(ecart))} {ecart > 0 ? "non alloues" : "en trop"}
+              </p>
+              <button
+                onClick={() => { setEdit(defaultAlloc); setEditOpen(true); }}
+                className="text-[10px] text-primary hover:underline shrink-0"
+              >
+                Modifier l&apos;allocation
+              </button>
+              <button
+                onClick={() => onUpdateLoan({ montantEmprunte: totalAlloue })}
+                className="text-[10px] text-primary hover:underline shrink-0"
+              >
+                Ajuster le credit a {formatCurrency(totalAlloue)}
+              </button>
+            </div>
           )}
         </div>
       </div>
