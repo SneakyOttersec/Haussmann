@@ -845,9 +845,9 @@ function PropertyDetailContent() {
                     </div>
 
                     {/* Row 2: mensualites */}
-                    <div className={`${dM > 0 ? "flex items-start justify-center gap-12" : "max-w-[200px]"} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
+                    <div className={`flex items-start justify-center ${dM > 0 ? "gap-12" : ""} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
                       {/* Apres le differe (or single Mensualite) — primary, always first */}
-                      <div className={dM > 0 ? "text-center" : ""}>
+                      <div className="text-center">
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
                           {dM > 0 ? "Apres le differe" : "Mensualite"}
                         </p>
