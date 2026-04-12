@@ -145,6 +145,11 @@ export interface DocumentListEntry {
  * Metadata is enough for a settings-page listing — we keep dataUri so the
  * caller can build a download link without re-walking the tree.
  */
+/** Check if a document has usable data (data URI, IDB placeholder, or Drive marker). */
+function hasDocData(s: unknown): s is string {
+  return typeof s === 'string' && s.length > 0;
+}
+
 export function listAllDocuments(data: AppData): DocumentListEntry[] {
   const entries: DocumentListEntry[] = [];
   const propName = (id: string) => data.properties.find((p) => p.id === id)?.nom ?? id;
@@ -153,7 +158,7 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
   for (const p of data.properties) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
-      if (!doc || !isDataUri(doc.data)) continue;
+      if (!doc || !hasDocData(doc.data)) continue;
       const phaseLabel = PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase;
       const phaseDate = p.statusDates?.[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? '';
       entries.push({
@@ -173,7 +178,7 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
 
   // 2. PropertyDocuments
   for (const doc of (data.documents ?? [])) {
-    if (!isDataUri(doc.data)) continue;
+    if (!hasDocData(doc.data)) continue;
     const catLabel = DOCUMENT_CATEGORY_LABELS[doc.categorie] ?? doc.categorie;
     entries.push({
       key: `doc:${doc.id}`,
@@ -194,7 +199,7 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
     const docs = loan.documents ?? [];
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
-      if (!isDataUri(doc.data)) continue;
+      if (!hasDocData(doc.data)) continue;
       entries.push({
         key: `loan:${loan.id}:${i}`,
         source: 'loan',
@@ -212,7 +217,7 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
 
   // 4. Intervention PJ
   for (const inter of (data.interventions ?? [])) {
-    if (!inter.pieceJointe || !isDataUri(inter.pieceJointe.data)) continue;
+    if (!inter.pieceJointe || !hasDocData(inter.pieceJointe.data)) continue;
     entries.push({
       key: `inter:${inter.id}`,
       source: 'intervention',
