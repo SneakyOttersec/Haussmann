@@ -45,6 +45,28 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
   });
 
   const [errors, setErrors] = useState<ValidationErrors>({});
+  // Mode de saisie de l'assurance. Stocke toujours assuranceAnnuelle en interne,
+  // mais laisse l'utilisateur entrer la valeur en mensuel / annuel / total.
+  const [assuranceMode, setAssuranceMode] = useState<"mensuel" | "annuel" | "total">("annuel");
+  // Duree totale (en annees, fractionnaire) utilisee pour convertir un total
+  // en annuel. differeInclus = true → duree inchangee, sinon differeMois s'ajoute.
+  const dureeTotaleAnnees =
+    form.dureeAnnees + (form.differeInclus ? 0 : (form.differeMois ?? 0) / 12);
+  // Valeur affichee dans l'input selon le mode courant.
+  const assuranceDisplay = (() => {
+    const a = form.assuranceAnnuelle;
+    if (!a) return "";
+    if (assuranceMode === "mensuel") return (a / 12).toFixed(2);
+    if (assuranceMode === "total") return (a * dureeTotaleAnnees).toFixed(2);
+    return String(a);
+  })();
+  const handleAssuranceChange = (raw: string) => {
+    const v = Number(raw);
+    if (isNaN(v)) return;
+    if (assuranceMode === "mensuel") update("assuranceAnnuelle", v * 12);
+    else if (assuranceMode === "total") update("assuranceAnnuelle", dureeTotaleAnnees > 0 ? v / dureeTotaleAnnees : 0);
+    else update("assuranceAnnuelle", v);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -130,13 +152,35 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
               />
             </div>
             <div className="space-y-2">
-              <Label>Assurance annuelle (EUR)</Label>
-              <Input
-                type="number"
-                min={0}
-                value={form.assuranceAnnuelle || ""}
-                onChange={(e) => update("assuranceAnnuelle", Number(e.target.value))}
-              />
+              <Label>
+                Assurance ({assuranceMode === "mensuel" ? "mensuelle" : assuranceMode === "total" ? "totale" : "annuelle"}, EUR)
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={assuranceDisplay}
+                  onChange={(e) => handleAssuranceChange(e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={assuranceMode}
+                  onValueChange={(v) => setAssuranceMode(v as typeof assuranceMode)}
+                >
+                  <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mensuel">Mensuel</SelectItem>
+                    <SelectItem value="annuel">Annuel</SelectItem>
+                    <SelectItem value="total">Total</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {assuranceMode !== "annuel" && form.assuranceAnnuelle > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Equivalent : {form.assuranceAnnuelle.toFixed(2)} EUR/an
+                </p>
+              )}
             </div>
           </div>
 
