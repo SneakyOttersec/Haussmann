@@ -17,7 +17,8 @@ import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervent
 import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
 import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
-import { mensualiteAmortissement, mensualitePendantDiffere } from "@/lib/calculations/loan";
+import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
+import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { PropertySummary } from "@/components/property/PropertySummary";
 import { PropertyStatusBar } from "@/components/property/PropertyStatusBar";
 import { ExpenseList } from "@/components/property/ExpenseList";
@@ -912,40 +913,84 @@ function PropertyDetailContent() {
                       </div>
                     </div>
 
-                    {/* Row 2: mensualites */}
-                    <div className={`flex items-start justify-center ${dM > 0 ? "gap-12" : ""} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
-                      {/* Apres le differe (or single Mensualite) — primary, always first */}
-                      <div className="text-center">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                          {dM > 0 ? "Apres le differe" : "Mensualite"}
-                        </p>
-                        <p className={`text-lg font-bold tabular-nums ${priceClass(creditValide)}`}>
-                          {formatCurrency(mensualiteCredit + assurMensuelle, true)}/m
-                        </p>
-                        {showEffectif && (
-                          <p className="text-[10px] text-muted-foreground mt-1">
-                            Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteEffective + assurMensuelle, true)}/m</span>
-                          </p>
-                        )}
-                      </div>
-                      {/* Pendant le differe — secondary, dimmed */}
-                      {dM > 0 && (
-                        <div className="text-center opacity-60 border-l border-dashed border-muted-foreground/20 pl-12">
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                            Pendant le differe
-                            <span className="text-muted-foreground/60 normal-case ml-1">({dM}m)</span>
-                          </p>
-                          <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>
-                            {formatCurrency(mensualiteDifferee + assurMensuelle, true)}/m
-                          </p>
-                          {showEffectif && (
-                            <p className="text-[10px] text-muted-foreground mt-1">
-                              Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteDifferEffective + assurMensuelle, true)}/m</span>
-                            </p>
+                    {/* Row 2: mensualites — breakdown capital / interet au survol */}
+                    {(() => {
+                      // Split capital / interet de la 1ere mensualite d'amortissement
+                      // (representative du debut de la phase d'amortissement).
+                      const crdStart = capitalApresDiffere(loan);
+                      const interetM1 = crdStart * loan.tauxAnnuel / 12;
+                      const capitalM1 = Math.max(0, mensualiteCredit - interetM1);
+                      // Pendant le differe :
+                      // - partiel : 100% interets (mensualiteDifferee = montantEmprunte × taux/12)
+                      // - total   : 0 (interets capitalises)
+                      const interetDiff = mensualiteDifferee;
+                      const capitalDiff = 0;
+                      const apresRows = [
+                        { label: "Capital (1er mois)", value: `${formatCurrency(capitalM1, true)}` },
+                        { label: "Interets (1er mois)", value: `${formatCurrency(interetM1, true)}`, color: "text-amber-600" },
+                        ...(assurMensuelle > 0
+                          ? [{ label: "Assurance", value: `${formatCurrency(assurMensuelle, true)}`, color: "text-amber-600" }]
+                          : []),
+                        { separator: true as const, label: "", value: "" },
+                        { label: "Total", value: `${formatCurrency(mensualiteCredit + assurMensuelle, true)}/m`, bold: true },
+                        { separator: true as const, label: "", value: "" },
+                        { label: "La part capital augmente chaque mois", value: "" },
+                      ];
+                      const differeRows = [
+                        { label: "Capital", value: `${formatCurrency(capitalDiff, true)}` },
+                        { label: "Interets", value: `${formatCurrency(interetDiff, true)}`, color: "text-amber-600" },
+                        ...(assurMensuelle > 0
+                          ? [{ label: "Assurance", value: `${formatCurrency(assurMensuelle, true)}`, color: "text-amber-600" }]
+                          : []),
+                        { separator: true as const, label: "", value: "" },
+                        { label: "Total", value: `${formatCurrency(mensualiteDifferee + assurMensuelle, true)}/m`, bold: true },
+                        ...(loan.differeType === "total"
+                          ? [
+                              { separator: true as const, label: "", value: "" },
+                              { label: "Interets capitalises au capital", value: "" },
+                            ]
+                          : []),
+                      ];
+                      return (
+                        <div className={`flex items-start justify-center ${dM > 0 ? "gap-12" : ""} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
+                          {/* Apres le differe (or single Mensualite) — primary */}
+                          <CfTooltip rows={apresRows}>
+                            <div className="text-center">
+                              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                                {dM > 0 ? "Apres le differe" : "Mensualite"}
+                              </p>
+                              <p className={`text-lg font-bold tabular-nums ${priceClass(creditValide)}`}>
+                                {formatCurrency(mensualiteCredit + assurMensuelle, true)}/m
+                              </p>
+                              {showEffectif && (
+                                <p className="text-[10px] text-muted-foreground mt-1">
+                                  Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteEffective + assurMensuelle, true)}/m</span>
+                                </p>
+                              )}
+                            </div>
+                          </CfTooltip>
+                          {/* Pendant le differe — secondary, dimmed */}
+                          {dM > 0 && (
+                            <CfTooltip rows={differeRows}>
+                              <div className="text-center opacity-60 border-l border-dashed border-muted-foreground/20 pl-12">
+                                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                                  Pendant le differe
+                                  <span className="text-muted-foreground/60 normal-case ml-1">({dM}m)</span>
+                                </p>
+                                <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>
+                                  {formatCurrency(mensualiteDifferee + assurMensuelle, true)}/m
+                                </p>
+                                {showEffectif && (
+                                  <p className="text-[10px] text-muted-foreground mt-1">
+                                    Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteDifferEffective + assurMensuelle, true)}/m</span>
+                                  </p>
+                                )}
+                              </div>
+                            </CfTooltip>
                           )}
                         </div>
-                      )}
-                    </div>
+                      );
+                    })()}
                   </>
                 );
               })()}

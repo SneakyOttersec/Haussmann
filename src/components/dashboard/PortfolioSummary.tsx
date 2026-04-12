@@ -42,25 +42,40 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const incomes = data.incomes.filter(i => activeIds.has(i.propertyId));
   const loans = data.loans.filter(l => activeIds.has(l.propertyId));
   const rentTracking = (data.rentTracking ?? []).filter(r => activeIds.has(r.propertyId));
+  const lots = (data.lots ?? []).filter(l => activeIds.has(l.propertyId));
 
   const capitalTotal = properties.reduce((sum, p) => sum + coutTotalBien(p), 0);
   const totalEmprunte = loans.reduce((sum, l) => sum + l.montantEmprunte, 0);
   const apportGlobal = Math.max(0, capitalTotal - totalEmprunte);
 
-  /* ── Theorique : projections recurrentes ── */
-  const revenusTheoMensuel = incomes.reduce(
-    (sum, i) => sum + mensualiserMontant(i.montant, i.frequence),
-    0,
-  );
+  /* ── Theorique : projections recurrentes ──
+     Pour le loyer : on preferre la somme des lots.loyerMensuel (pleine
+     occupation, disponible des l'acte signe) — sinon fallback sur les
+     incomes categorie "loyer" (cas ou les lots ne sont pas encore saisis).
+     Les autres incomes (non-loyer) sont toujours additionnes. */
+  const loyerIncomesMensuel = incomes
+    .filter((i) => i.categorie === "loyer")
+    .reduce((sum, i) => sum + mensualiserMontant(i.montant, i.frequence), 0);
+  const loyerIncomesAnnuel = incomes
+    .filter((i) => i.categorie === "loyer")
+    .reduce((sum, i) => sum + annualiserMontant(i.montant, i.frequence), 0);
+  const autresIncomesMensuel = incomes
+    .filter((i) => i.categorie !== "loyer")
+    .reduce((sum, i) => sum + mensualiserMontant(i.montant, i.frequence), 0);
+  const autresIncomesAnnuel = incomes
+    .filter((i) => i.categorie !== "loyer")
+    .reduce((sum, i) => sum + annualiserMontant(i.montant, i.frequence), 0);
+  const lotsMensuel = lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0);
+  const loyerTheoMensuel = lotsMensuel > 0 ? lotsMensuel : loyerIncomesMensuel;
+  const loyerTheoAnnuel = lotsMensuel > 0 ? lotsMensuel * 12 : loyerIncomesAnnuel;
+
+  const revenusTheoMensuel = loyerTheoMensuel + autresIncomesMensuel;
   const depensesTheoMensuel = expenses.reduce(
     (sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence),
     0,
   );
   const cashFlowTheoMensuel = revenusTheoMensuel - depensesTheoMensuel;
-  const revenuAnnuelTheo = incomes.reduce(
-    (sum, i) => sum + annualiserMontant(i.montant, i.frequence),
-    0,
-  );
+  const revenuAnnuelTheo = loyerTheoAnnuel + autresIncomesAnnuel;
   const rdtBrutTheo = capitalTotal > 0 ? rendementBrut(revenuAnnuelTheo, capitalTotal) : 0;
 
   /* ── Reel : base sur le suivi des loyers (/loyers) ── */
