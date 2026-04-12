@@ -184,10 +184,11 @@ function computeAllocationCredit(property: Property, loan: LoanDetails): Allocat
   return { bien, travaux, notaire, agence, autre };
 }
 
-function ApportSection({ property, loan, onUpdateApport }: {
+function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
   property: Property;
   loan: LoanDetails;
   onUpdateApport: (v: number | undefined) => void;
+  onUpdateEmprunt: (v: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const coutTotal = coutTotalBien(property);
@@ -209,6 +210,11 @@ function ApportSection({ property, loan, onUpdateApport }: {
   const handleReset = () => {
     onUpdateApport(undefined);
     setEditing(false);
+  };
+
+  const handleEquilibrer = () => {
+    const newEmprunt = Math.max(0, Math.round(coutTotal - apport));
+    onUpdateEmprunt(newEmprunt);
   };
 
   return (
@@ -257,15 +263,20 @@ function ApportSection({ property, loan, onUpdateApport }: {
           Apport de {(apport / coutTotal * 100).toFixed(1)}% du projet.
         </p>
       )}
-      {ecartProjet < 0 && (
-        <p className="text-[10px] text-amber-600">
-          Emprunt + apport ne couvrent pas le projet ({formatCurrency(Math.abs(ecartProjet))} manquants).
-        </p>
-      )}
-      {ecartProjet > 0 && (
-        <p className="text-[10px] text-amber-600">
-          Emprunt + apport depassent le cout du projet de {formatCurrency(ecartProjet)}.
-        </p>
+      {ecartProjet !== 0 && (
+        <div className="flex items-center gap-2">
+          <p className="text-[10px] text-amber-600">
+            {ecartProjet < 0
+              ? `Emprunt + apport ne couvrent pas le projet (${formatCurrency(Math.abs(ecartProjet))} manquants).`
+              : `Emprunt + apport depassent le cout du projet de ${formatCurrency(ecartProjet)}.`}
+          </p>
+          <button
+            onClick={handleEquilibrer}
+            className="text-[10px] text-primary hover:underline shrink-0"
+          >
+            Equilibrer le credit
+          </button>
+        </div>
       )}
     </div>
   );
@@ -882,7 +893,12 @@ function PropertyDetailContent() {
                 );
               })()}
               {/* Apport + warning financement */}
-              <ApportSection property={property} loan={loan} onUpdateApport={(v) => updateProperty(id, { apport: v })} />
+              <ApportSection
+                property={property}
+                loan={loan}
+                onUpdateApport={(v) => updateProperty(id, { apport: v })}
+                onUpdateEmprunt={(v) => setLoan({ ...loan, montantEmprunte: v })}
+              />
               {/* Allocation du credit */}
               <AllocationSection
                 loan={loan}

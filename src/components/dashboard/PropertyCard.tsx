@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import type { Property, Expense, Income, LoanDetails, RentMonthEntry, PropertyStatus } from "@/types";
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,20 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
     [incomes, expenses],
   );
 
+  // Breakdown for tooltip
+  const { revenusMensuel, depensesMensuel, creditMensuel } = useMemo(() => {
+    const mensualise = (montant: number, freq: string) => {
+      if (freq === "mensuel") return montant;
+      if (freq === "trimestriel") return montant / 3;
+      if (freq === "annuel") return montant / 12;
+      return 0;
+    };
+    const rev = incomes.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
+    const dep = expenses.filter(e => e.categorie !== "credit").reduce((s, e) => s + mensualise(getCurrentMontant(e), e.frequence), 0);
+    const cred = expenses.filter(e => e.categorie === "credit").reduce((s, e) => s + mensualise(getCurrentMontant(e), e.frequence), 0);
+    return { revenusMensuel: rev, depensesMensuel: dep, creditMensuel: cred };
+  }, [incomes, expenses]);
+
   const cfClass = (v: number) => (v >= 0 ? "text-green-600" : "text-destructive");
 
   return (
@@ -78,7 +93,7 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             <span className="text-[10px] text-muted-foreground/0 group-hover:text-primary transition-colors ml-2 shrink-0">Voir →</span>
           </div>
           <div className={`grid ${postActe ? 'grid-cols-4' : 'grid-cols-1'} gap-2 text-xs mb-3`}>
-            <div>
+            <div title={`Revenus : ${formatCurrency(revenusMensuel)}/m\nCharges : -${formatCurrency(depensesMensuel)}/m\nCredit : -${formatCurrency(creditMensuel)}/m\n= CF : ${formatCurrency(cfTheorique)}/m`}>
               <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF theorique</p>
               <p className={`font-bold ${cfClass(cfTheorique)}`}>{formatCurrency(cfTheorique)}</p>
               <p className="text-[9px] text-muted-foreground">/mois</p>

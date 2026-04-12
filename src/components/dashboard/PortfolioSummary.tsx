@@ -124,7 +124,10 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
             <p className="text-lg font-bold">{formatCurrency(depenses)}<span className="text-[10px] text-muted-foreground">/m</span></p>
           </CardContent>
         </Card>
-        <Card className="border-dotted">
+        <Card
+          className="border-dotted"
+          title={`Revenus : ${formatCurrency(revenus)}/m\nDepenses : -${formatCurrency(depenses)}/m\n= Cash flow : ${formatCurrency(cashFlow)}/m`}
+        >
           <CardContent className="p-3">
             <p className="text-[11px] text-muted-foreground">Cash flow</p>
             <p className={`text-lg font-bold ${cashFlow >= 0 ? "text-green-600" : "text-destructive"}`}>
