@@ -65,6 +65,14 @@ function getClientId(): string | null {
   } catch { return null; }
 }
 
+function getDriveFolderId(): string | undefined {
+  try {
+    const raw = localStorage.getItem('sci-immobilier-data');
+    if (!raw) return undefined;
+    return JSON.parse(raw)?.settings?.googleDriveFolderId ?? undefined;
+  } catch { return undefined; }
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -119,7 +127,7 @@ export function Sidebar() {
       setDriveBusy(true);
       if (!isSignedIn()) await signIn(clientId);
       const data = await loadDataWithBlobs();
-      const { docsUploaded } = await saveToGDrive(data);
+      const { docsUploaded } = await saveToGDrive(data, getDriveFolderId());
       toast.success('Sauvegarde Drive reussie', { description: `${docsUploaded} document${docsUploaded !== 1 ? 's' : ''} synchronise${docsUploaded !== 1 ? 's' : ''}` });
     } catch (err) {
       toast.error('Erreur Drive', { description: err instanceof Error ? err.message : 'Erreur inconnue' });
@@ -132,7 +140,7 @@ export function Sidebar() {
     try {
       setDriveBusy(true);
       if (!isSignedIn()) await signIn(clientId);
-      const restored = await loadFromGDrive();
+      const restored = await loadFromGDrive(getDriveFolderId());
       saveData(restored);
       toast.success('Restauration Drive reussie — rechargement...');
       setTimeout(() => window.location.reload(), 500);
@@ -413,7 +421,7 @@ export function MobileHeader() {
                   setDriveBusy(true);
                   if (!isSignedIn()) await signIn(clientId);
                   const d = await loadDataWithBlobs();
-                  const { docsUploaded } = await saveToGDrive(d);
+                  const { docsUploaded } = await saveToGDrive(d, getDriveFolderId());
                   toast.success('Sauvegarde Drive reussie', { description: `${docsUploaded} doc(s)` });
                 } catch (err) { toast.error('Erreur Drive', { description: err instanceof Error ? err.message : 'Erreur' }); }
                 finally { setDriveBusy(false); setMenuOpen(false); }
@@ -436,7 +444,7 @@ export function MobileHeader() {
                 try {
                   setDriveBusy(true);
                   if (!isSignedIn()) await signIn(clientId);
-                  const restored = await loadFromGDrive();
+                  const restored = await loadFromGDrive(getDriveFolderId());
                   saveData(restored);
                   toast.success('Restauration Drive reussie — rechargement...');
                   setTimeout(() => window.location.reload(), 500);

@@ -588,6 +588,10 @@ export interface AppSettings {
   associes: Associe[];
   seuilAlerteTresorerie?: number;
   googleClientId?: string;
+  /** Drive folder ID chosen by the user via the Picker. If unset, saves at Drive root. */
+  googleDriveFolderId?: string;
+  /** Display name of the chosen folder (for UI only). */
+  googleDriveFolderName?: string;
 }
 
 // --- Charge payments (budget vs reel) ---

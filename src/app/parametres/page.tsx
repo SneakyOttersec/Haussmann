@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { Associe } from "@/types";
 import { generateId } from "@/lib/utils";
 import { importData, saveData } from "@/lib/storage";
-import { signIn, saveToGDrive, loadFromGDrive, isSignedIn } from "@/lib/gdrive";
+import { signIn, saveToGDrive, loadFromGDrive, isSignedIn, pickDriveFolder } from "@/lib/gdrive";
 import { listAllDocuments, formatFileSize } from "@/lib/doc-extract";
 
 export default function Parametres() {
@@ -293,6 +293,37 @@ export default function Parametres() {
 
         {settings.googleClientId && (
           <div className="space-y-3 pt-2 border-t border-dashed border-muted-foreground/15">
+            {/* Dossier de sauvegarde */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">
+                Dossier : <strong className="text-foreground">{settings.googleDriveFolderName || "Racine du Drive"}</strong>
+              </span>
+              <button
+                onClick={async () => {
+                  try {
+                    if (!isSignedIn()) await signIn(settings.googleClientId!);
+                    const folder = await pickDriveFolder();
+                    if (folder) {
+                      updateSettings({ googleDriveFolderId: folder.id, googleDriveFolderName: folder.name });
+                    }
+                  } catch (err) {
+                    setDriveMessage(err instanceof Error ? err.message : 'Erreur Picker');
+                    setDriveStatus('error');
+                  }
+                }}
+                className="text-[10px] text-primary hover:underline"
+              >
+                Choisir un dossier
+              </button>
+              {settings.googleDriveFolderId && (
+                <button
+                  onClick={() => updateSettings({ googleDriveFolderId: undefined, googleDriveFolderName: undefined })}
+                  className="text-[10px] text-muted-foreground hover:text-primary"
+                >
+                  Reinitialiser
+                </button>
+              )}
+            </div>
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -304,7 +335,7 @@ export default function Parametres() {
                     setDriveStatus('saving');
                     setDriveMessage('');
                     if (!isSignedIn()) await signIn(settings.googleClientId!);
-                    const { savedAt, docsUploaded } = await saveToGDrive(data);
+                    const { savedAt, docsUploaded } = await saveToGDrive(data, settings.googleDriveFolderId);
                     setLastSyncDate(savedAt);
                     setDriveStatus('success');
                     setDriveMessage(`Sauvegarde reussie — ${docsUploaded} document${docsUploaded > 1 ? 's' : ''} synchronise${docsUploaded > 1 ? 's' : ''}`);
@@ -326,7 +357,7 @@ export default function Parametres() {
                     setDriveStatus('loading');
                     setDriveMessage('');
                     if (!isSignedIn()) await signIn(settings.googleClientId!);
-                    const restored = await loadFromGDrive();
+                    const restored = await loadFromGDrive(settings.googleDriveFolderId);
                     saveData(restored);
                     setData(() => restored);
                     setDriveStatus('success');

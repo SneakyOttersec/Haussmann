@@ -18,7 +18,9 @@
 import type { AppData } from '@/types';
 import { extractAllDocuments } from './doc-extract';
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+// drive scope lets us browse the user's folder tree via the Picker and write
+// our backup inside a user-chosen folder. The user consents via the OAuth prompt.
+const SCOPES = 'https://www.googleapis.com/auth/drive';
 const ROOT_FOLDER = 'Haussmann';
 const DOCS_FOLDER = 'Documents';
 const FILE_NAME = 'haussmann-backup.json';
@@ -28,6 +30,7 @@ const GDRIVE_MARKER_RE = /^__gdrive:([^_]+)__$/;
 
 let accessToken: string | null = null;
 let gisLoaded = false;
+let pickerLoaded = false;
 
 // ── Load Google Identity Services ──
 
@@ -45,6 +48,56 @@ function loadGisScript(): Promise<void> {
     script.onload = () => { gisLoaded = true; resolve(); };
     script.onerror = () => reject(new Error('Impossible de charger Google Identity Services'));
     document.head.appendChild(script);
+  });
+}
+
+// ── Google Picker ──
+
+function loadPickerScript(): Promise<void> {
+  if (pickerLoaded) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    if (document.querySelector('script[src*="apis.google.com/js/api.js"]')) {
+      pickerLoaded = true;
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://apis.google.com/js/api.js';
+    script.async = true;
+    script.onload = () => {
+      gapi.load('picker', () => { pickerLoaded = true; resolve(); });
+    };
+    script.onerror = () => reject(new Error('Impossible de charger Google Picker API'));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Opens the Google Picker to let the user choose a Drive folder.
+ * Returns { id, name } of the selected folder, or null if cancelled.
+ */
+export async function pickDriveFolder(): Promise<{ id: string; name: string } | null> {
+  const token = ensureAuth();
+  await loadPickerScript();
+
+  return new Promise((resolve) => {
+    const view = new google.picker.DocsView(google.picker.ViewId.FOLDERS)
+      .setSelectFolderEnabled(true)
+      .setMimeTypes('application/vnd.google-apps.folder');
+
+    const picker = new google.picker.PickerBuilder()
+      .addView(view)
+      .setOAuthToken(token)
+      .setTitle('Choisir le dossier de sauvegarde')
+      .setCallback((data) => {
+        if (data.action === google.picker.Action.PICKED && data.docs?.[0]) {
+          resolve({ id: data.docs[0].id, name: data.docs[0].name ?? '' });
+        } else if (data.action === google.picker.Action.CANCEL) {
+          resolve(null);
+        }
+      })
+      .build();
+    picker.setVisible(true);
   });
 }
 
@@ -109,11 +162,11 @@ async function createDriveFolder(name: string, parentId: string): Promise<string
 const folderCache: Record<string, string> = {};
 
 /** Ensure a nested folder path exists (e.g. "Haussmann/Documents/Thiers - Phases") */
-async function ensureFolder(path: string): Promise<string> {
+async function ensureFolder(path: string, startParentId = 'root'): Promise<string> {
   if (folderCache[path]) return folderCache[path];
 
   const parts = path.split('/');
-  let parentId = 'root';
+  let parentId = startParentId;
   let current = '';
 
   for (const part of parts) {
@@ -246,7 +299,8 @@ async function restoreMarkers(obj: Record<string, unknown> | unknown[]): Promise
 
 // ── Public API ──
 
-export async function saveToGDrive(data: AppData): Promise<{ savedAt: string; docsUploaded: number }> {
+export async function saveToGDrive(data: AppData, parentFolderId?: string): Promise<{ savedAt: string; docsUploaded: number }> {
+  const startParent = parentFolderId ?? 'root';
   const clone: AppData = structuredClone(data);
   const extracted = extractAllDocuments(clone, ROOT_FOLDER);
   let docsUploaded = 0;
@@ -255,7 +309,7 @@ export async function saveToGDrive(data: AppData): Promise<{ savedAt: string; do
   const uriToMarker = new Map<string, string>();
   for (const doc of extracted) {
     try {
-      const folderId = await ensureFolder(doc.folderPath);
+      const folderId = await ensureFolder(doc.folderPath, startParent);
       const existingId = await findFile(folderId, doc.fileName);
       const fileId = await uploadBinaryFile(folderId, doc.fileName, doc.dataUri, existingId);
       uriToMarker.set(doc.dataUri, `__gdrive:${fileId}__`);
@@ -279,19 +333,19 @@ export async function saveToGDrive(data: AppData): Promise<{ savedAt: string; do
   replaceMarkers(clone as unknown as Record<string, unknown>);
 
   // Upload stripped JSON
-  const rootId = await ensureFolder(ROOT_FOLDER);
+  const rootId = await ensureFolder(ROOT_FOLDER, startParent);
   const existingJson = await findFile(rootId, FILE_NAME);
   const envelope = JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), data: clone }, null, 2);
   await uploadTextFile(rootId, FILE_NAME, envelope, existingJson);
 
   const savedAt = new Date().toISOString();
-  // Clear folder cache for next sync
   Object.keys(folderCache).forEach(k => delete folderCache[k]);
   return { savedAt, docsUploaded };
 }
 
-export async function loadFromGDrive(): Promise<AppData> {
-  const rootId = await ensureFolder(ROOT_FOLDER);
+export async function loadFromGDrive(parentFolderId?: string): Promise<AppData> {
+  const startParent = parentFolderId ?? 'root';
+  const rootId = await ensureFolder(ROOT_FOLDER, startParent);
   const fileId = await findFile(rootId, FILE_NAME);
   if (!fileId) throw new Error('Aucune sauvegarde trouvee sur Google Drive');
 
@@ -314,7 +368,27 @@ export async function loadFromGDrive(): Promise<AppData> {
 // ── GIS type declarations ──
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace GPickerTypes {
+    interface DocsView { setSelectFolderEnabled(v: boolean): DocsView; setMimeTypes(m: string): DocsView }
+    interface PickerBuilder {
+      addView(view: DocsView): PickerBuilder;
+      setOAuthToken(token: string): PickerBuilder;
+      setTitle(title: string): PickerBuilder;
+      setCallback(cb: (data: { action: string; docs?: Array<{ id: string; name?: string }> }) => void): PickerBuilder;
+      build(): { setVisible(v: boolean): void };
+    }
+  }
+  const gapi: {
+    load(api: string, callback: () => void): void;
+  };
   const google: {
+    picker: {
+      ViewId: { FOLDERS: string };
+      Action: { PICKED: string; CANCEL: string };
+      DocsView: new (viewId: string) => GPickerTypes.DocsView;
+      PickerBuilder: new () => GPickerTypes.PickerBuilder;
+    };
     accounts: {
       id: {
         initialize(config: { client_id: string; callback: (response: { credential: string }) => void }): void;
