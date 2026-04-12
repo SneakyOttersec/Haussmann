@@ -4,6 +4,7 @@ import type { Expense, Income, Property } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { Card, CardContent } from "@/components/ui/card";
+import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
 
 interface PropertySummaryProps {
@@ -38,28 +39,70 @@ export function PropertySummary({ property, expenses, incomes }: PropertySummary
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);
   const rNet = rendementNet(revenuAnnuel, chargesAnnuelles, coutTotal);
 
-  const cfTooltip = `Revenus : ${formatCurrency(revenuMensuel)}/m\nCharges : -${formatCurrency(depensesMensuelles)}/m\nCredit : -${formatCurrency(creditMensuel)}/m\n= Cash flow : ${formatCurrency(cashFlow)}/m`;
-
-  const kpis = [
-    { label: "Revenu mensuel", value: formatCurrency(revenuMensuel), accent: false, tooltip: undefined as string | undefined },
-    { label: "Depenses mensuelles", value: formatCurrency(depensesMensuelles + creditMensuel), accent: false, tooltip: `Charges : ${formatCurrency(depensesMensuelles)}/m\nCredit : ${formatCurrency(creditMensuel)}/m` },
-    { label: "Cash flow mensuel", value: formatCurrency(cashFlow), accent: true, tooltip: cfTooltip },
-    { label: "Rendement brut", value: formatPercent(rBrut), accent: false, tooltip: `Loyer annuel brut : ${formatCurrency(revenuAnnuel)}\nCout total : ${formatCurrency(coutTotal)}` },
-    { label: "Rendement net", value: formatPercent(rNet), accent: false, tooltip: `Loyer annuel : ${formatCurrency(revenuAnnuel)}\nCharges annuelles : -${formatCurrency(chargesAnnuelles)}\nCout total : ${formatCurrency(coutTotal)}` },
-  ];
+  const fc = formatCurrency;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-      {kpis.map((kpi) => (
-        <Card key={kpi.label} className="border-dotted" title={kpi.tooltip}>
+      <Card className="border-dotted">
+        <CardContent className="p-3">
+          <p className="text-xs text-muted-foreground">Revenu mensuel</p>
+          <p className="text-lg font-bold">{fc(revenuMensuel)}</p>
+        </CardContent>
+      </Card>
+      <CfTooltip rows={[
+        { label: "Charges", value: `${fc(depensesMensuelles)}/m` },
+        { label: "Credit", value: `${fc(creditMensuel)}/m` },
+        { separator: true, label: "", value: "" },
+        { label: "Total", value: `${fc(depensesMensuelles + creditMensuel)}/m`, bold: true },
+      ]}>
+        <Card className="border-dotted">
           <CardContent className="p-3">
-            <p className="text-xs text-muted-foreground">{kpi.label}</p>
-            <p className={`text-lg font-bold ${kpi.accent ? (cashFlow >= 0 ? "text-green-600" : "text-destructive") : ""}`}>
-              {kpi.value}
-            </p>
+            <p className="text-xs text-muted-foreground">Depenses mensuelles</p>
+            <p className="text-lg font-bold">{fc(depensesMensuelles + creditMensuel)}</p>
           </CardContent>
         </Card>
-      ))}
+      </CfTooltip>
+      <CfTooltip rows={[
+        { label: "Revenus", value: `${fc(revenuMensuel)}/m`, color: "text-green-600" },
+        { label: "Charges", value: `-${fc(depensesMensuelles)}/m`, color: "text-amber-600" },
+        { label: "Credit", value: `-${fc(creditMensuel)}/m`, color: "text-blue-500" },
+        { separator: true, label: "", value: "" },
+        { label: "Cash flow", value: `${fc(cashFlow)}/m`, bold: true, color: cashFlow >= 0 ? "text-green-600" : "text-destructive" },
+      ]}>
+        <Card className="border-dotted">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Cash flow mensuel</p>
+            <p className={`text-lg font-bold ${cashFlow >= 0 ? "text-green-600" : "text-destructive"}`}>{fc(cashFlow)}</p>
+          </CardContent>
+        </Card>
+      </CfTooltip>
+      <CfTooltip rows={[
+        { label: "Loyer annuel brut", value: fc(revenuAnnuel) },
+        { label: "Cout total du projet", value: fc(coutTotal) },
+        { separator: true, label: "", value: "" },
+        { label: "Rendement", value: formatPercent(rBrut), bold: true },
+      ]}>
+        <Card className="border-dotted">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Rendement brut</p>
+            <p className="text-lg font-bold">{formatPercent(rBrut)}</p>
+          </CardContent>
+        </Card>
+      </CfTooltip>
+      <CfTooltip rows={[
+        { label: "Loyer annuel", value: fc(revenuAnnuel) },
+        { label: "Charges annuelles", value: `-${fc(chargesAnnuelles)}`, color: "text-amber-600" },
+        { label: "Cout total du projet", value: fc(coutTotal) },
+        { separator: true, label: "", value: "" },
+        { label: "Rendement", value: formatPercent(rNet), bold: true },
+      ]}>
+        <Card className="border-dotted">
+          <CardContent className="p-3">
+            <p className="text-xs text-muted-foreground">Rendement net</p>
+            <p className="text-lg font-bold">{formatPercent(rNet)}</p>
+          </CardContent>
+        </Card>
+      </CfTooltip>
     </div>
   );
 }

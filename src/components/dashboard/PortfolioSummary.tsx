@@ -6,6 +6,7 @@ import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, c
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { rendementBrut } from "@/lib/calculations/rendement";
 import { Card, CardContent } from "@/components/ui/card";
+import { CfTooltip } from "@/components/ui/cf-tooltip";
 
 const PRE_ACTE: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
 
@@ -124,17 +125,21 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
             <p className="text-lg font-bold">{formatCurrency(depenses)}<span className="text-[10px] text-muted-foreground">/m</span></p>
           </CardContent>
         </Card>
-        <Card
-          className="border-dotted"
-          title={`Revenus : ${formatCurrency(revenus)}/m\nDepenses : -${formatCurrency(depenses)}/m\n= Cash flow : ${formatCurrency(cashFlow)}/m`}
-        >
-          <CardContent className="p-3">
-            <p className="text-[11px] text-muted-foreground">Cash flow</p>
-            <p className={`text-lg font-bold ${cashFlow >= 0 ? "text-green-600" : "text-destructive"}`}>
-              {formatCurrency(cashFlow)}<span className="text-[10px] text-muted-foreground">/m</span>
-            </p>
-          </CardContent>
-        </Card>
+        <CfTooltip rows={[
+          { label: "Revenus", value: `${formatCurrency(revenus)}/m`, color: "text-green-600" },
+          { label: "Depenses", value: `-${formatCurrency(depenses)}/m`, color: "text-amber-600" },
+          { separator: true, label: "", value: "" },
+          { label: "Cash flow", value: `${formatCurrency(cashFlow)}/m`, bold: true, color: cashFlow >= 0 ? "text-green-600" : "text-destructive" },
+        ]}>
+          <Card className="border-dotted">
+            <CardContent className="p-3">
+              <p className="text-[11px] text-muted-foreground">Cash flow</p>
+              <p className={`text-lg font-bold ${cashFlow >= 0 ? "text-green-600" : "text-destructive"}`}>
+                {formatCurrency(cashFlow)}<span className="text-[10px] text-muted-foreground">/m</span>
+              </p>
+            </CardContent>
+          </Card>
+        </CfTooltip>
         <Card className="border-dotted">
           <CardContent className="p-3">
             <p className="text-[11px] text-muted-foreground">Rendement brut</p>

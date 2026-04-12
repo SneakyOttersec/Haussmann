@@ -365,17 +365,21 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
                   const montantColor = colorByValidation
                     ? validated ? "text-green-600" : "text-amber-600"
                     : "";
+                  // Credit expense is auto-managed by the loan — block all edits here.
+                  const isCredit = expense.categorie === "credit";
                   return (
-                    <TableRow key={expense.id}>
+                    <TableRow key={expense.id} className={isCredit ? "opacity-70" : ""}>
                       <TableCell className="font-medium">
                         <span className="inline-flex items-center gap-1.5">
                           <span className="text-xs">{CATEGORY_ICONS[expense.categorie] ?? "📌"}</span>
-                          {onUpdate ? (
+                          {onUpdate && !isCredit ? (
                             <EditableCell
                               value={expense.label}
                               onSave={(v) => onUpdate(expense.id, { label: String(v) })}
                             />
-                          ) : expense.label}
+                          ) : (
+                            <span>{expense.label}{isCredit && <span className="text-[9px] text-muted-foreground ml-1">(via credit)</span>}</span>
+                          )}
                         </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground">{EXPENSE_CATEGORY_LABELS[expense.categorie]}</TableCell>
@@ -393,7 +397,7 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
                         </span>
                       </TableCell>
                       <TableCell>
-                        {onUpdate ? (
+                        {onUpdate && !isCredit ? (
                           <FrequencyChips
                             value={expense.frequence}
                             onChange={(v) => onUpdate(expense.id, { frequence: v })}
@@ -406,37 +410,41 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
                           : "—"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <input
-                          type="checkbox"
-                          checked={!!expense.priceValidated}
-                          disabled={!onUpdate}
-                          onChange={(e) => onUpdate?.(expense.id, { priceValidated: e.target.checked })}
-                          className="accent-primary cursor-pointer disabled:cursor-not-allowed"
-                          title={expense.priceValidated ? "Prix confirme par contrat" : "Cocher si un contrat / une offre confirme ce prix"}
-                        />
+                        {!isCredit && (
+                          <input
+                            type="checkbox"
+                            checked={!!expense.priceValidated}
+                            disabled={!onUpdate}
+                            onChange={(e) => onUpdate?.(expense.id, { priceValidated: e.target.checked })}
+                            className="accent-primary cursor-pointer disabled:cursor-not-allowed"
+                            title={expense.priceValidated ? "Prix confirme par contrat" : "Cocher si un contrat / une offre confirme ce prix"}
+                          />
+                        )}
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-0.5">
-                          {onUpdate && (
+                        {!isCredit && (
+                          <div className="flex items-center gap-0.5">
+                            {onUpdate && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setReviseTarget(expense)}
+                                className="text-muted-foreground hover:text-primary px-2"
+                                title="Reviser le prix"
+                              >
+                                ↻
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => setReviseTarget(expense)}
-                              className="text-muted-foreground hover:text-primary px-2"
-                              title="Reviser le prix"
+                              onClick={() => onDelete(expense.id)}
+                              className="text-destructive hover:text-destructive"
                             >
-                              ↻
+                              ×
                             </Button>
-                          )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => onDelete(expense.id)}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            ×
-                          </Button>
-                        </div>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   );

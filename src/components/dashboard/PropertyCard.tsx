@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import type { Property, Expense, Income, LoanDetails, RentMonthEntry, PropertyStatus } from "@/types";
 import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
+import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,11 +94,19 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             <span className="text-[10px] text-muted-foreground/0 group-hover:text-primary transition-colors ml-2 shrink-0">Voir →</span>
           </div>
           <div className={`grid ${postActe ? 'grid-cols-4' : 'grid-cols-1'} gap-2 text-xs mb-3`}>
-            <div title={`Revenus : ${formatCurrency(revenusMensuel)}/m\nCharges : -${formatCurrency(depensesMensuel)}/m\nCredit : -${formatCurrency(creditMensuel)}/m\n= CF : ${formatCurrency(cfTheorique)}/m`}>
-              <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF theorique</p>
-              <p className={`font-bold ${cfClass(cfTheorique)}`}>{formatCurrency(cfTheorique)}</p>
-              <p className="text-[9px] text-muted-foreground">/mois</p>
-            </div>
+            <CfTooltip rows={[
+              { label: "Revenus", value: `${formatCurrency(revenusMensuel)}/m`, color: "text-green-600" },
+              { label: "Charges", value: `-${formatCurrency(depensesMensuel)}/m`, color: "text-amber-600" },
+              { label: "Credit", value: `-${formatCurrency(creditMensuel)}/m`, color: "text-blue-500" },
+              { separator: true, label: "", value: "" },
+              { label: "Cash flow", value: `${formatCurrency(cfTheorique)}/m`, bold: true, color: cfTheorique >= 0 ? "text-green-600" : "text-destructive" },
+            ]}>
+              <div>
+                <p className="text-muted-foreground text-[10px] uppercase tracking-wider">CF theorique</p>
+                <p className={`font-bold ${cfClass(cfTheorique)}`}>{formatCurrency(cfTheorique)}</p>
+                <p className="text-[9px] text-muted-foreground">/mois</p>
+              </div>
+            </CfTooltip>
             {postActe && (
               <>
                 <div>
