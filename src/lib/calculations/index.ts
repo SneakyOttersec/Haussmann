@@ -51,6 +51,7 @@ function creditAnnee(
   dureeAns: number,
   differeMois: number,
   differeInclus: boolean,
+  differeType: 'partiel' | 'total',
   assuranceMensuelle: number,
   annee: number,
   typePret: 'amortissable' | 'in_fine',
@@ -58,6 +59,7 @@ function creditAnnee(
   if (montant <= 0) return { mensualitesAnnee: 0, interetsAnnee: 0, capitalRembourse: 0, crd: 0 };
 
   const tauxMensuel = taux / 12;
+  const isDiffereTotal = differeMois > 0 && differeType === 'total';
   // When differeInclus === false, the amortization phase = full dureeAns,
   // and the total loan duration is dureeAns + differeMois.
   const dureeAmortMois = differeInclus
@@ -69,8 +71,13 @@ function creditAnnee(
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12;
 
+  // For differe total, the capital at the start of the amortization phase is inflated
+  // by the capitalized interest: capital_post_defer = montant × (1 + t)^differeMois.
+  const capitalPostDiffere = isDiffereTotal
+    ? round2(montant * Math.pow(1 + tauxMensuel, differeMois))
+    : montant;
   const mensualiteAmort = dureeAmortMois > 0
-    ? calculerMensualiteAmortissable(montant, taux, dureeAmortMois / 12)
+    ? calculerMensualiteAmortissable(capitalPostDiffere, taux, dureeAmortMois / 12)
     : 0;
 
   let totalPaye = 0;
@@ -81,7 +88,11 @@ function creditAnnee(
     for (let m = 0; m < moisDebut; m++) {
       if (m >= totalMoisCredit) { crd = 0; break; }
       if (m < differeMois) {
-        // Differe: only interest, no capital
+        // Differe total: interest is capitalized into CRD, nothing paid.
+        // Differe partiel: interest is paid, CRD unchanged.
+        if (isDiffereTotal) {
+          crd = round2(crd * (1 + tauxMensuel));
+        }
       } else {
         const interet = round2(crd * tauxMensuel);
         const capital = round2(mensualiteAmort - interet);
@@ -97,9 +108,17 @@ function creditAnnee(
     if (crd <= 0) break;
 
     if (m < differeMois) {
-      const interet = round2(crd * tauxMensuel);
-      totalPaye = round2(totalPaye + interet + assuranceMensuelle);
-      totalInterets = round2(totalInterets + interet);
+      if (isDiffereTotal) {
+        // Total: nothing paid (interest capitalized), only assurance
+        totalPaye = round2(totalPaye + assuranceMensuelle);
+        crd = round2(crd * (1 + tauxMensuel));
+        // Interest is capitalized, not "paid" → not deductible
+      } else {
+        // Partiel: interest paid, no capital
+        const interet = round2(crd * tauxMensuel);
+        totalPaye = round2(totalPaye + interet + assuranceMensuelle);
+        totalInterets = round2(totalInterets + interet);
+      }
     } else {
       if (typePret === 'in_fine') {
         const interet = round2(crd * tauxMensuel);
@@ -220,7 +239,7 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
     const valeurBien = round2(valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee));
     const plusValue = round2(valeurBien - valeurBienInitiale);
 
-    const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, inputs.differePretInclus ?? true, assuranceMensuelle, annee, inputs.typePret);
+    const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, inputs.differePretInclus ?? true, inputs.differePretType ?? 'partiel', assuranceMensuelle, annee, inputs.typePret);
 
     years.push({
       loyerBrut: yrLoyerBrut,

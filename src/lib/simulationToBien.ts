@@ -149,7 +149,7 @@ export function simulationToBien(
           ? inputs.montantEmprunte * inputs.assurancePretPct
           : inputs.assurancePretAnnuelle,
         differeMois: inputs.differePretMois || undefined,
-        differeType: inputs.differePretMois ? "partiel" : undefined,
+        differeType: inputs.differePretMois ? (inputs.differePretType ?? "partiel") : undefined,
         differeInclus: inputs.differePretMois ? (inputs.differePretInclus ?? true) : undefined,
       }]
     : [];

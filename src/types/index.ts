@@ -493,6 +493,8 @@ export interface CalculatorInputs {
   differePretMois: number;
   /** true (default): differe inclus dans dureeCredit. false: differe en plus. */
   differePretInclus: boolean;
+  /** 'partiel' (default): interets payes pendant le differe. 'total': interets capitalises. */
+  differePretType: DifferType;
   differeLoyer: number;
 
   // Evolutions annuelles (% d'augmentation par an, ex: 0.05 = +5%/an)
