@@ -389,6 +389,17 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
     }
     const tauxOccupation = totalMoisLots > 0 ? (occupationUnits / totalMoisLots) * 100 : 0;
 
+    // Detect past lot-months with no tracking entry — if data is missing the
+    // taux above is unreliable (defaulting unrecorded months to "occupied").
+    const entryKeys = new Set(windowEntries.map((e) => `${e.lotId}:${e.yearMonth}`));
+    let missingCount = 0;
+    for (const lot of lots) {
+      for (const ym of pastMonths) {
+        if (!entryKeys.has(`${lot.id}:${ym}`)) missingCount++;
+      }
+    }
+    const hasGaps = missingCount > 0;
+
     // Attendu to date: for current year = Jan→now, for past years = full year
     const nowDate = new Date();
     const currentYear = nowDate.getFullYear();
@@ -397,7 +408,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
     const moisToDate = selYear === currentYear ? currentMonth : (selYear < currentYear ? 12 : 0);
     const attenduToDate = loyerMensuel * moisToDate;
 
-    return { totalAttendu, attenduToDate, moisToDate, totalPercu, totalImpayes, tauxOccupation, nbMois: pastMonths.length };
+    return { totalAttendu, attenduToDate, moisToDate, totalPercu, totalImpayes, tauxOccupation, nbMois: pastMonths.length, hasGaps, missingCount };
   })();
 
   if (lots.length === 0) {
@@ -410,7 +421,14 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Taux occupation</p>
-          <p className="text-sm font-bold">{kpis.tauxOccupation.toFixed(0)} %</p>
+          <p className={`text-sm font-bold ${kpis.hasGaps ? "text-amber-600" : ""}`}>
+            {kpis.tauxOccupation.toFixed(0)} %
+            {kpis.hasGaps && (
+              <span className="text-[9px] font-normal ml-1" title={`${kpis.missingCount} mois-lot sans saisie`}>
+                (donnees manquantes)
+              </span>
+            )}
+          </p>
         </div>
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">

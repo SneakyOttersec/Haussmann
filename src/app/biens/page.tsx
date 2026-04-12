@@ -13,9 +13,9 @@ import { useContacts } from "@/hooks/useContacts";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useLots } from "@/hooks/useLots";
 import { PROPERTY_TYPE_LABELS } from "@/types";
-import type { PropertyStatus, Property, LoanDetails, AllocationCredit } from "@/types";
+import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervention } from "@/types";
 import { PROPERTY_STATUS_ORDER } from "@/types";
-import { formatCurrency, checkFileSize } from "@/lib/utils";
+import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere } from "@/lib/calculations/loan";
 import { PropertySummary } from "@/components/property/PropertySummary";
@@ -165,27 +165,142 @@ function LoanExtras({ loan, onUpdate }: {
   );
 }
 
-function AllocationSection({ loan, property, onSave }: {
+/**
+ * Compute the credit allocation for a property + loan. Uses the stored
+ * allocationCredit when available; otherwise derives a sensible default
+ * that fits within the loan amount. Shared by AllocationSection (display)
+ * and the InterventionSection call site (enveloppe travaux).
+ */
+function computeAllocationCredit(property: Property, loan: LoanDetails): AllocationCredit {
+  if (property.allocationCredit) return property.allocationCredit;
+  const travaux = Math.min(property.montantTravaux, loan.montantEmprunte);
+  const notaire = Math.min(property.fraisNotaire, Math.max(0, loan.montantEmprunte - travaux));
+  const agence = Math.min(property.fraisAgence, Math.max(0, loan.montantEmprunte - travaux - notaire));
+  const autre = Math.min(
+    (property.fraisDossier ?? 0) + (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
+    Math.max(0, loan.montantEmprunte - travaux - notaire - agence),
+  );
+  const bien = Math.max(0, loan.montantEmprunte - travaux - notaire - agence - autre);
+  return { bien, travaux, notaire, agence, autre };
+}
+
+function ApportSection({ property, loan, onUpdateApport }: {
+  property: Property;
+  loan: LoanDetails;
+  onUpdateApport: (v: number | undefined) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const coutTotal = coutTotalBien(property);
+  const apportDerive = Math.max(0, coutTotal - loan.montantEmprunte);
+  const apport = property.apport ?? apportDerive;
+  const [draft, setDraft] = useState(String(apport));
+  const isCustom = property.apport != null;
+  const totalFinance = loan.montantEmprunte + apport;
+  const ecartProjet = totalFinance - coutTotal;
+
+  const handleSave = () => {
+    const v = Number(draft);
+    if (!isNaN(v) && v >= 0) {
+      onUpdateApport(v);
+    }
+    setEditing(false);
+  };
+
+  const handleReset = () => {
+    onUpdateApport(undefined);
+    setEditing(false);
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t border-dashed border-muted-foreground/15 space-y-1.5">
+      <div className="flex justify-between text-sm">
+        <span className="text-muted-foreground">Cout total du projet</span>
+        <span className="font-medium tabular-nums">{formatCurrency(coutTotal)}</span>
+      </div>
+      <div className="flex justify-between text-sm">
+        <span className="text-muted-foreground">Emprunt</span>
+        <span className="font-medium tabular-nums">{formatCurrency(loan.montantEmprunte)}</span>
+      </div>
+      <div className="flex justify-between text-sm font-bold items-center">
+        <span>Apport personnel</span>
+        {editing ? (
+          <div className="flex items-center gap-1.5">
+            <input
+              autoFocus
+              type="number"
+              min={0}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }}
+              className="w-28 h-7 px-2 text-sm text-right border border-input rounded bg-transparent outline-none focus:border-ring tabular-nums"
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => { setDraft(String(apport)); setEditing(true); }}
+            className="tabular-nums inline-flex items-center gap-1.5 hover:text-primary transition-colors"
+            title="Cliquer pour modifier l'apport"
+          >
+            {formatCurrency(apport)}
+            <span className="text-[10px] opacity-50">✎</span>
+          </button>
+        )}
+      </div>
+      {isCustom && (
+        <button onClick={handleReset} className="text-[10px] text-muted-foreground hover:text-primary transition-colors">
+          Recalculer automatiquement
+        </button>
+      )}
+      {coutTotal > 0 && apport > 0 && (
+        <p className="text-[10px] text-muted-foreground">
+          Apport de {(apport / coutTotal * 100).toFixed(1)}% du projet.
+        </p>
+      )}
+      {ecartProjet < 0 && (
+        <p className="text-[10px] text-amber-600">
+          Emprunt + apport ne couvrent pas le projet ({formatCurrency(Math.abs(ecartProjet))} manquants).
+        </p>
+      )}
+      {ecartProjet > 0 && (
+        <p className="text-[10px] text-amber-600">
+          Emprunt + apport depassent le cout du projet de {formatCurrency(ecartProjet)}.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan }: {
   loan: LoanDetails;
   property: Property;
+  interventions: Intervention[];
   onSave: (alloc: AllocationCredit) => void;
+  onUpdateLoan: (updates: Partial<LoanDetails>) => void;
 }) {
-  const defaultAlloc: AllocationCredit = property.allocationCredit ?? {
-    bien: property.prixAchat,
-    travaux: property.montantTravaux,
-    notaire: property.fraisNotaire,
-    agence: 0,
-    autre: 0,
-  };
+  const defaultAlloc = computeAllocationCredit(property, loan);
   const [editOpen, setEditOpen] = useState(false);
   const [edit, setEdit] = useState(defaultAlloc);
 
-  const allocations = [
-    { label: "Bien immobilier", value: defaultAlloc.bien },
-    { label: "Travaux", value: defaultAlloc.travaux },
-    { label: "Frais de notaire", value: defaultAlloc.notaire },
-    { label: "Frais d'agence", value: defaultAlloc.agence },
-    { label: "Autre", value: defaultAlloc.autre },
+  // Travaux funded by the loan envelope — drives the small "x € sur y € utilises" hint
+  // displayed right under the Travaux row.
+  const travauxFinances = interventions
+    .filter((i) => (i.interventionType ?? "intervention") === "travaux" && i.financeParCredit)
+    .reduce((s, i) => s + i.montant, 0);
+  const travauxEnveloppe = defaultAlloc.travaux;
+  const travauxPct = travauxEnveloppe > 0 ? Math.round((travauxFinances / travauxEnveloppe) * 100) : 0;
+  const travauxOverflow = travauxFinances > travauxEnveloppe;
+
+  // Note: this list is rendered manually so we can interleave the travaux usage hint.
+  const enveloppeFinDate = enveloppeTravauxFinDate(loan);
+  const enveloppeOuverte = isEnveloppeTravauxOuverte(loan);
+
+  const allocations: { key: keyof AllocationCredit; label: string; value: number }[] = [
+    { key: "bien", label: "Bien immobilier", value: defaultAlloc.bien },
+    { key: "travaux", label: "Travaux", value: defaultAlloc.travaux },
+    { key: "notaire", label: "Frais de notaire", value: defaultAlloc.notaire },
+    { key: "agence", label: "Frais d'agence", value: defaultAlloc.agence },
+    { key: "autre", label: "Autre", value: defaultAlloc.autre },
   ];
   const totalAlloue = allocations.reduce((s, a) => s + a.value, 0);
   const ecart = loan.montantEmprunte - totalAlloue;
@@ -210,17 +325,63 @@ function AllocationSection({ loan, property, onSave }: {
         </div>
         <div className="space-y-1 text-sm">
           {allocations.filter(a => a.value > 0).map((a) => (
-            <div key={a.label} className="flex justify-between">
-              <span className="text-muted-foreground">{a.label}</span>
-              <span className="font-medium tabular-nums">{formatCurrency(a.value)}</span>
+            <div key={a.key}>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{a.label}</span>
+                <span className="font-medium tabular-nums">{formatCurrency(a.value)}</span>
+              </div>
+              {a.key === "travaux" && (
+                <div className="text-[10px] text-muted-foreground/80 ml-2 space-y-0.5">
+                  <p>
+                    ↳ utilise :{" "}
+                    <span className={`tabular-nums ${travauxOverflow ? "text-destructive font-medium" : ""}`}>
+                      {formatCurrency(travauxFinances)}
+                    </span>
+                    {" "}({travauxPct}%)
+                    {travauxOverflow
+                      ? <span className="text-destructive"> — depassement de {formatCurrency(travauxFinances - travauxEnveloppe)}</span>
+                      : <span> — reste {formatCurrency(Math.max(0, travauxEnveloppe - travauxFinances))}</span>}
+                  </p>
+                  {travauxEnveloppe > 0 && (
+                    <p className="flex items-center gap-1.5">
+                      ↳ dispo jusqu&apos;au{" "}
+                      <input
+                        type="date"
+                        value={enveloppeFinDate ?? ""}
+                        onChange={(e) => onUpdateLoan({ enveloppeTravauxFinDate: e.target.value || undefined })}
+                        className="h-5 px-1 text-[10px] border border-dashed border-muted-foreground/30 rounded bg-transparent focus:border-primary outline-none tabular-nums"
+                      />
+                      {!enveloppeOuverte && (
+                        <span className="text-destructive font-medium">expiree</span>
+                      )}
+                      {enveloppeOuverte && enveloppeFinDate && (
+                        <span className="text-green-600">ouverte</span>
+                      )}
+                      {loan.enveloppeTravauxFinDate && (
+                        <button
+                          onClick={() => onUpdateLoan({ enveloppeTravauxFinDate: undefined })}
+                          className="text-muted-foreground/50 hover:text-primary text-[9px]"
+                          title="Reinitialiser a la fin du differe"
+                        >
+                          reinitialiser
+                        </button>
+                      )}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           <div className="flex justify-between pt-1 border-t border-dashed border-muted-foreground/10 font-bold">
-            <span>Total emprunte</span>
-            <span className="tabular-nums">{formatCurrency(loan.montantEmprunte)}</span>
+            <span>Total alloue</span>
+            <span className={`tabular-nums ${ecart === 0 ? "" : "text-amber-600"}`}>
+              {formatCurrency(totalAlloue)} / {formatCurrency(loan.montantEmprunte)}
+            </span>
           </div>
           {ecart !== 0 && (
-            <p className="text-xs text-destructive">Ecart : {formatCurrency(ecart)}</p>
+            <p className="text-[10px] text-amber-600 mt-1">
+              {formatCurrency(Math.abs(ecart))} {ecart > 0 ? "non alloues" : "en trop"} — cliquez &quot;Modifier&quot; pour ajuster.
+            </p>
           )}
         </div>
       </div>
@@ -285,6 +446,9 @@ function PropertyDetailContent() {
   const { entries: rentEntries } = useRentTracking(data, setData, id ?? undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  // Tracks whether we've already auto-synced lots for the current "travaux" session.
+  // Reset when the property leaves "travaux", so re-entering triggers a new sync.
+  const travauxSyncedRef = useRef(false);
 
   if (!data || !id) return null;
 
@@ -300,12 +464,57 @@ function PropertyDetailContent() {
     );
   }
 
+  // ── Auto-sync lots to "travaux" on first detection ──
+  // Runs once per "travaux session": syncs desynced lots when the property
+  // enters travaux (or when the page loads with property already in travaux).
+  // After the one-time sync, user overrides via the force-confirmation dialog
+  // are respected — no re-sync until the property leaves then re-enters travaux.
+  if (property.statut === "travaux") {
+    if (!travauxSyncedRef.current) {
+      const desyncedLots = lots.filter((l) => l.statut !== "travaux");
+      if (desyncedLots.length > 0) {
+        queueMicrotask(() => {
+          for (const lot of desyncedLots) {
+            updateLot(lot.id, { statut: "travaux" });
+          }
+        });
+      }
+      travauxSyncedRef.current = true;
+    }
+  } else {
+    // Property left travaux — reset the flag so re-entering triggers a new sync.
+    travauxSyncedRef.current = false;
+  }
+
   // Mensualite shown in the credit card = post-defer amortization payment.
   // For pre-acte loans with a defer, this is what the user will pay starting
   // month N+1 — it's the most informative number for the validation tickbox.
   const mensualiteCredit = loan ? mensualiteAmortissement(loan) : 0;
   const dM = loan?.differeMois ?? 0;
   const mensualiteDifferee = loan && dM > 0 ? mensualitePendantDiffere(loan) : 0;
+
+  // ── Travaux envelope consumption → effective principal & monthly payment ──
+  //
+  // Real-life French banks release the travaux envelope progressively as the
+  // borrower presents invoices. The effective amount drawn at any point in time
+  // equals the loan total minus the unspent portion of the travaux envelope.
+  // We recompute the mensualite on this effective principal so the user sees
+  // what they actually pay today vs. what they'll pay once the envelope is
+  // fully consumed.
+  const travauxEnveloppeCredit = property.allocationCredit?.travaux ?? 0;
+  const travauxFinancesParCredit = interventions
+    .filter((i) => (i.interventionType ?? "intervention") === "travaux" && i.financeParCredit)
+    .reduce((s, i) => s + i.montant, 0);
+  const travauxNonTires = loan
+    ? Math.max(0, travauxEnveloppeCredit - travauxFinancesParCredit)
+    : 0;
+  const montantEmprunteEffectif = loan ? Math.max(0, loan.montantEmprunte - travauxNonTires) : 0;
+  // Synthetic loan with the effective principal — drives both the mensualite
+  // amortization phase and the differe-period interest payment.
+  const loanEffectif = loan ? { ...loan, montantEmprunte: montantEmprunteEffectif } : null;
+  const mensualiteEffective = loanEffectif ? mensualiteAmortissement(loanEffectif) : 0;
+  const mensualiteDifferEffective = loanEffectif && dM > 0 ? mensualitePendantDiffere(loanEffectif) : 0;
+  const showEffectif = loan != null && travauxNonTires > 0;
 
   // Pre-acte = the property is still being prospected/negotiated. While in this
   // state, financial values are projections — we color each price green when the
@@ -528,10 +737,25 @@ function PropertyDetailContent() {
           const prevDates = property.statusDates ?? {};
           const nextDates = prevDates[s] ? prevDates : { ...prevDates, [s]: today };
           updateProperty(id, { statut: s, statusDates: nextDates });
+          // When the property enters "travaux", automatically set every lot
+          // to statut "travaux" — no rent is expected during renovation.
+          if (s === "travaux") {
+            for (const lot of lots) {
+              if (lot.statut !== "travaux") updateLot(lot.id, { statut: "travaux" });
+            }
+          }
         }}
         onDateChange={(s, date) => {
           const prevDates = property.statusDates ?? {};
           updateProperty(id, { statusDates: { ...prevDates, [s]: date } });
+          // Also sync lots when the user interacts with the travaux date —
+          // covers the case where the status was already "travaux" and the
+          // user is just setting / adjusting dates.
+          if (s === "travaux" && property.statut === "travaux") {
+            for (const lot of lots) {
+              if (lot.statut !== "travaux") updateLot(lot.id, { statut: "travaux" });
+            }
+          }
         }}
         onDocChange={(s, doc) => {
           const prevDocs = property.statusDocs ?? {};
@@ -552,7 +776,21 @@ function PropertyDetailContent() {
       {/* Credit */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <h2>Credit</h2>
+          <div className="flex items-center gap-3">
+            <h2>Credit</h2>
+            {isPreActe && loan && (
+              <button
+                onClick={() => setLoan({ ...loan, offerValidated: !creditValide })}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] transition-colors ${
+                  creditValide
+                    ? "bg-green-500/15 text-green-700 font-medium"
+                    : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                }`}
+              >
+                {creditValide ? "✓ Offre validee" : "Offre a valider"}
+              </button>
+            )}
+          </div>
           <LoanForm propertyId={id} initialData={loan ?? undefined} onSubmit={handleSetLoan} />
         </div>
         {loan ? (
@@ -561,42 +799,97 @@ function PropertyDetailContent() {
               {loan.banque && (
                 <p className="text-xs text-muted-foreground mb-3">🏦 {loan.banque}</p>
               )}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Montant emprunte</p>
-                  <p className="font-bold">{formatCurrency(loan.montantEmprunte)}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Taux</p>
-                  <p className={`font-bold ${priceClass(creditValide)}`}>{(loan.tauxAnnuel * 100).toFixed(2)} %</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Duree</p>
-                  <p className={`font-bold ${priceClass(creditValide)}`}>{loan.dureeAnnees} ans</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">
-                    Mensualite{dM > 0 ? " (post-differe)" : ""}
-                  </p>
-                  <p className={`font-bold ${priceClass(creditValide)}`}>
-                    {formatCurrency(mensualiteCredit + (loan.assuranceAnnuelle / 12), true)}
-                  </p>
-                  {dM > 0 && (
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      Pendant {dM}m :{" "}
-                      <span className="tabular-nums">
-                        {formatCurrency(mensualiteDifferee + (loan.assuranceAnnuelle / 12), true)}
-                      </span>{" "}
-                      ({loan.differeType === "total" ? "differe total" : "differe partiel"})
-                    </p>
-                  )}
-                </div>
-              </div>
+              {(() => {
+                const assurMensuelle = loan.assuranceAnnuelle / 12;
+                const dureeLabel = (() => {
+                  if (dM <= 0) return `${loan.dureeAnnees} ans`;
+                  if (loan.differeInclus === false) {
+                    const t = loan.dureeAnnees * 12 + dM;
+                    const a = Math.floor(t / 12);
+                    const m = t % 12;
+                    return `${a} ans${m > 0 ? ` ${m} mois` : ""}`;
+                  }
+                  return `${loan.dureeAnnees} ans`;
+                })();
+                const dureeDetail = dM > 0
+                  ? loan.differeInclus === false
+                    ? `${dM} mois de differe ${loan.differeType === "total" ? "total" : "partiel"} + ${loan.dureeAnnees} ans d'amortissement`
+                    : `dont ${dM} mois de differe ${loan.differeType === "total" ? "total" : "partiel"}`
+                  : null;
+
+                return (
+                  <>
+                    {/* Row 1: core loan params */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Capital emprunte</p>
+                        <p className="font-bold tabular-nums">{formatCurrency(loan.montantEmprunte)}</p>
+                        {showEffectif && (
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(montantEmprunteEffectif)}</span>
+                            <span className="text-muted-foreground/60"> · {formatCurrency(travauxNonTires)} restant sur enveloppe travaux</span>
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Taux nominal</p>
+                        <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(loan.tauxAnnuel * 100).toFixed(2)} %</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Duree totale</p>
+                        <p className={`font-bold ${priceClass(creditValide)}`}>{dureeLabel}</p>
+                        {dureeDetail && (
+                          <p className="text-[10px] text-muted-foreground mt-1">{dureeDetail}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Row 2: mensualites */}
+                    <div className={`${dM > 0 ? "flex items-start justify-center gap-12" : "max-w-[200px]"} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
+                      {/* Apres le differe (or single Mensualite) — primary, always first */}
+                      <div className={dM > 0 ? "text-center" : ""}>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                          {dM > 0 ? "Apres le differe" : "Mensualite"}
+                        </p>
+                        <p className={`text-lg font-bold tabular-nums ${priceClass(creditValide)}`}>
+                          {formatCurrency(mensualiteCredit + assurMensuelle, true)}/m
+                        </p>
+                        {showEffectif && (
+                          <p className="text-[10px] text-muted-foreground mt-1">
+                            Sur capital tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteEffective + assurMensuelle, true)}/m</span>
+                          </p>
+                        )}
+                      </div>
+                      {/* Pendant le differe — secondary, dimmed */}
+                      {dM > 0 && (
+                        <div className="text-center opacity-60 border-l border-dashed border-muted-foreground/20 pl-12">
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                            Pendant le differe
+                            <span className="text-muted-foreground/60 normal-case ml-1">({dM}m)</span>
+                          </p>
+                          <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>
+                            {formatCurrency(mensualiteDifferee + assurMensuelle, true)}/m
+                          </p>
+                          {showEffectif && (
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              Sur capital tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteDifferEffective + assurMensuelle, true)}/m</span>
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+              {/* Apport + warning financement */}
+              <ApportSection property={property} loan={loan} onUpdateApport={(v) => updateProperty(id, { apport: v })} />
               {/* Allocation du credit */}
               <AllocationSection
                 loan={loan}
                 property={property}
+                interventions={interventions}
                 onSave={(alloc) => updateProperty(id, { allocationCredit: alloc })}
+                onUpdateLoan={(updates) => setLoan({ ...loan, ...updates })}
               />
               {/* Banque + Documents credit */}
               <LoanExtras loan={loan} onUpdate={(updates) => setLoan({ ...loan, ...updates })} />
@@ -607,19 +900,6 @@ function PropertyDetailContent() {
                 Supprimer le credit
               </button>
               <LoanAmortizationTable loan={loan} />
-              {isPreActe && (
-                <label className="flex items-center gap-2 mt-4 pt-3 border-t border-dashed border-muted-foreground/15 text-xs cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={creditValide}
-                    onChange={(e) => setLoan({ ...loan, offerValidated: e.target.checked })}
-                    className="accent-primary"
-                  />
-                  <span className={creditValide ? "text-foreground font-medium" : "text-muted-foreground"}>
-                    Offre bancaire validee
-                  </span>
-                </label>
-              )}
             </CardContent>
           </Card>
         ) : (
@@ -686,7 +966,17 @@ function PropertyDetailContent() {
 
       {/* Travaux */}
       <section>
-        <InterventionSection interventions={interventions} onAdd={addIntervention} onUpdate={handleUpdateIntervention} onDelete={deleteIntervention} propertyId={id} filterType="travaux" lots={lots} />
+        <InterventionSection
+          interventions={interventions}
+          onAdd={addIntervention}
+          onUpdate={handleUpdateIntervention}
+          onDelete={deleteIntervention}
+          propertyId={id}
+          filterType="travaux"
+          lots={lots}
+          enveloppeCredit={loan ? computeAllocationCredit(property, loan).travaux : 0}
+          enveloppeOuverte={loan ? isEnveloppeTravauxOuverte(loan) : true}
+        />
       </section>
 
       {/* Interventions */}

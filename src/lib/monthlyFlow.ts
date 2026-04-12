@@ -1,7 +1,7 @@
 import type { Property, Income, Expense, RentMonthEntry, LoanDetails } from "@/types";
 import { getMontantEffectif } from "./expenseRevisions";
 import { getPropertyAcquisitionDate } from "./utils";
-import { mensualiteAtMonth } from "./calculations/loan";
+import { mensualiteAtMonth, loanDureeTotaleMois } from "./calculations/loan";
 
 export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"
@@ -119,7 +119,7 @@ export function buildMonthlyFlow(
     if (loan && loanStart && !isNaN(loanStart.getTime())) {
       const monthIdx = (cursor.getFullYear() - loanStart.getFullYear()) * 12
         + (cursor.getMonth() - loanStart.getMonth());
-      if (monthIdx >= 0 && monthIdx < loan.dureeAnnees * 12) {
+      if (monthIdx >= 0 && monthIdx < loanDureeTotaleMois(loan)) {
         credit += mensualiteAtMonth(loan, monthIdx) + loan.assuranceAnnuelle / 12;
       }
     }

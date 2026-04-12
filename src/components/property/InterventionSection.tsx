@@ -19,6 +19,10 @@ interface Props {
   propertyId: string;
   filterType: InterventionType;
   lots?: Lot[];
+  /** Only meaningful for filterType === "travaux": the loan's travaux envelope. */
+  enveloppeCredit?: number;
+  /** True if the travaux envelope is still open (date not passed). Defaults to true. */
+  enveloppeOuverte?: boolean;
 }
 
 function LotSelect({ value, onChange, lots }: { value: string; onChange: (v: string) => void; lots: Lot[] }) {
@@ -40,18 +44,21 @@ function LotSelect({ value, onChange, lots }: { value: string; onChange: (v: str
   );
 }
 
-function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes }: {
+function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes, showCreditToggle, enveloppeOuverte = true }: {
   intervention: Intervention;
   onUpdate: (id: string, updates: Partial<Intervention>) => void;
   onDelete: (id: string) => void;
   lots: Lot[];
   showNotes: boolean;
+  showCreditToggle: boolean;
+  enveloppeOuverte?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [edit, setEdit] = useState({
     description: i.description, prestataire: i.prestataire, montant: i.montant,
     date: i.date, statut: i.statut, lotId: i.lotId ?? "", notes: i.notes ?? "",
+    financeParCredit: !!i.financeParCredit,
   });
 
   const lotName = i.lotId ? lots.find(l => l.id === i.lotId)?.nom : null;
@@ -79,7 +86,12 @@ function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes 
 
   const handleEditSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate(i.id, { ...edit, lotId: edit.lotId || undefined, notes: edit.notes || undefined });
+    onUpdate(i.id, {
+      ...edit,
+      lotId: edit.lotId || undefined,
+      notes: edit.notes || undefined,
+      financeParCredit: showCreditToggle ? edit.financeParCredit : undefined,
+    });
     setEditOpen(false);
   };
 
@@ -102,13 +114,33 @@ function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes 
           </button>
           <button
             className="flex-1 truncate text-left hover:text-primary transition-colors cursor-pointer"
-            onClick={() => { setEdit({ description: i.description, prestataire: i.prestataire, montant: i.montant, date: i.date, statut: i.statut, lotId: i.lotId ?? "", notes: i.notes ?? "" }); setEditOpen(true); }}
+            onClick={() => { setEdit({ description: i.description, prestataire: i.prestataire, montant: i.montant, date: i.date, statut: i.statut, lotId: i.lotId ?? "", notes: i.notes ?? "", financeParCredit: !!i.financeParCredit }); setEditOpen(true); }}
           >
             {i.description}
           </button>
           {lotName && <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{lotName}</span>}
           {i.prestataire && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{i.prestataire}</span>}
           <span className="font-medium tabular-nums shrink-0">{formatCurrency(i.montant)}</span>
+          {showCreditToggle && (() => {
+            // Can't newly mark as credit-funded if the envelope date has passed.
+            // Already-checked items can still be unchecked (in case of error).
+            const canCheck = enveloppeOuverte || !!i.financeParCredit;
+            return (
+              <label
+                className={`flex items-center gap-1 text-[10px] shrink-0 select-none ${canCheck ? "cursor-pointer text-muted-foreground" : "cursor-not-allowed text-muted-foreground/40"}`}
+                title={canCheck ? "Cocher si ce travaux est finance par l'enveloppe travaux du credit" : "Enveloppe travaux expiree — impossible d'ajouter de nouveaux financements"}
+              >
+                <input
+                  type="checkbox"
+                  checked={!!i.financeParCredit}
+                  disabled={!canCheck}
+                  onChange={(e) => onUpdate(i.id, { financeParCredit: e.target.checked })}
+                  className="accent-primary h-3 w-3 cursor-[inherit] disabled:opacity-40"
+                />
+                <span className={i.financeParCredit ? "text-primary font-medium" : ""}>Credit</span>
+              </label>
+            );
+          })()}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => fileRef.current?.click()}
@@ -169,6 +201,21 @@ function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes 
               </div>
             </div>
             <LotSelect value={edit.lotId} onChange={(v) => setEdit({ ...edit, lotId: v })} lots={lots} />
+            {showCreditToggle && (
+              <label className={`flex items-center gap-2 text-sm select-none ${enveloppeOuverte || edit.financeParCredit ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+                <input
+                  type="checkbox"
+                  checked={edit.financeParCredit}
+                  disabled={!enveloppeOuverte && !edit.financeParCredit}
+                  onChange={(e) => setEdit({ ...edit, financeParCredit: e.target.checked })}
+                  className="accent-primary"
+                />
+                <span className={edit.financeParCredit ? "text-foreground font-medium" : "text-muted-foreground"}>
+                  Finance par l&apos;enveloppe travaux du credit
+                  {!enveloppeOuverte && !edit.financeParCredit && <span className="text-destructive text-xs ml-1">(enveloppe expiree)</span>}
+                </span>
+              </label>
+            )}
             {showNotes && (
               <div className="space-y-2">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
@@ -203,11 +250,13 @@ const SECTION_LABELS: Record<InterventionType, { title: string; addLabel: string
   },
 };
 
-export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, propertyId, filterType, lots = [] }: Props) {
+export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, propertyId, filterType, lots = [], enveloppeCredit, enveloppeOuverte = true }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" as InterventionStatut, lotId: "", notes: "" });
+  const [form, setForm] = useState({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" as InterventionStatut, lotId: "", notes: "", financeParCredit: false });
   const labels = SECTION_LABELS[filterType];
   const showNotes = filterType === "travaux";
+  // Credit-envelope tracking only makes sense for travaux.
+  const showCreditToggle = filterType === "travaux";
 
   const filtered = interventions.filter(i => (i.interventionType ?? "intervention") === filterType);
 
@@ -219,13 +268,22 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
       interventionType: filterType,
       lotId: form.lotId || undefined,
       notes: showNotes && form.notes ? form.notes : undefined,
+      financeParCredit: showCreditToggle ? form.financeParCredit : undefined,
     });
     setOpen(false);
-    setForm({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie", lotId: "", notes: "" });
+    setForm({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie", lotId: "", notes: "", financeParCredit: false });
   };
 
   const totalDepense = filtered.filter(i => i.statut === "termine").reduce((s, i) => s + i.montant, 0);
   const totalPlanifie = filtered.filter(i => i.statut !== "termine").reduce((s, i) => s + i.montant, 0);
+  // Sum of travaux explicitly funded by the credit envelope (all statuses).
+  const totalFinanceParCredit = showCreditToggle
+    ? filtered.filter(i => i.financeParCredit).reduce((s, i) => s + i.montant, 0)
+    : 0;
+  const enveloppe = enveloppeCredit ?? 0;
+  const enveloppeRestante = Math.max(0, enveloppe - totalFinanceParCredit);
+  const enveloppePct = enveloppe > 0 ? Math.round((totalFinanceParCredit / enveloppe) * 100) : 0;
+  const enveloppeOverflow = totalFinanceParCredit > enveloppe;
 
   return (
     <Card className="border-dotted">
@@ -267,6 +325,21 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
                 </div>
               </div>
               <LotSelect value={form.lotId} onChange={(v) => setForm({ ...form, lotId: v })} lots={lots} />
+              {showCreditToggle && (
+                <label className={`flex items-center gap-2 text-sm select-none ${enveloppeOuverte ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+                  <input
+                    type="checkbox"
+                    checked={form.financeParCredit}
+                    disabled={!enveloppeOuverte}
+                    onChange={(e) => setForm({ ...form, financeParCredit: e.target.checked })}
+                    className="accent-primary"
+                  />
+                  <span className={form.financeParCredit ? "text-foreground font-medium" : "text-muted-foreground"}>
+                    Finance par l&apos;enveloppe travaux du credit
+                    {!enveloppeOuverte && <span className="text-destructive text-xs ml-1">(enveloppe expiree)</span>}
+                  </span>
+                </label>
+              )}
               {showNotes && (
                 <div className="space-y-2">
                   <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
@@ -288,13 +361,45 @@ export function InterventionSection({ interventions, onAdd, onUpdate, onDelete, 
           <p className="text-sm text-muted-foreground">{labels.emptyLabel}</p>
         ) : (
           <>
-            <div className="flex gap-4 text-[11px] text-muted-foreground mb-3">
+            <div className="flex gap-4 text-[11px] text-muted-foreground mb-1">
               <span>Depense : <strong className="text-foreground">{formatCurrency(totalDepense)}</strong></span>
               <span>Planifie : <strong className="text-foreground">{formatCurrency(totalPlanifie)}</strong></span>
             </div>
+            {showCreditToggle && (
+              <p className="text-[11px] text-muted-foreground mb-3">
+                Finance par credit :{" "}
+                <strong className={enveloppeOverflow ? "text-destructive" : "text-foreground"}>
+                  {formatCurrency(totalFinanceParCredit)}
+                </strong>
+                {enveloppe > 0 ? (
+                  <>
+                    {" "}sur <strong className="text-foreground">{formatCurrency(enveloppe)}</strong>{" "}
+                    d&apos;enveloppe travaux ({enveloppePct}%)
+                    {enveloppeOverflow ? (
+                      <span className="text-destructive ml-1">— depassement de {formatCurrency(totalFinanceParCredit - enveloppe)}</span>
+                    ) : (
+                      <span className="text-muted-foreground/70 ml-1">— reste {formatCurrency(enveloppeRestante)}</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-muted-foreground/70 ml-1">
+                    — pas d&apos;enveloppe travaux definie sur le credit
+                  </span>
+                )}
+              </p>
+            )}
             <div>
               {filtered.sort((a, b) => b.date.localeCompare(a.date)).map((i) => (
-                <InterventionRow key={i.id} intervention={i} onUpdate={onUpdate} onDelete={onDelete} lots={lots} showNotes={showNotes} />
+                <InterventionRow
+                  key={i.id}
+                  intervention={i}
+                  onUpdate={onUpdate}
+                  onDelete={onDelete}
+                  lots={lots}
+                  showNotes={showNotes}
+                  showCreditToggle={showCreditToggle}
+                  enveloppeOuverte={enveloppeOuverte}
+                />
               ))}
             </div>
           </>

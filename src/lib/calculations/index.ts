@@ -50,6 +50,7 @@ function creditAnnee(
   taux: number,
   dureeAns: number,
   differeMois: number,
+  differeInclus: boolean,
   assuranceMensuelle: number,
   annee: number,
   typePret: 'amortissable' | 'in_fine',
@@ -57,11 +58,17 @@ function creditAnnee(
   if (montant <= 0) return { mensualitesAnnee: 0, interetsAnnee: 0, capitalRembourse: 0, crd: 0 };
 
   const tauxMensuel = taux / 12;
-  const totalMoisCredit = dureeAns * 12;
+  // When differeInclus === false, the amortization phase = full dureeAns,
+  // and the total loan duration is dureeAns + differeMois.
+  const dureeAmortMois = differeInclus
+    ? dureeAns * 12 - differeMois    // inclus: defer eats into the stated duration
+    : dureeAns * 12;                 // en plus: full stated duration is amortization
+  const totalMoisCredit = differeInclus
+    ? dureeAns * 12                  // inclus: stated duration IS the total
+    : dureeAns * 12 + differeMois;   // en plus: total = amort + defer
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12;
 
-  const dureeAmortMois = totalMoisCredit - differeMois;
   const mensualiteAmort = dureeAmortMois > 0
     ? calculerMensualiteAmortissable(montant, taux, dureeAmortMois / 12)
     : 0;
@@ -153,9 +160,13 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
   const assuranceAnnuelle = resolveAssuranceAnnuelle(inputs);
   const assuranceMensuelle = assuranceAnnuelle / 12;
   const differePretMois = inputs.differePretMois ?? 0;
+  const differePretInclus = inputs.differePretInclus ?? true;
   const differeLoyer = inputs.differeLoyer ?? 0;
 
-  const dureeAmortMois = inputs.dureeCredit * 12 - differePretMois;
+  // Amortization duration depends on whether the defer is included or added on top.
+  const dureeAmortMois = differePretInclus
+    ? inputs.dureeCredit * 12 - differePretMois
+    : inputs.dureeCredit * 12;
   const mensualiteCreditStandard = dureeAmortMois > 0
     ? calculerMensualiteAmortissable(inputs.montantEmprunte, inputs.tauxCredit, dureeAmortMois / 12)
     : 0;
@@ -176,7 +187,10 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
   const evo = (key: string) => inputs.evolutions?.[key as keyof typeof inputs.evolutions] ?? 0;
   const baseGestionLoc = loyerAnnuelNet * inputs.gestionLocativePct;
   const baseCompta = inputs.comptabilite;
-  const projectionYears = Math.max(inputs.dureeDetention, 25);
+  const totalMoisCredit = differePretInclus
+    ? inputs.dureeCredit * 12
+    : inputs.dureeCredit * 12 + differePretMois;
+  const projectionYears = Math.max(inputs.dureeDetention, 25, Math.ceil(totalMoisCredit / 12));
 
   const years: YearComputed[] = [];
   for (let annee = 1; annee <= projectionYears; annee++) {
@@ -206,7 +220,7 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
     const valeurBien = round2(valeurBienInitiale * Math.pow(1 + inputs.tauxAppreciation, annee));
     const plusValue = round2(valeurBien - valeurBienInitiale);
 
-    const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, assuranceMensuelle, annee, inputs.typePret);
+    const cr = creditAnnee(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, differePretMois, inputs.differePretInclus ?? true, assuranceMensuelle, annee, inputs.typePret);
 
     years.push({
       loyerBrut: yrLoyerBrut,

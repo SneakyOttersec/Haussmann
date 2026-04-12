@@ -46,6 +46,14 @@ interface RealBreakdown {
   isExtrapolated: boolean;
 }
 
+interface RealYearData {
+  yearIdx: number;
+  annualCF: number;
+  monthsUsed: number;
+  isExtrapolated: boolean;
+  breakdown: { loyersPercus: number; revenusAutres: number; depenses: number; credit: number };
+}
+
 interface ChartPoint {
   annee: string;
   simule: number;
@@ -165,6 +173,10 @@ function BreakdownTooltip({ active, payload, label }: any) {
 
 export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
+  // Counter bumped to force-reload the simulation from localStorage.
+  // Incremented by a "Recharger" button so the user can pull fresh data
+  // after editing the simulation in the simulator.
+  const [reloadKey, setReloadKey] = useState(0);
   // Hide the "real" curve until the property is actually generating rent.
   // Until then there is no meaningful real cash flow to compare against the simulator.
   const operating = isOperating(property.statut);
@@ -179,7 +191,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
     });
-  }, [property.simulationId]);
+  }, [property.simulationId, reloadKey]);
 
   /**
    * Real cash flow built from the SAME source of truth as the rest of the app:
@@ -191,100 +203,107 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
    * We also expose the breakdown (loyers / autres revenus / charges / credit) so
    * the chart tooltip can show how the figure was built.
    */
-  const realStats = useMemo(() => {
+  /**
+   * Build real CF per ownership year. Monthly flow is grouped into 12-month
+   * windows aligned on the acquisition date: A1 = months 0-11, A2 = months 12-23, etc.
+   * The last (current) year may have < 12 months → extrapolated to annual.
+   */
+  const { realByYear, yearsOwned } = useMemo(() => {
     const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
-    if (monthly.length === 0) {
-      return {
-        annualCF: 0,
-        monthsUsed: 0,
-        isExtrapolated: false,
-        breakdown: { loyersPercus: 0, revenusAutres: 0, depenses: 0, credit: 0 },
-      };
-    }
-    const window = monthly.slice(-12);
-    const monthsUsed = window.length;
-    const sumLoyers = window.reduce((s, m) => s + m.revenusLoyers, 0);
-    const sumAutres = window.reduce((s, m) => s + m.revenusAutres, 0);
-    const sumDepenses = window.reduce((s, m) => s + m.depenses, 0);
-    const sumCredit = window.reduce((s, m) => s + m.credit, 0);
-    const sumCF = window.reduce((s, m) => s + m.cashFlow, 0);
-    const factor = monthsUsed >= 12 ? 1 : 12 / monthsUsed;
-    return {
-      annualCF: sumCF * factor,
-      monthsUsed,
-      isExtrapolated: monthsUsed < 12,
-      breakdown: {
-        loyersPercus: sumLoyers * factor,
-        revenusAutres: sumAutres * factor,
-        depenses: sumDepenses * factor,
-        credit: sumCredit * factor,
-      },
-    };
-  }, [property, incomes, expenses, rentEntries, loan]);
+    if (monthly.length === 0) return { realByYear: [] as RealYearData[], yearsOwned: 0 };
 
-  /** Years of ownership — used to align the real point on the right year of the projection. */
-  const yearsOwned = useMemo(() => {
-    const acq = new Date(getPropertyAcquisitionDate(property));
-    if (isNaN(acq.getTime())) return 1;
-    const now = new Date();
-    const months = (now.getFullYear() - acq.getFullYear()) * 12 + (now.getMonth() - acq.getMonth());
-    return Math.max(1, Math.floor(months / 12) + 1); // year index, 1-based
-  }, [property]);
+    const nbYears = Math.max(1, Math.ceil(monthly.length / 12));
+    const result: RealYearData[] = [];
+
+    for (let y = 0; y < nbYears; y++) {
+      const window = monthly.slice(y * 12, (y + 1) * 12);
+      const monthsUsed = window.length;
+      if (monthsUsed === 0) continue;
+      const sumLoyers = window.reduce((s, m) => s + m.revenusLoyers, 0);
+      const sumAutres = window.reduce((s, m) => s + m.revenusAutres, 0);
+      const sumDepenses = window.reduce((s, m) => s + m.depenses, 0);
+      const sumCredit = window.reduce((s, m) => s + m.credit, 0);
+      const sumCF = window.reduce((s, m) => s + m.cashFlow, 0);
+      const factor = monthsUsed >= 12 ? 1 : 12 / monthsUsed;
+      result.push({
+        yearIdx: y, // 0-based → maps to A(y+1)
+        annualCF: sumCF * factor,
+        monthsUsed,
+        isExtrapolated: monthsUsed < 12,
+        breakdown: {
+          loyersPercus: sumLoyers * factor,
+          revenusAutres: sumAutres * factor,
+          depenses: sumDepenses * factor,
+          credit: sumCredit * factor,
+        },
+      });
+    }
+    return { realByYear: result, yearsOwned: nbYears };
+  }, [property, incomes, expenses, rentEntries, loan]);
 
   if (!property.simulationId) return null;
   if (!projection) return null;
 
   const years = Math.min(10, projection.length);
-  // Clamp the year index to the projection length so the real point still appears.
-  const realYearIdx = Math.min(yearsOwned, years) - 1;
+  // Build a lookup of real data by year index for O(1) access in the loop.
+  const realLookup = new Map(realByYear.map((r) => [r.yearIdx, r]));
+  const latestReal = realByYear.length > 0 ? realByYear[realByYear.length - 1] : null;
+
   const data: ChartPoint[] = [];
   for (let i = 0; i < years; i++) {
     const p = projection[i];
-    // The "real" year point is only meaningful when the property is actually
-    // generating rent. Pre-location, leave it null so the curve is suppressed.
-    const isRealYear = operating && i === realYearIdx;
+    // Show real data for every year we have tracking data — not just one point.
+    const realYear = operating ? realLookup.get(i) ?? null : null;
     data.push({
       annee: `A${i + 1}`,
-      // Compare BEFORE TAX on both sides — the real CF doesn't have a tax model
-      // here, so apples-to-apples means using cashFlowAvantImpot from the simulator.
       simule: Math.round(p.cashFlowAvantImpot),
-      reel: isRealYear ? Math.round(realStats.annualCF) : null,
+      reel: realYear ? Math.round(realYear.annualCF) : null,
       simBreakdown: {
         loyerNet: Math.round(p.loyerNet),
         charges: Math.round(p.charges),
         mensualitesCredit: Math.round(p.mensualitesCredit),
         cashFlowAvantImpot: Math.round(p.cashFlowAvantImpot),
       },
-      realBreakdown: isRealYear
+      realBreakdown: realYear
         ? {
-            loyersPercus: Math.round(realStats.breakdown.loyersPercus),
-            revenusAutres: Math.round(realStats.breakdown.revenusAutres),
-            depenses: Math.round(realStats.breakdown.depenses),
-            credit: Math.round(realStats.breakdown.credit),
-            cashFlow: Math.round(realStats.annualCF),
-            monthsUsed: realStats.monthsUsed,
-            isExtrapolated: realStats.isExtrapolated,
+            loyersPercus: Math.round(realYear.breakdown.loyersPercus),
+            revenusAutres: Math.round(realYear.breakdown.revenusAutres),
+            depenses: Math.round(realYear.breakdown.depenses),
+            credit: Math.round(realYear.breakdown.credit),
+            cashFlow: Math.round(realYear.annualCF),
+            monthsUsed: realYear.monthsUsed,
+            isExtrapolated: realYear.isExtrapolated,
           }
         : null,
     });
   }
 
-  const simRefYear = projection[realYearIdx]?.cashFlowAvantImpot ?? 0;
-  const ecart = realStats.annualCF - simRefYear;
+  const latestRealCF = latestReal?.annualCF ?? 0;
+  const simRefYear = latestReal && latestReal.yearIdx < years
+    ? (projection[latestReal.yearIdx]?.cashFlowAvantImpot ?? 0)
+    : 0;
+  const ecart = latestRealCF - simRefYear;
 
   return (
     <Card className="border-dotted">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 flex flex-row items-center justify-between">
         <CardTitle className="text-base">Reel vs Simule</CardTitle>
+        <button
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+          title="Recharger la simulation depuis les donnees sauvegardees"
+        >
+          ↻ Recharger la simulation
+        </button>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground mb-3">
-          {operating && (
+          {operating && latestReal && (
             <>
               <span>
-                CF annuel reel{realStats.isExtrapolated ? ` (extrapole sur ${realStats.monthsUsed}m)` : " (12 derniers mois)"} :{" "}
-                <strong className={realStats.annualCF >= 0 ? "text-green-600" : "text-destructive"}>
-                  {formatCurrency(realStats.annualCF)}
+                CF reel A{latestReal.yearIdx + 1}{latestReal.isExtrapolated ? ` (extrapole sur ${latestReal.monthsUsed}m)` : ""} :{" "}
+                <strong className={latestRealCF >= 0 ? "text-green-600" : "text-destructive"}>
+                  {formatCurrency(latestRealCF)}
                 </strong>
               </span>
               <span>
@@ -296,33 +315,63 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             </>
           )}
           <span>
-            CF annuel simule (A{realYearIdx + 1}) :{" "}
+            CF simule (A{latestReal ? latestReal.yearIdx + 1 : 1}) :{" "}
             <strong className="text-foreground">{formatCurrency(simRefYear)}</strong>
           </span>
         </div>
 
         <ResponsiveContainer width="100%" height={220}>
-          <ComposedChart data={data} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+          <ComposedChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
             <XAxis dataKey="annee" tick={{ fontSize: 10 }} />
-            <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(1)}k`} />
+            {/* Left axis — Simule (blue) */}
+            <YAxis
+              yAxisId="simule"
+              orientation="left"
+              tick={{ fontSize: 10, fill: "#60a5fa" }}
+              stroke="#60a5fa"
+              domain={["auto", "auto"]}
+              allowDecimals={false}
+              tickFormatter={(v: number) => {
+                const abs = Math.abs(v);
+                if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+                if (abs >= 1_000) return `${(v / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+                return `${v}`;
+              }}
+            />
+            {/* Right axis — Reel (green), only when operating */}
+            {operating && (
+              <YAxis
+                yAxisId="reel"
+                orientation="right"
+                tick={{ fontSize: 10, fill: "#16a34a" }}
+                stroke="#16a34a"
+                domain={["auto", "auto"]}
+                allowDecimals={false}
+                tickFormatter={(v: number) => {
+                  const abs = Math.abs(v);
+                  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+                  if (abs >= 1_000) return `${(v / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+                  return `${v}`;
+                }}
+              />
+            )}
             <Tooltip content={<BreakdownTooltip />} />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-            <Line type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
+            <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
             {operating && (
-              <Line type="monotone" dataKey="reel" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 4, fill: "#16a34a" }} name="Reel (avant impot)" connectNulls={false} />
+              <Line yAxisId="reel" type="monotone" dataKey="reel" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 4, fill: "#16a34a" }} name="Reel (avant impot)" connectNulls={false} />
             )}
-            <ReferenceLine y={0} stroke="#999" strokeWidth={1} />
+            <ReferenceLine yAxisId="simule" y={0} stroke="#999" strokeWidth={1} />
           </ComposedChart>
         </ResponsiveContainer>
         <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
           Comparaison <strong>avant impot</strong> : meme convention des deux cotes.
           {operating ? (
             <>
-              {" "}Le point vert est aligne sur l&apos;annee d&apos;exploitation correspondante (
-              {yearsOwned > years ? `> A${years}, clampe sur A${years}` : `A${realYearIdx + 1}`}
-              ). Le reel est calcule a partir des loyers tracks, des charges (avec revisions),
-              et de la mensualite credit du mois (gere le differe).
+              {" "}La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
+              ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
+              {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
             </>
           ) : (
             <>

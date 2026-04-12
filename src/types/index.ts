@@ -115,6 +115,8 @@ export interface Property {
   montantMobilier: number;
   surfaceM2?: number;
   notes?: string;
+  /** Apport personnel explicite. Si absent, derive de coutTotal - emprunt. */
+  apport?: number;
   statut?: PropertyStatus;
   allocationCredit?: AllocationCredit;
   /** Date (YYYY-MM-DD) at which each status phase was reached */
@@ -164,6 +166,12 @@ export interface Intervention {
   notes?: string;
   statut: InterventionStatut;
   pieceJointe?: InterventionPJ;
+  /**
+   * For travaux only: true if this line is funded by the loan's "enveloppe
+   * travaux" (allocationCredit.travaux). Used to track how much of the
+   * envelope has been consumed.
+   */
+  financeParCredit?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -196,9 +204,11 @@ export interface Contact {
 
 // --- Documents ---
 
-export type DocumentCategory = 'devis' | 'facture' | 'copro' | 'fiscal' | 'autre';
+export type DocumentCategory = 'ddt' | 'dpe' | 'devis' | 'facture' | 'copro' | 'fiscal' | 'autre';
 
 export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+  ddt: 'DDT',
+  dpe: 'DPE',
   devis: 'Devis',
   facture: 'Facture',
   copro: 'Copropriete',
@@ -221,7 +231,7 @@ export interface PropertyDocument {
 
 // --- Lots ---
 
-export type LotStatut = 'occupe' | 'vacant';
+export type LotStatut = 'occupe' | 'vacant' | 'travaux';
 
 export interface RentHistoryEntry {
   id: string;
@@ -336,7 +346,10 @@ export interface LoanDetails {
   type: LoanType;
   montantEmprunte: number;
   tauxAnnuel: number;
-  /** Total duration in years, INCLUDING any defer period. */
+  /**
+   * When differeInclus is true (default): total duration INCLUDING the defer.
+   * When differeInclus is false: AMORTIZATION duration, defer is added on top.
+   */
   dureeAnnees: number;
   dateDebut: string;
   assuranceAnnuelle: number;
@@ -352,6 +365,19 @@ export interface LoanDetails {
   differeMois?: number;
   /** Defer type — only meaningful if differeMois > 0. */
   differeType?: DifferType;
+  /**
+   * - true (default): dureeAnnees includes the defer period.
+   *   e.g. 6 mois differe + 20 ans → amortissement = 19 ans 6 mois.
+   * - false: dureeAnnees = pure amortization, defer adds extra time.
+   *   e.g. 6 mois differe + 20 ans → duree totale = 20 ans 6 mois.
+   */
+  differeInclus?: boolean;
+  /**
+   * Date limite (YYYY-MM-DD) jusqu'a laquelle l'enveloppe travaux du credit
+   * peut etre consommee. Par defaut = dateDebut + differeMois.
+   * Apres cette date, les nouveaux travaux ne peuvent plus etre finances par le credit.
+   */
+  enveloppeTravauxFinDate?: string;
 }
 
 export interface LotLoyer {
@@ -465,6 +491,8 @@ export interface CalculatorInputs {
   assurancePretAnnuelle: number;
   assurancePretPct: number;
   differePretMois: number;
+  /** true (default): differe inclus dans dureeCredit. false: differe en plus. */
+  differePretInclus: boolean;
   differeLoyer: number;
 
   // Evolutions annuelles (% d'augmentation par an, ex: 0.05 = +5%/an)

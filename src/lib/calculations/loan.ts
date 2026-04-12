@@ -81,16 +81,43 @@ export function interetsAnnuels(
 export interface LoanLike {
   montantEmprunte: number;
   tauxAnnuel: number;
+  /** When differeInclus is true (default): total duration INCLUDING the defer.
+   *  When differeInclus is false: AMORTIZATION duration only, defer is added on top. */
   dureeAnnees: number;
   type: LoanType;
   differeMois?: number;
   differeType?: DifferType;
+  /**
+   * - true (default): dureeAnnees includes the defer period.
+   *   e.g. 20 ans + 6 mois differe → amortissement = 19 ans 6 mois.
+   * - false: dureeAnnees = pure amortization, defer adds extra time.
+   *   e.g. 20 ans + 6 mois differe → duree totale = 20 ans 6 mois.
+   */
+  differeInclus?: boolean;
 }
 
 const tauxMensuel = (l: LoanLike): number => l.tauxAnnuel / 12;
-const totalMois = (l: LoanLike): number => l.dureeAnnees * 12;
 const moisDiffere = (l: LoanLike): number => Math.max(0, l.differeMois ?? 0);
-const moisAmortissables = (l: LoanLike): number => Math.max(0, totalMois(l) - moisDiffere(l));
+
+/** Total duration of the loan in months (defer + amortization). */
+const totalMois = (l: LoanLike): number => {
+  const dM = moisDiffere(l);
+  if (dM <= 0) return l.dureeAnnees * 12;
+  // differeInclus === false (or undefined with no defer) → defer adds extra time
+  if (l.differeInclus === false) return l.dureeAnnees * 12 + dM;
+  // default (inclus) → dureeAnnees already covers defer + amortization
+  return l.dureeAnnees * 12;
+};
+
+/** Number of months in the amortization phase (after the defer). */
+const moisAmortissables = (l: LoanLike): number => {
+  const dM = moisDiffere(l);
+  if (dM <= 0) return l.dureeAnnees * 12;
+  // differeInclus === false → full stated duration is amortization
+  if (l.differeInclus === false) return l.dureeAnnees * 12;
+  // default (inclus) → subtract defer from the total
+  return Math.max(0, l.dureeAnnees * 12 - dM);
+};
 
 /**
  * Capital effectif au debut de la phase d'amortissement.
@@ -183,13 +210,23 @@ export function crdAtMonth(loan: LoanLike, monthIdx: number): number {
  * total ne sont pas consideres comme payes — donc non deductibles cette annee-la.
  */
 export function interetsAnneeForLoan(loan: LoanLike, annee: number): number {
-  if (annee < 1 || annee > loan.dureeAnnees) return 0;
-  if (loan.type === 'in_fine') return round2(loan.montantEmprunte * loan.tauxAnnuel);
+  const dureeReelleAnnees = Math.ceil(totalMois(loan) / 12);
+  if (annee < 1 || annee > dureeReelleAnnees) return 0;
 
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12 - 1;
   const dM = moisDiffere(loan);
   let totalInterets = 0;
+
+  // In_fine: interest is paid every month the loan is active (no amortization).
+  // But during a differe total, nothing is paid at all → 0 deductible interest.
+  if (loan.type === 'in_fine') {
+    for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
+      if (m < dM && loan.differeType === 'total') continue; // capitalized, not paid
+      totalInterets += loan.montantEmprunte * loan.tauxAnnuel / 12;
+    }
+    return round2(totalInterets);
+  }
 
   for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
     if (m < dM) {
@@ -223,6 +260,14 @@ export function totalMensualitesAnnee(loan: LoanLike, annee: number): number {
     total += mensualiteAtMonth(loan, m);
   }
   return round2(total);
+}
+
+/**
+ * Total loan duration in months (defer + amortization). Exported so that
+ * call sites don't have to duplicate the differeInclus logic.
+ */
+export function loanDureeTotaleMois(loan: LoanLike): number {
+  return totalMois(loan);
 }
 
 /**

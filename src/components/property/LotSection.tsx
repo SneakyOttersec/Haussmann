@@ -28,15 +28,36 @@ function isEnLocation(statut?: PropertyStatus): boolean {
   return idx >= locIdx;
 }
 
-function LotRow({ lot: l, onUpdate, onDelete, enLocation }: {
+const LOT_STATUT_CYCLE: LotStatut[] = ["vacant", "occupe", "travaux"];
+const LOT_STATUT_LABELS: Record<LotStatut, string> = { occupe: "Occupe", vacant: "Vacant", travaux: "Travaux" };
+const LOT_STATUT_STYLE: Record<LotStatut, string> = {
+  occupe: "bg-green-100 text-green-700",
+  vacant: "bg-red-100 text-red-600",
+  travaux: "bg-amber-100 text-amber-700",
+};
+
+function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   lot: Lot;
   enLocation: boolean;
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
+  propertyStatut?: PropertyStatus;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [confirmOverride, setConfirmOverride] = useState<LotStatut | null>(null);
   const [edit, setEdit] = useState({ nom: l.nom, etage: l.etage || "", surface: l.surface || 0, loyerMensuel: l.loyerMensuel, statut: l.statut });
+
+  const handleStatutToggle = () => {
+    const idx = LOT_STATUT_CYCLE.indexOf(l.statut);
+    const next = LOT_STATUT_CYCLE[(idx + 1) % LOT_STATUT_CYCLE.length];
+    // Warn if the property is in "travaux" and user tries to move lot AWAY from travaux
+    if (propertyStatut === "travaux" && l.statut === "travaux" && next !== "travaux") {
+      setConfirmOverride(next);
+    } else {
+      onUpdate(l.id, { statut: next });
+    }
+  };
 
   const history = (l.historiqueLoyers ?? []).sort((a, b) => b.date.localeCompare(a.date));
 
@@ -70,18 +91,13 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation }: {
           </button>
           {l.etage && <span className="text-xs text-muted-foreground">{l.etage}</span>}
           {l.surface ? <span className="text-xs text-muted-foreground">{l.surface} m²</span> : null}
-          {enLocation ? (
-            <button
-              onClick={() => onUpdate(l.id, { statut: l.statut === "occupe" ? "vacant" : "occupe" })}
-              className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-colors ${
-                l.statut === "occupe" ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"
-              }`}
-            >
-              {l.statut === "occupe" ? "Occupe" : "Vacant"}
-            </button>
-          ) : (
-            <span className="text-[10px] px-1.5 py-0.5 rounded shrink-0 bg-muted text-muted-foreground">N/A</span>
-          )}
+          <button
+            onClick={handleStatutToggle}
+            className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer hover:opacity-80 ${LOT_STATUT_STYLE[l.statut]}`}
+            title="Clic pour changer le statut"
+          >
+            {LOT_STATUT_LABELS[l.statut]}
+          </button>
           <span className="flex-1" />
           <span className="font-medium tabular-nums shrink-0">{formatCurrency(l.loyerMensuel)}/m</span>
           {history.length > 1 && (
@@ -133,20 +149,43 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation }: {
                 <Input type="number" min={0} value={edit.loyerMensuel || ""} onChange={(e) => setEdit({ ...edit, loyerMensuel: Number(e.target.value) })} required />
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Statut</Label>
-              <div className="flex gap-2">
-                {(["occupe", "vacant"] as const).map((s) => (
-                  <button key={s} type="button" onClick={() => setEdit({ ...edit, statut: s })}
-                    className={`px-3 py-1 rounded-md text-xs transition-colors ${edit.statut === s ? "bg-primary text-primary-foreground font-medium" : "bg-muted text-muted-foreground"}`}
-                  >{s === "occupe" ? "Occupe" : "Vacant"}</button>
-                ))}
-              </div>
-            </div>
             <Button type="submit" className="w-full">Enregistrer</Button>
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Warning popup: forcing a lot out of "travaux" while property is in travaux */}
+      {confirmOverride && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmOverride(null)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative border border-amber-500/30 rounded-lg p-5 bg-background shadow-lg w-full max-w-sm mx-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-bold">Forcer le statut du lot ?</h3>
+            <p className="text-sm text-muted-foreground">
+              Le bien est actuellement en phase <strong>Travaux</strong>.
+              Passer le lot &quot;{l.nom}&quot; en <strong>{LOT_STATUT_LABELS[confirmOverride]}</strong> va
+              forcer un statut different de celui du bien.
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => setConfirmOverride(null)}>
+                Annuler
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => {
+                  onUpdate(l.id, { statut: confirmOverride });
+                  setConfirmOverride(null);
+                }}
+              >
+                Forcer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -203,16 +242,6 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
                   <Input type="number" min={0} value={form.loyerMensuel || ""} onChange={(e) => setForm({ ...form, loyerMensuel: Number(e.target.value) })} required />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Statut</Label>
-                <div className="flex gap-2">
-                  {(["occupe", "vacant"] as const).map((s) => (
-                    <button key={s} type="button" onClick={() => setForm({ ...form, statut: s })}
-                      className={`px-3 py-1 rounded-md text-xs transition-colors ${form.statut === s ? "bg-primary text-primary-foreground font-medium" : "bg-muted text-muted-foreground"}`}
-                    >{s === "occupe" ? "Occupe" : "Vacant"}</button>
-                  ))}
-                </div>
-              </div>
               <Button type="submit" className="w-full">Ajouter</Button>
             </form>
           </DialogContent>
@@ -232,7 +261,7 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
             </div>
             <div>
               {lots.map((l) => (
-                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} />
+                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} propertyStatut={propertyStatut} />
               ))}
             </div>
           </>

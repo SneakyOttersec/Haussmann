@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { LoanDetails } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { crdAtMonth, interetsAnneeForLoan, totalMensualitesAnnee } from "@/lib/calculations/loan";
+import { crdAtMonth, interetsAnneeForLoan, totalMensualitesAnnee, loanDureeTotaleMois } from "@/lib/calculations/loan";
 
 interface LoanAmortizationTableProps {
   loan: LoanDetails;
@@ -24,10 +24,11 @@ interface AmortRow {
 
 function buildAmortization(loan: LoanDetails): AmortRow[] {
   const rows: AmortRow[] = [];
-  const totalMois = loan.dureeAnnees * 12;
+  const totalMois = loanDureeTotaleMois(loan);
+  const dureeReelleAnnees = Math.ceil(totalMois / 12);
   const dM = Math.max(0, loan.differeMois ?? 0);
 
-  for (let annee = 1; annee <= loan.dureeAnnees; annee++) {
+  for (let annee = 1; annee <= dureeReelleAnnees; annee++) {
     const moisDebutAnnee = (annee - 1) * 12;
     const moisFinAnnee = Math.min(annee * 12 - 1, totalMois - 1);
 

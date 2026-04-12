@@ -1,7 +1,7 @@
 import type { AppData, Property, CalculatorInputs } from "@/types";
 import { annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
-import { interetsAnneeForLoan } from "./loan";
+import { interetsAnneeForLoan, loanDureeTotaleMois } from "./loan";
 import { calculerImpotIR } from "./tax-ir";
 import { calculerImpotIS, calculerAmortissementAnnee } from "./tax-is";
 
@@ -23,6 +23,8 @@ export interface BilanPropertyRow {
   interetsEmprunt: number;
   assuranceEmprunt: number;
   amortissements: number;
+  /** Revenus - charges - interets - assurance (WITHOUT amortissement). Real cash impact. */
+  cashFlowReel: number;
   resultatFiscal: number;
   impotEstime: number;
 }
@@ -82,14 +84,18 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     }
   }
 
-  // Pre-index charge payments by expense+year
-  const chargePaidByExp = new Map<string, number>();
+  // Pre-index charge payments by expense+year.
+  // Track both the sum AND the count of payment entries so we can detect
+  // incomplete tracking and fall back to projection when needed.
+  const chargePaidByExp = new Map<string, { total: number; count: number }>();
   for (const cp of (data.chargePayments ?? [])) {
     if (cp.periode.startsWith(String(annee))) {
-      chargePaidByExp.set(cp.expenseId, (chargePaidByExp.get(cp.expenseId) ?? 0) + cp.montantPaye);
+      const prev = chargePaidByExp.get(cp.expenseId) ?? { total: 0, count: 0 };
+      prev.total += cp.montantPaye;
+      prev.count += 1;
+      chargePaidByExp.set(cp.expenseId, prev);
     }
   }
-  const expensesWithPayments = new Set(chargePaidByExp.keys());
 
   const rows: BilanPropertyRow[] = data.properties.map((p) => {
     // Revenus: use rent tracking (actual) for loyers, incomes for other revenue
@@ -106,8 +112,19 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
 
     const chargesDetail: ChargesDetail = { taxeFonciere: 0, assurancePNO: 0, travauxEntretien: 0, fraisGestion: 0, copropriete: 0, autresCharges: 0 };
     for (const e of propExpenses) {
-      const montant = expensesWithPayments.has(e.id)
-        ? (chargePaidByExp.get(e.id) ?? 0)
+      // Use real payments when the tracking is COMPLETE for the year.
+      // "Complete" = the number of payment entries matches the expected
+      // number of periods (12 for monthly, 4 for quarterly, 1 for annual).
+      // If only partial entries exist, fall back to the projected amount
+      // to avoid under-reporting charges in the fiscal bilan.
+      const paid = chargePaidByExp.get(e.id);
+      const expectedPeriods = e.frequence === "mensuel" ? 12
+        : e.frequence === "trimestriel" ? 4
+        : e.frequence === "annuel" ? 1
+        : 0;
+      const useRealPayments = paid != null && paid.count >= expectedPeriods;
+      const montant = useRealPayments
+        ? paid.total
         : annualiserMontant(getMontantForYear(e, annee), e.frequence);
       switch (e.categorie) {
         case 'taxe_fonciere': chargesDetail.taxeFonciere += montant; break;
@@ -127,7 +144,8 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     if (loan) {
       const loanStartYear = parseInt(loan.dateDebut.slice(0, 4));
       const loanAnnee = annee - loanStartYear + 1;
-      if (loanAnnee >= 1 && loanAnnee <= loan.dureeAnnees) {
+      const dureeReelleAnnees = Math.ceil(loanDureeTotaleMois(loan) / 12);
+      if (loanAnnee >= 1 && loanAnnee <= dureeReelleAnnees) {
         // Use the differe-aware helper: during a "differe total", interest is
         // capitalized (not paid → not deductible that year).
         interets = interetsAnneeForLoan(loan, loanAnnee);
@@ -139,7 +157,8 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     const pFraisNotaire = p.fraisNotaire ?? (p.prixAchat * 0.08);
     const amort = regime === "IS" ? computeAmortissement(p, pFraisNotaire, annee) : 0;
 
-    const resultat = revenus - charges - interets - assurance - amort;
+    const cfReel = revenus - charges - interets - assurance; // real cash impact (no amortissement)
+    const resultat = cfReel - amort; // fiscal result (with amortissement)
     const impot = regime === "IR"
       ? calculerImpotIR(resultat, tmi)
       : calculerImpotIS(Math.max(0, resultat));
@@ -160,6 +179,7 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
       interetsEmprunt: Math.round(interets),
       assuranceEmprunt: Math.round(assurance),
       amortissements: amort,
+      cashFlowReel: Math.round(cfReel),
       resultatFiscal: Math.round(resultat),
       impotEstime: Math.round(impot),
     };
@@ -182,6 +202,7 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
     interetsEmprunt: rows.reduce((s, r) => s + r.interetsEmprunt, 0),
     assuranceEmprunt: rows.reduce((s, r) => s + r.assuranceEmprunt, 0),
     amortissements: rows.reduce((s, r) => s + r.amortissements, 0),
+    cashFlowReel: rows.reduce((s, r) => s + r.cashFlowReel, 0),
     resultatFiscal: rows.reduce((s, r) => s + r.resultatFiscal, 0),
     impotEstime: 0,
   };

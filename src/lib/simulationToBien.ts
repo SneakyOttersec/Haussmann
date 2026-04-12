@@ -67,7 +67,7 @@ export function simulationToBien(
     propertyId,
     nom: lot.nom || "Lot",
     loyerMensuel: lot.loyerMensuel,
-    statut: "occupe" as const,
+    statut: "vacant" as const,
   }));
 
   const incomes: Income[] = simLots.map((lot) => ({
@@ -135,7 +135,7 @@ export function simulationToBien(
     });
   }
 
-  // Loan
+  // Loan — propagate defer config from the simulator
   const loans: LoanDetails[] = inputs.montantEmprunte > 0
     ? [{
         id: generateId(),
@@ -144,10 +144,13 @@ export function simulationToBien(
         montantEmprunte: inputs.montantEmprunte,
         tauxAnnuel: inputs.tauxCredit,
         dureeAnnees: inputs.dureeCredit,
-        dateDebut: new Date().toISOString().slice(0, 10),
+        dateDebut: today,
         assuranceAnnuelle: inputs.assurancePretMode === "pct"
           ? inputs.montantEmprunte * inputs.assurancePretPct
           : inputs.assurancePretAnnuelle,
+        differeMois: inputs.differePretMois || undefined,
+        differeType: inputs.differePretMois ? "partiel" : undefined,
+        differeInclus: inputs.differePretMois ? (inputs.differePretInclus ?? true) : undefined,
       }]
     : [];
 

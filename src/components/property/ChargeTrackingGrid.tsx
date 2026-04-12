@@ -279,17 +279,45 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
   const kpis = useMemo(() => {
     let totalAttendu = 0;
     let totalPaye = 0;
+    let missingCount = 0;
+
+    // Determine which periods are "in the past" so we can flag missing entries.
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const curMonth = now.getMonth() + 1; // 1-12
+    const curQuarter = Math.ceil(curMonth / 3);
+    const isPast = (periode: string): boolean => {
+      if (selectedYear < curYear) return true;
+      if (selectedYear > curYear) return false;
+      // Same year — check period granularity
+      if (periode.includes("-Q")) {
+        const q = Number(periode.split("-Q")[1]);
+        return q < curQuarter;
+      }
+      if (periode.includes("-") && periode.length === 7) {
+        const m = Number(periode.split("-")[1]);
+        return m < curMonth;
+      }
+      // Annual period: considered past only if we're past the year
+      return false;
+    };
+
     for (const exp of recurringExpenses) {
       const periods = periodsForYear(selectedYear, exp.frequence);
       const montant = getCurrentMontant(exp);
       for (const p of periods) {
         totalAttendu += montant;
         const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
-        if (entry) totalPaye += entry.montantPaye;
+        if (entry) {
+          totalPaye += entry.montantPaye;
+        } else if (isPast(p)) {
+          missingCount++;
+        }
       }
     }
     const couverture = totalAttendu > 0 ? (totalPaye / totalAttendu) * 100 : 0;
-    return { totalAttendu, totalPaye, ecart: totalAttendu - totalPaye, couverture };
+    const hasGaps = missingCount > 0;
+    return { totalAttendu, totalPaye, ecart: totalAttendu - totalPaye, couverture, hasGaps, missingCount };
   }, [recurringExpenses, entries, selectedYear]);
 
   if (recurringExpenses.length === 0) {
@@ -311,15 +339,42 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total paye</p>
           <p className="text-sm font-bold">{formatCurrency(kpis.totalPaye)}</p>
         </div>
-        <div className="border border-dotted rounded-md p-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ecart</p>
-          <p className={`text-sm font-bold ${kpis.ecart > 0 ? "text-destructive" : "text-green-600"}`}>
-            {formatCurrency(kpis.ecart)}
-          </p>
-        </div>
+        {(() => {
+          const ecartPct = kpis.totalAttendu > 0 ? (kpis.ecart / kpis.totalAttendu) * 100 : 0;
+          let color = "";
+          let tooltip = "";
+          if (ecartPct > 0 && ecartPct <= 2) {
+            color = "text-green-600";
+            tooltip = `Charges inferieures aux previsions de ${ecartPct.toFixed(1)}% (< 2%) — bonne maitrise des couts`;
+          } else if (ecartPct > 2) {
+            tooltip = `Charges inferieures de ${ecartPct.toFixed(1)}% (> 2%) — ecart important, verifier s'il ne manque pas des paiements`;
+          } else if (ecartPct < -1) {
+            color = "text-destructive";
+            tooltip = `Depassement de ${Math.abs(ecartPct).toFixed(1)}% (> 1%) — charges superieures aux previsions`;
+          } else if (ecartPct < 0) {
+            tooltip = `Leger depassement de ${Math.abs(ecartPct).toFixed(1)}% (< 1%) — dans la tolerance`;
+          } else {
+            tooltip = "Charges conformes aux previsions";
+          }
+          return (
+            <div className="border border-dotted rounded-md p-2" title={tooltip}>
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Ecart</p>
+              <p className={`text-sm font-bold ${color}`}>
+                {formatCurrency(kpis.ecart)}
+              </p>
+            </div>
+          );
+        })()}
         <div className="border border-dotted rounded-md p-2">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Couverture</p>
-          <p className="text-sm font-bold">{kpis.couverture.toFixed(0)} %</p>
+          <p className={`text-sm font-bold ${kpis.hasGaps ? "text-amber-600" : ""}`}>
+            {kpis.couverture.toFixed(0)} %
+            {kpis.hasGaps && (
+              <span className="text-[9px] font-normal ml-1" title={`${kpis.missingCount} periode(s) passee(s) sans saisie`}>
+                (donnees manquantes)
+              </span>
+            )}
+          </p>
         </div>
       </div>
 

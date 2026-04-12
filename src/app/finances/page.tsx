@@ -8,7 +8,7 @@ import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal
 import { toast } from "sonner";
 import { formatCurrency, mensualiserMontant, annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
-import { crdAtMonth } from "@/lib/calculations/loan";
+import { crdAtMonth, loanDureeTotaleMois } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MonthlyFinance, PatrimoineMonth } from "@/components/finances/FinancesCharts";
 
@@ -172,7 +172,7 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
       const loanStartMonth = new Date(loanStart.getFullYear(), loanStart.getMonth(), 1);
       if (loanStartMonth > d) continue; // loan not yet started
       const monthsElapsed = (d.getFullYear() - loanStart.getFullYear()) * 12 + (d.getMonth() - loanStart.getMonth());
-      const cappedMonth = Math.min(Math.max(0, monthsElapsed), loan.dureeAnnees * 12 - 1);
+      const cappedMonth = Math.min(Math.max(0, monthsElapsed), loanDureeTotaleMois(loan) - 1);
       // crdAtMonth handles defer (partiel/total) correctly.
       totalCRD += crdAtMonth(loan, cappedMonth);
     }
@@ -241,15 +241,42 @@ export default function Finances() {
   const bilan = useMemo(() => filteredData ? computeBilanFiscal(filteredData, bilanYear) : null, [filteredData, bilanYear]);
   const availableYears = useMemo(() => filteredData ? getAvailableYears(filteredData) : [], [filteredData]);
 
+  // Group cashFlowData by year for the KPI cards (current + 3 previous years).
+  // This useMemo MUST be before the early return to respect the Rules of Hooks.
+  const cfByYear = useMemo(() => {
+    const map = new Map<number, { revenus: number; depenses: number; credit: number; cashFlow: number; mois: number }>();
+    for (const m of cashFlowData) {
+      const parts = m.mois.split(" ");
+      const yrShort = parseInt(parts[parts.length - 1]);
+      const yr = yrShort < 100 ? 2000 + yrShort : yrShort;
+      if (isNaN(yr)) continue;
+      const prev = map.get(yr) ?? { revenus: 0, depenses: 0, credit: 0, cashFlow: 0, mois: 0 };
+      prev.revenus += m.revenus;
+      prev.depenses += m.depenses + m.credit;
+      prev.cashFlow += m.cashFlow;
+      prev.mois += 1;
+      map.set(yr, prev);
+    }
+    return map;
+  }, [cashFlowData]);
+
   if (!data || !filteredData) return null;
 
   const seuil = data.settings.seuilAlerteTresorerie ?? 0;
   const lastCumul = cashFlowData.length > 0 ? cashFlowData[cashFlowData.length - 1].cumulCashFlow : 0;
   const alertActive = seuil > 0 && lastCumul < seuil;
 
-  const totalRevenus = filteredData.incomes.reduce((s, i) => s + annualiserMontant(i.montant, i.frequence), 0);
-  const totalDepenses = filteredData.expenses.reduce((s, e) => s + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
-  const cashFlowAnnuel = totalRevenus - totalDepenses;
+  const currentYear = new Date().getFullYear();
+  const currentYearData = cfByYear.get(currentYear);
+  const totalRevenus = currentYearData?.revenus ?? 0;
+  const totalDepenses = currentYearData?.depenses ?? 0;
+  const cashFlowAnnuel = currentYearData?.cashFlow ?? 0;
+
+  // Previous years (up to 3), most recent first
+  const previousYears = Array.from(cfByYear.keys())
+    .filter((y) => y < currentYear)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
 
   const activeProperties = activeData?.properties ?? [];
   const allIds = new Set(activeProperties.map((p) => p.id));
@@ -328,16 +355,49 @@ export default function Finances() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-dotted"><CardContent className="p-3">
-          <p className="text-xs text-muted-foreground">Revenus annuels</p>
+          <p className="text-xs text-muted-foreground">Revenus {currentYear}</p>
           <p className="text-lg font-bold">{formatCurrency(totalRevenus)}</p>
+          {previousYears.length > 0 && (
+            <div className="mt-1.5 pt-1.5 border-t border-dashed border-muted-foreground/10 space-y-0.5">
+              {previousYears.map((y) => (
+                <div key={y} className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>{y}</span>
+                  <span className="tabular-nums">{formatCurrency(cfByYear.get(y)?.revenus ?? 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent></Card>
         <Card className="border-dotted"><CardContent className="p-3">
-          <p className="text-xs text-muted-foreground">Depenses annuelles</p>
+          <p className="text-xs text-muted-foreground">Depenses {currentYear}</p>
           <p className="text-lg font-bold">{formatCurrency(totalDepenses)}</p>
+          {previousYears.length > 0 && (
+            <div className="mt-1.5 pt-1.5 border-t border-dashed border-muted-foreground/10 space-y-0.5">
+              {previousYears.map((y) => (
+                <div key={y} className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>{y}</span>
+                  <span className="tabular-nums">{formatCurrency(cfByYear.get(y)?.depenses ?? 0)}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent></Card>
         <Card className="border-dotted"><CardContent className="p-3">
-          <p className="text-xs text-muted-foreground">Cash flow annuel</p>
+          <p className="text-xs text-muted-foreground">Cash flow {currentYear}</p>
           <p className={`text-lg font-bold ${cashFlowAnnuel >= 0 ? "text-green-600" : "text-destructive"}`}>{formatCurrency(cashFlowAnnuel)}</p>
+          {previousYears.length > 0 && (
+            <div className="mt-1.5 pt-1.5 border-t border-dashed border-muted-foreground/10 space-y-0.5">
+              {previousYears.map((y) => {
+                const cf = cfByYear.get(y)?.cashFlow ?? 0;
+                return (
+                  <div key={y} className="flex justify-between text-[10px]">
+                    <span className="text-muted-foreground">{y}</span>
+                    <span className={`tabular-nums ${cf >= 0 ? "text-green-600" : "text-destructive"}`}>{formatCurrency(cf)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent></Card>
         <Card className="border-dotted"><CardContent className="p-3">
           <p className="text-xs text-muted-foreground">Cash flow cumule</p>
@@ -350,32 +410,6 @@ export default function Finances() {
           Attention : tresorerie cumulee ({formatCurrency(lastCumul)}) inferieure au seuil d&apos;alerte ({formatCurrency(seuil)})
         </div>
       )}
-
-      {/* Warning: incomes/expenses dateDebut mismatch */}
-      {(() => {
-        if (!filteredData || filteredData.properties.length === 0) return null;
-        const exploitStart = filteredData.properties.reduce((min, p) => {
-          const d = earliestDate(p);
-          return d < min ? d : min;
-        }, new Date());
-        const incomeStarts = filteredData.incomes.map(i => new Date(i.dateDebut)).filter(d => !isNaN(d.getTime()));
-        const expenseStarts = filteredData.expenses.map(e => new Date(e.dateDebut)).filter(d => !isNaN(d.getTime()));
-        const dataStart = [...incomeStarts, ...expenseStarts].length > 0
-          ? [...incomeStarts, ...expenseStarts].reduce((min, d) => d < min ? d : min)
-          : null;
-        if (dataStart && exploitStart < dataStart) {
-          const gap = (dataStart.getFullYear() - exploitStart.getFullYear()) * 12 + (dataStart.getMonth() - exploitStart.getMonth());
-          if (gap > 1) {
-            return (
-              <div className="border border-dashed border-amber-500/30 rounded-md p-3 bg-amber-500/5 text-sm text-amber-700">
-                Les revenus/depenses commencent {gap} mois apres la date d&apos;exploitation.
-                Modifiez la &quot;Date debut&quot; de vos revenus et depenses pour couvrir toute la periode.
-              </div>
-            );
-          }
-        }
-        return null;
-      })()}
 
       {/* Cash flow chart (lazy-loaded) */}
       <CashFlowChartFinances data={cashFlowData} seuil={seuil} />
@@ -457,6 +491,41 @@ export default function Finances() {
               </tfoot>
             </table>
           </div>
+
+          {/* Cash flow reel vs resultat comptable */}
+          {bilan.regime === "IS" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-dashed border-muted-foreground/20 rounded-md px-3 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-foreground">Tresorerie reelle</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Revenus - charges - interets - assurance (hors amortissement)
+                  </p>
+                </div>
+                <p className={`text-lg font-bold tabular-nums ${bilan.totaux.cashFlowReel >= 0 ? "text-green-600" : "text-destructive"}`}>
+                  {formatCurrency(bilan.totaux.cashFlowReel)}
+                </p>
+              </div>
+              <div className="border border-dashed border-muted-foreground/20 rounded-md px-3 py-2 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-semibold text-foreground">Resultat fiscal</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Tresorerie - amortissements ({formatCurrency(-bilan.totaux.amortissements)})
+                  </p>
+                  {bilan.totaux.resultatFiscal < 0 && (
+                    <p className={`text-[10px] mt-1 font-medium ${bilan.totaux.cashFlowReel >= 0 ? "text-green-600" : "text-destructive"}`}>
+                      {bilan.totaux.cashFlowReel >= 0
+                        ? "Deficit comptable — pas d'impact tresorerie"
+                        : "Deficit de tresorerie — possible apport necessaire"}
+                    </p>
+                  )}
+                </div>
+                <p className={`text-lg font-bold tabular-nums ${bilan.totaux.resultatFiscal >= 0 ? "" : "text-amber-600"}`}>
+                  {formatCurrency(bilan.totaux.resultatFiscal)}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Impot consolide SCI */}
           <div className="border border-dashed border-primary/30 bg-primary/5 rounded-md px-3 py-2 flex items-center justify-between">

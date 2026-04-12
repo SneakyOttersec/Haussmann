@@ -59,6 +59,37 @@ export function coutTotalBien(p: { prixAchat: number; fraisNotaire: number; frai
 }
 
 /**
+ * Date de fin de disponibilite de l'enveloppe travaux.
+ * Si explicitement definie → la retourne.
+ * Sinon → dateDebut du pret + differeMois (la duree du differe).
+ * Si pas de differe → null (pas de fenetre par defaut).
+ */
+export function enveloppeTravauxFinDate(loan: {
+  dateDebut: string;
+  differeMois?: number;
+  enveloppeTravauxFinDate?: string;
+}): string | null {
+  if (loan.enveloppeTravauxFinDate) return loan.enveloppeTravauxFinDate;
+  const dM = loan.differeMois ?? 0;
+  if (dM <= 0) return null;
+  const d = new Date(loan.dateDebut);
+  if (isNaN(d.getTime())) return null;
+  d.setMonth(d.getMonth() + dM);
+  return d.toISOString().slice(0, 10);
+}
+
+/** True si l'enveloppe travaux est encore ouverte aujourd'hui. */
+export function isEnveloppeTravauxOuverte(loan: {
+  dateDebut: string;
+  differeMois?: number;
+  enveloppeTravauxFinDate?: string;
+}): boolean {
+  const fin = enveloppeTravauxFinDate(loan);
+  if (!fin) return true; // pas de fenetre = toujours ouvert
+  return new Date().toISOString().slice(0, 10) <= fin;
+}
+
+/**
  * Returns the effective acquisition date of a property.
  * Priority: statusDates.acte > earliest statusDate > dateSaisie > createdAt
  * dateSaisie is the date the property was entered in the app (not the real purchase date).

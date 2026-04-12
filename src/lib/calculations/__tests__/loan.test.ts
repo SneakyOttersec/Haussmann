@@ -231,3 +231,140 @@ describe('differe nul (compatibilite)', () => {
     );
   });
 });
+
+describe('differeInclus = false (differe en plus de la duree)', () => {
+  // 12 mois differe partiel + 20 ans amort = 252 mois total
+  const loanEnPlus: LoanLike = {
+    ...baseLoan,
+    differeMois: 12,
+    differeType: 'partiel',
+    differeInclus: false,
+  };
+
+  // Same config but inclus (existing behavior) = 240 mois total, 228 amort
+  const loanInclus: LoanLike = {
+    ...baseLoan,
+    differeMois: 12,
+    differeType: 'partiel',
+    differeInclus: true,
+  };
+
+  it('mensualite amort avec "en plus" est calculee sur 20 ans complets', () => {
+    const m = mensualiteAmortissement(loanEnPlus);
+    // Pure 20 ans amort on 200k → same as standard 20-year loan
+    const expected = calculerMensualiteAmortissable(200_000, 0.036, 20);
+    expect(m).toBeCloseTo(expected, 2);
+  });
+
+  it('mensualite amort avec "inclus" est calculee sur 19 ans', () => {
+    const m = mensualiteAmortissement(loanInclus);
+    const expected = calculerMensualiteAmortissable(200_000, 0.036, 19);
+    expect(m).toBeCloseTo(expected, 2);
+  });
+
+  it('"en plus" a une mensualite amort plus basse que "inclus" (duree amort plus longue)', () => {
+    expect(mensualiteAmortissement(loanEnPlus)).toBeLessThan(mensualiteAmortissement(loanInclus));
+  });
+
+  it('CRD = 0 a la fin pour "en plus" (mois 251 = dernier mois)', () => {
+    expect(crdAtMonth(loanEnPlus, 251)).toBe(0);
+  });
+
+  it('CRD = 0 a la fin pour "inclus" (mois 239 = dernier mois)', () => {
+    expect(crdAtMonth(loanInclus, 239)).toBe(0);
+  });
+
+  it('interets annee 1 identiques (12 mois de differe partiel)', () => {
+    const i1Plus = interetsAnneeForLoan(loanEnPlus, 1);
+    const i1Inclus = interetsAnneeForLoan(loanInclus, 1);
+    expect(i1Plus).toBeCloseTo(i1Inclus, 0); // both = 12 * 600
+  });
+
+  it('interets annee 21 pour "en plus" sont non-nuls (pret tourne encore)', () => {
+    // loanEnPlus: 252 mois → annee 21 = mois 240-251
+    expect(interetsAnneeForLoan(loanEnPlus, 21)).toBeGreaterThan(0);
+  });
+
+  it('interets annee 21 pour "inclus" sont 0 (pret fini a 240 mois)', () => {
+    expect(interetsAnneeForLoan(loanInclus, 21)).toBe(0);
+  });
+});
+
+describe('differe partiel — 6 mois (annee 1 mixte)', () => {
+  const loan: LoanLike = { ...baseLoan, differeMois: 6, differeType: 'partiel' };
+  const t = 0.036 / 12;
+  const interetMensuelDiffere = 200_000 * t; // 600
+
+  it('mensualite des 6 premiers mois = interets seulement', () => {
+    for (let m = 0; m < 6; m++) {
+      expect(mensualiteAtMonth(loan, m)).toBeCloseTo(interetMensuelDiffere, 2);
+    }
+  });
+
+  it('mensualite des 6 mois suivants = amortissement', () => {
+    const mAmort = mensualiteAmortissement(loan);
+    for (let m = 6; m < 12; m++) {
+      expect(mensualiteAtMonth(loan, m)).toBeCloseTo(mAmort, 2);
+    }
+  });
+
+  it('CRD constant pendant les 6 premiers mois', () => {
+    for (let m = 0; m < 6; m++) {
+      expect(crdAtMonth(loan, m)).toBe(200_000);
+    }
+  });
+
+  it('CRD diminue au mois 6 (debut amortissement)', () => {
+    expect(crdAtMonth(loan, 6)).toBeLessThan(200_000);
+  });
+
+  it('interets annee 1 = 6 mois d interets + 6 mois d interets amort', () => {
+    const i1 = interetsAnneeForLoan(loan, 1);
+    // First 6 months: 6 * 600 = 3600 (interest only)
+    // Next 6 months: some amortization-phase interest (less than 600/m because capital decreases)
+    // Total must be > 3600 (the amort phase still has interest) but < 7200 (which would be 12 * 600)
+    expect(i1).toBeGreaterThan(3600);
+    expect(i1).toBeLessThan(7200);
+  });
+
+  it('total mensualites annee 1 = 6 * differe + 6 * amort', () => {
+    const total = totalMensualitesAnnee(loan, 1);
+    const mAmort = mensualiteAmortissement(loan);
+    const expected = 6 * interetMensuelDiffere + 6 * mAmort;
+    expect(total).toBeCloseTo(expected, 0);
+  });
+});
+
+describe('in_fine + differe total — 6 mois', () => {
+  const loan: LoanLike = {
+    montantEmprunte: 200_000,
+    tauxAnnuel: 0.036,
+    dureeAnnees: 20,
+    type: 'in_fine',
+    differeMois: 6,
+    differeType: 'total',
+  };
+
+  it('mensualite = 0 pendant le differe', () => {
+    for (let m = 0; m < 6; m++) {
+      expect(mensualiteAtMonth(loan, m)).toBe(0);
+    }
+  });
+
+  it('mensualite = interets mensuels apres differe', () => {
+    const expected = 200_000 * 0.036 / 12; // 600
+    expect(mensualiteAtMonth(loan, 6)).toBeCloseTo(expected, 2);
+  });
+
+  it('interets annee 1 = 6 mois seulement (pas les 6 mois de differe total)', () => {
+    const i1 = interetsAnneeForLoan(loan, 1);
+    // 6 months of total defer → 0 interest paid
+    // 6 months of in_fine → 6 * 200k * 0.036/12 = 3600
+    expect(i1).toBeCloseTo(3600, 0);
+  });
+
+  it('interets annee 2 = 12 mois complets', () => {
+    const i2 = interetsAnneeForLoan(loan, 2);
+    expect(i2).toBeCloseTo(7200, 0);
+  });
+});

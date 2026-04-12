@@ -41,6 +41,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
     assuranceAnnuelle: initialData?.assuranceAnnuelle ?? 0,
     differeMois: initialData?.differeMois ?? 0,
     differeType: initialData?.differeType ?? "partiel",
+    differeInclus: initialData?.differeInclus ?? true,
   });
 
   const [errors, setErrors] = useState<ValidationErrors>({});
@@ -66,7 +67,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         {initialData ? "Modifier" : "+ Credit"}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-2xl w-full">
         <DialogHeader>
           <DialogTitle>{initialData ? "Modifier le credit" : "Ajouter un credit"}</DialogTitle>
         </DialogHeader>
@@ -172,11 +173,38 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
               </div>
             </div>
             {(form.differeMois ?? 0) > 0 && (
-              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                {form.differeType === "total"
-                  ? `Pendant ${form.differeMois} mois, aucun paiement. Les interets sont capitalises (ajoutes au capital). L'amortissement commence ensuite sur le capital majore.`
-                  : `Pendant ${form.differeMois} mois, seuls les interets sont payes. Le capital reste intact, l'amortissement commence ensuite sur la duree restante.`}
-              </p>
+              <>
+                <div className="flex gap-2">
+                  {([
+                    { value: true, label: "Inclus dans la duree", desc: `${form.dureeAnnees} ans dont ${form.differeMois}m de differe` },
+                    { value: false, label: "En plus de la duree", desc: (() => {
+                      const totalMois = form.dureeAnnees * 12 + (form.differeMois ?? 0);
+                      const ans = Math.floor(totalMois / 12);
+                      const mois = totalMois % 12;
+                      return `${form.differeMois}m + ${form.dureeAnnees} ans = ${ans} ans${mois > 0 ? ` ${mois}m` : ""}`;
+                    })() },
+                  ] as const).map((opt) => (
+                    <button
+                      key={String(opt.value)}
+                      type="button"
+                      onClick={() => update("differeInclus", opt.value)}
+                      className={`flex-1 px-3 py-2 rounded-md text-xs text-left transition-colors border ${
+                        form.differeInclus === opt.value
+                          ? "border-primary/40 bg-primary/10 text-primary font-medium"
+                          : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="block font-medium">{opt.label}</span>
+                      <span className="block text-[10px] mt-0.5 opacity-70">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                  {form.differeType === "total"
+                    ? `Pendant ${form.differeMois} mois, aucun paiement. Les interets sont capitalises (ajoutes au capital). L'amortissement commence ensuite sur le capital majore.`
+                    : `Pendant ${form.differeMois} mois, seuls les interets sont payes. Le capital reste intact, l'amortissement commence ensuite.`}
+                </p>
+              </>
             )}
           </div>
 

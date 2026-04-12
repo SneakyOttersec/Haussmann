@@ -597,6 +597,17 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
         <NumField label="Taux nominal" suffix="%" step="0.01" value={Math.round(inputs.tauxCredit * 10000) / 100} onChange={(v) => onUpdate("tauxCredit", v / 100)} />
         <NumField label="Duree" suffix="ans" value={inputs.dureeCredit} onChange={(v) => onUpdate("dureeCredit", v)} />
         <NumField label="Differe partiel" suffix="mois" value={inputs.differePretMois} onChange={(v) => onUpdate("differePretMois", v)} />
+        {(inputs.differePretMois ?? 0) > 0 && (
+          <SelectField
+            label="Differe"
+            value={inputs.differePretInclus ? "inclus" : "en_plus"}
+            onChange={(v) => onUpdate("differePretInclus", v === "inclus")}
+            options={[
+              { value: "inclus", label: "Inclus dans la duree" },
+              { value: "en_plus", label: "En plus de la duree" },
+            ]}
+          />
+        )}
         <SelectField
           label="Assurance pret"
           value={inputs.assurancePretMode}
@@ -618,7 +629,10 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
       {inputs.montantEmprunte > 0 && inputs.dureeCredit > 0 && (() => {
         const assAn = inputs.assurancePretMode === 'pct' ? inputs.montantEmprunte * inputs.assurancePretPct : inputs.assurancePretAnnuelle;
         const t = inputs.tauxCredit / 12 || 0.003;
-        const dureeAmortMois = inputs.dureeCredit * 12 - (inputs.differePretMois ?? 0);
+        const diffMois = inputs.differePretMois ?? 0;
+        const dureeAmortMois = (inputs.differePretInclus ?? true)
+          ? inputs.dureeCredit * 12 - diffMois
+          : inputs.dureeCredit * 12;
         const mensCredit = dureeAmortMois > 0 && inputs.tauxCredit > 0
           ? inputs.montantEmprunte * (t * Math.pow(1 + t, dureeAmortMois)) / (Math.pow(1 + t, dureeAmortMois) - 1)
           : inputs.montantEmprunte / Math.max(1, dureeAmortMois);

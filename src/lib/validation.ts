@@ -68,9 +68,12 @@ export const loanSchema = z.object({
   assuranceAnnuelle: nonNegativeAmount,
   differeMois: z.number().int().min(0, 'Min 0 mois').max(60, 'Max 60 mois').optional(),
   differeType: z.enum(['partiel', 'total']).optional(),
+  differeInclus: z.boolean().optional(),
 }).refine(
-  (data) => !data.differeMois || data.differeMois < data.dureeAnnees * 12,
-  { message: 'Le differe doit etre strictement inferieur a la duree totale', path: ['differeMois'] },
+  // When differe is included in the duration, it must be shorter than the total.
+  // When differe is added on top, no constraint — the amortization phase is the full dureeAnnees.
+  (data) => !data.differeMois || data.differeInclus === false || data.differeMois < data.dureeAnnees * 12,
+  { message: 'Le differe doit etre strictement inferieur a la duree totale (ou choisir "En plus de la duree")', path: ['differeMois'] },
 );
 
 // --- Calculator Inputs (partial, key fields) ---

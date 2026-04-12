@@ -72,6 +72,7 @@ export const DEFAULT_CALCULATOR_INPUTS = {
   assurancePretAnnuelle: 700,
   assurancePretPct: 0.0034,
   differePretMois: 0,
+  differePretInclus: true,
   differeLoyer: 0,
   chargesCopro: 1200,
   taxeFonciere: 1000,
