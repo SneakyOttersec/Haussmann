@@ -801,6 +801,11 @@ function PropertyDetailContent() {
         loan={loan}
         capitalUtiliseActuel={loan ? coutTotalBien(property) - travauxNonTires : undefined}
         revenuMensuelTheorique={lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)}
+        creditApresDiffereSurUtilise={
+          loan && showEffectif
+            ? mensualiteEffective + loan.assuranceAnnuelle / 12
+            : undefined
+        }
       />
 
       <Separator className="border-dashed" />

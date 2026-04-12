@@ -20,9 +20,22 @@ interface PropertySummaryProps {
   /** Somme des loyerMensuel des lots (a pleine occupation). Affiche en
    *  petit sous "Revenu mensuel" quand different du revenu actuel. */
   revenuMensuelTheorique?: number;
+  /** Mensualite post-differe calculee sur le capital effectivement tire
+   *  (principal + assurance). Quand fourni et different du post-differe
+   *  theorique, un sous-montant "Apres differe sur capital utilise" est
+   *  affiche sur Depenses et Cash flow. */
+  creditApresDiffereSurUtilise?: number;
 }
 
-export function PropertySummary({ property, expenses, incomes, loan, capitalUtiliseActuel, revenuMensuelTheorique }: PropertySummaryProps) {
+export function PropertySummary({
+  property,
+  expenses,
+  incomes,
+  loan,
+  capitalUtiliseActuel,
+  revenuMensuelTheorique,
+  creditApresDiffereSurUtilise,
+}: PropertySummaryProps) {
   const revenuMensuel = incomes.reduce(
     (sum, i) => sum + mensualiserMontant(i.montant, i.frequence),
     0
@@ -90,22 +103,35 @@ export function PropertySummary({ property, expenses, incomes, loan, capitalUtil
   const depActuel = depensesMensuelles + creditMensuel;
   const cfActuel = cashFlow;
 
+  // Depenses et CF post-differe mais sur capital effectivement tire
+  // (pertinent quand l'enveloppe travaux n'est pas entierement consommee).
+  const showSurUtilise = creditApresDiffereSurUtilise != null
+    && Math.round(creditApresDiffereSurUtilise) !== Math.round(creditPostDiffere);
+  const depSurUtilise = showSurUtilise
+    ? depensesMensuelles + creditApresDiffereSurUtilise!
+    : depTheorique;
+  const cfSurUtilise = showSurUtilise
+    ? revenuMensuel - depSurUtilise
+    : cfTheorique;
+
   const fc = formatCurrency;
 
   /** Renders a KPI card: Actuel (main), then small "Theorique" line.
    *  When the loan has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
-  const KpiCard = ({ label, theoValue, actuelValue, color, tooltipRows }: {
+  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, color, tooltipRows }: {
     label: string;
     theoValue: number;
     actuelValue: number;
+    surUtiliseValue?: number;
     color?: (v: number) => string;
     tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[];
   }) => {
     const cl = color ?? (() => "");
     const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
     const showTheo = !eq(theoValue, actuelValue);
+    const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
     const theoLabel = hasDiffere ? "Theorique / Apres differe" : "Theorique";
     return (
       <CfTooltip rows={tooltipRows}>
@@ -119,6 +145,12 @@ export function PropertySummary({ property, expenses, incomes, loan, capitalUtil
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">{theoLabel} : </span>
                 <span className={`font-medium ${cl(theoValue)}`}>{fc(theoValue)}</span>
+              </p>
+            )}
+            {showSurUtil && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Sur capital utilise : </span>
+                <span className={`font-medium ${cl(surUtiliseValue!)}`}>{fc(surUtiliseValue!)}</span>
               </p>
             )}
           </CardContent>
@@ -166,6 +198,7 @@ export function PropertySummary({ property, expenses, incomes, loan, capitalUtil
         label="Depenses mensuelles"
         theoValue={depTheorique}
         actuelValue={depActuel}
+        surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
         tooltipRows={[
           { label: "Charges (hors credit)", value: fc(depensesMensuelles) },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditMensuel) },
@@ -178,12 +211,20 @@ export function PropertySummary({ property, expenses, incomes, loan, capitalUtil
                 { label: "Total theorique", value: fc(depTheorique), bold: true },
               ]
             : []),
+          ...(showSurUtilise
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Credit sur capital utilise", value: fc(creditApresDiffereSurUtilise!) },
+                { label: "Apres differe sur capital utilise", value: fc(depSurUtilise), bold: true },
+              ]
+            : []),
         ]}
       />
       <KpiCard
         label="Cash flow mensuel"
         theoValue={cfTheorique}
         actuelValue={cfActuel}
+        surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
           { label: "Revenus", value: fc(revenuMensuel), color: "text-green-600" },
@@ -196,6 +237,13 @@ export function PropertySummary({ property, expenses, incomes, loan, capitalUtil
                 { separator: true as const, label: "", value: "" },
                 { label: "Credit apres differe", value: `-${fc(creditPostDiffere)}`, color: "text-amber-600" },
                 { label: "Cash flow theorique", value: fc(cfTheorique), bold: true },
+              ]
+            : []),
+          ...(showSurUtilise
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Credit sur capital utilise", value: `-${fc(creditApresDiffereSurUtilise!)}`, color: "text-amber-600" },
+                { label: "Apres differe sur capital utilise", value: fc(cfSurUtilise), bold: true },
               ]
             : []),
         ]}
