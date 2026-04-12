@@ -34,16 +34,21 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
 
   return (
     <>
-      <div className="flex items-center gap-3 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
+      <div className="grid grid-cols-[auto_1fr_120px_180px_auto_auto] items-center gap-2 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
         <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{CONTACT_ROLE_LABELS[c.role]}</span>
         <button
-          className="font-medium flex-1 text-left hover:text-primary transition-colors cursor-pointer"
+          className="font-medium text-left hover:text-primary transition-colors cursor-pointer truncate"
           onClick={() => { setEdit({ nom: c.nom, role: c.role, telephone: c.telephone || "", email: c.email || "", notes: c.notes || "" }); setEditOpen(true); }}
         >
           {c.nom}
         </button>
-        {c.telephone && <span className="text-xs text-muted-foreground">{c.telephone}</span>}
-        {c.email && <span className="text-xs text-muted-foreground truncate max-w-[180px]">{c.email}</span>}
+        <span className="text-xs text-muted-foreground truncate">{c.telephone || "—"}</span>
+        <span className="text-xs text-muted-foreground truncate">{c.email || "—"}</span>
+        {c.notes ? (
+          <span className="text-xs cursor-default" title={c.notes}>📝</span>
+        ) : (
+          <span />
+        )}
         <ConfirmDelete label={c.nom} onConfirm={() => onDelete(c.id)} />
       </div>
 
@@ -76,8 +81,13 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes</Label>
-              <Input value={edit.notes} onChange={(e) => setEdit({ ...edit, notes: e.target.value })} placeholder="Notes..." />
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes / Commentaire</Label>
+              <textarea
+                value={edit.notes}
+                onChange={(e) => setEdit({ ...edit, notes: e.target.value })}
+                className="w-full min-h-[60px] rounded-md border border-input bg-transparent px-3 py-2 text-sm resize-y"
+                placeholder="Commentaire, suivi, remarques..."
+              />
             </div>
             <Button type="submit" className="w-full">Enregistrer</Button>
           </form>
@@ -133,6 +143,15 @@ export function ContactSection({ contacts, onAdd, onUpdate, onDelete, propertyId
                   <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@..." />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">Notes / Commentaire</Label>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  className="w-full min-h-[60px] rounded-md border border-input bg-transparent px-3 py-2 text-sm resize-y"
+                  placeholder="Commentaire, suivi, remarques..."
+                />
+              </div>
               <Button type="submit" className="w-full">Ajouter</Button>
             </form>
           </DialogContent>
@@ -143,6 +162,14 @@ export function ContactSection({ contacts, onAdd, onUpdate, onDelete, propertyId
           <p className="text-sm text-muted-foreground">Aucun contact enregistre.</p>
         ) : (
           <div>
+            <div className="grid grid-cols-[auto_1fr_120px_180px_auto_auto] items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground pb-1.5 mb-1 border-b border-muted-foreground/20">
+              <span>Role</span>
+              <span>Nom</span>
+              <span>Telephone</span>
+              <span>Email</span>
+              <span>Note</span>
+              <span />
+            </div>
             {propertyContacts.map((c) => (
               <ContactRow key={c.id} contact={c} onUpdate={onUpdate} onDelete={onDelete} />
             ))}
