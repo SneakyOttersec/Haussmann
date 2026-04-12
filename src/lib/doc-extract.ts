@@ -137,6 +137,8 @@ export interface DocumentListEntry {
   date: string;
   /** Full data URI — kept so the UI can offer a download action */
   dataUri: string;
+  /** True if another entry has the same fingerprint (name + size). */
+  isDuplicate?: boolean;
 }
 
 /**
@@ -239,6 +241,17 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
     if (b.date) return 1;
     return a.fileName.localeCompare(b.fileName);
   });
+
+  // Flag duplicates: same fileName + fileSize = very likely the same file.
+  const fingerprints = new Map<string, number>();
+  for (const e of entries) {
+    const fp = `${e.fileName}:${e.fileSize}`;
+    fingerprints.set(fp, (fingerprints.get(fp) ?? 0) + 1);
+  }
+  for (const e of entries) {
+    const fp = `${e.fileName}:${e.fileSize}`;
+    if ((fingerprints.get(fp) ?? 0) > 1) e.isDuplicate = true;
+  }
 
   return entries;
 }

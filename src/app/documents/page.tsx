@@ -3,10 +3,57 @@
 import { useMemo, useState } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { Input } from "@/components/ui/input";
-import { listAllDocuments, formatFileSize } from "@/lib/doc-extract";
+import type { AppData } from "@/types";
+import { listAllDocuments, formatFileSize, type DocumentListEntry } from "@/lib/doc-extract";
+
+/**
+ * Delete a document by its key. The key encodes source + location:
+ *   phase:propId:phaseName | doc:docId | loan:loanId:index | inter:interId
+ */
+function deleteDocByKey(key: string, setData: (fn: (prev: AppData) => AppData) => void) {
+  const parts = key.split(":");
+  const src = parts[0];
+
+  if (src === "phase" && parts.length >= 3) {
+    const propId = parts[1];
+    const phase = parts.slice(2).join(":");
+    setData((prev) => ({
+      ...prev,
+      properties: prev.properties.map((p) => {
+        if (p.id !== propId || !p.statusDocs) return p;
+        const { [phase]: _, ...rest } = p.statusDocs as Record<string, unknown>;
+        return { ...p, statusDocs: rest as typeof p.statusDocs };
+      }),
+    }));
+  } else if (src === "doc" && parts[1]) {
+    const docId = parts[1];
+    setData((prev) => ({
+      ...prev,
+      documents: (prev.documents ?? []).filter((d) => d.id !== docId),
+    }));
+  } else if (src === "loan" && parts.length >= 3) {
+    const loanId = parts[1];
+    const idx = Number(parts[2]);
+    setData((prev) => ({
+      ...prev,
+      loans: prev.loans.map((l) => {
+        if (l.id !== loanId) return l;
+        return { ...l, documents: (l.documents ?? []).filter((_, i) => i !== idx) };
+      }),
+    }));
+  } else if (src === "inter" && parts[1]) {
+    const interId = parts[1];
+    setData((prev) => ({
+      ...prev,
+      interventions: (prev.interventions ?? []).map((i) =>
+        i.id === interId ? { ...i, pieceJointe: undefined } : i,
+      ),
+    }));
+  }
+}
 
 export default function DocumentsPage() {
-  const { data } = useAppData();
+  const { data, setData } = useAppData();
 
   const documents = useMemo(() => (data ? listAllDocuments(data) : []), [data]);
   const documentsTotalSize = useMemo(
@@ -76,28 +123,43 @@ export default function DocumentsPage() {
                   <th className="text-left py-2 px-3 text-muted-foreground font-medium">Source</th>
                   <th className="text-right py-2 px-3 text-muted-foreground font-medium">Taille</th>
                   <th className="text-right py-2 px-3 text-muted-foreground font-medium">Date</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {filteredDocuments.map((d) => (
                   <tr
                     key={d.key}
-                    className="border-b border-dotted last:border-0 hover:bg-muted/30 cursor-pointer"
-                    onClick={() => downloadDoc(d)}
-                    title="Cliquer pour telecharger"
+                    className={`border-b border-dotted last:border-0 hover:bg-muted/30 ${d.isDuplicate ? "bg-amber-500/5" : ""}`}
                   >
-                    <td className="py-1.5 px-3 truncate max-w-[260px] font-medium">{d.fileName}</td>
+                    <td className="py-1.5 px-3 font-medium">
+                      <button onClick={() => downloadDoc(d)} className="text-primary hover:underline truncate max-w-[260px] block text-left">
+                        {d.fileName}
+                      </button>
+                      {d.isDuplicate && (
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-700 ml-1">doublon</span>
+                      )}
+                    </td>
                     <td className="py-1.5 px-3 truncate max-w-[180px] text-muted-foreground">{d.propertyName}</td>
                     <td className="py-1.5 px-3 text-muted-foreground">{d.sourceLabel}</td>
                     <td className="py-1.5 px-3 text-right tabular-nums text-muted-foreground">{formatFileSize(d.fileSize)}</td>
                     <td className="py-1.5 px-3 text-right tabular-nums text-muted-foreground">
                       {d.date ? new Date(d.date).toLocaleDateString("fr-FR") : "—"}
                     </td>
+                    <td className="py-1.5 px-1">
+                      <button
+                        onClick={() => deleteDocByKey(d.key, setData)}
+                        className="text-destructive/40 hover:text-destructive text-sm transition-colors"
+                        title="Supprimer ce document"
+                      >
+                        ×
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {filteredDocuments.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-3 px-3 text-center text-muted-foreground">
+                    <td colSpan={6} className="py-3 px-3 text-center text-muted-foreground">
                       Aucun document ne correspond a la recherche.
                     </td>
                   </tr>
