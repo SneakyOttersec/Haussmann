@@ -382,7 +382,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
                 }}
               />
             )}
-            <Tooltip content={<BreakdownTooltip />} />
+            <Tooltip content={<BreakdownTooltip />} wrapperStyle={{ zIndex: 50 }} />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
             {operating && (

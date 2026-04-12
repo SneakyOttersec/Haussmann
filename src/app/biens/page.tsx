@@ -794,7 +794,14 @@ function PropertyDetailContent() {
       />
 
       {/* KPIs */}
-      <PropertySummary property={property} expenses={expenses} incomes={incomes} />
+      <PropertySummary
+        property={property}
+        expenses={expenses}
+        incomes={incomes}
+        loan={loan}
+        capitalUtiliseActuel={loan ? coutTotalBien(property) - travauxNonTires : undefined}
+        revenuMensuelTheorique={lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)}
+      />
 
       <Separator className="border-dashed" />
 
@@ -881,7 +888,7 @@ function PropertyDetailContent() {
                         </p>
                         {showEffectif && (
                           <p className="text-[10px] text-muted-foreground mt-1">
-                            Sur capital tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteEffective + assurMensuelle, true)}/m</span>
+                            Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteEffective + assurMensuelle, true)}/m</span>
                           </p>
                         )}
                       </div>
@@ -897,7 +904,7 @@ function PropertyDetailContent() {
                           </p>
                           {showEffectif && (
                             <p className="text-[10px] text-muted-foreground mt-1">
-                              Sur capital tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteDifferEffective + assurMensuelle, true)}/m</span>
+                              Sur capital utilise : <span className="tabular-nums font-medium text-foreground">{formatCurrency(mensualiteDifferEffective + assurMensuelle, true)}/m</span>
                             </p>
                           )}
                         </div>

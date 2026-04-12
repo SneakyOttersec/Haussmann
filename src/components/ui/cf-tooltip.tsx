@@ -22,7 +22,7 @@ interface CfTooltipProps {
 export function CfTooltip({ rows, children }: CfTooltipProps) {
   return (
     <Tooltip>
-      <TooltipTrigger render={<div className="cursor-default" />}>
+      <TooltipTrigger render={<div className="cursor-default h-full" />}>
         {children}
       </TooltipTrigger>
       <TooltipContent
