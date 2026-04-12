@@ -1,6 +1,7 @@
 "use client";
 
-import type { Expense, Income, LoanDetails, Lot, Property, PropertyStatus, RentMonthEntry } from "@/types";
+import { useEffect, useState } from "react";
+import type { CalculatorInputs, Expense, Income, LoanDetails, Lot, Property, PropertyStatus, RentMonthEntry } from "@/types";
 import { PROPERTY_STATUS_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
@@ -8,6 +9,19 @@ import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from 
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
+import { calculerRentabilite } from "@/lib/calculations";
+import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
+import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
+
+interface SimKpis {
+  revenuMensuel: number;
+  depensesMensuellesHorsCredit: number;
+  creditMensuel: number;
+  depensesMensuellesTotal: number;
+  cashFlowMensuel: number;
+  rendementBrut: number;
+  rendementNet: number;
+}
 
 function statusAtLeast(statut: PropertyStatus | undefined, min: PropertyStatus): boolean {
   if (!statut) return true; // backward compat
@@ -48,6 +62,48 @@ export function PropertySummary({
   lots,
   rentEntries,
 }: PropertySummaryProps) {
+  // ── Simulation initiale : charge les inputs et calcule les KPIs de l'annee 1.
+  // Resultats mis en cache par property.simulationId pour eviter les re-compute
+  // a chaque render. null = pas de sim ou chargement en cours.
+  const [simKpis, setSimKpis] = useState<SimKpis | null>(null);
+  // Toggle d'affichage des lignes "Simulation initiale" (persiste dans
+  // localStorage pour survivre au reload de la page).
+  const SIM_TOGGLE_KEY = "haussmann:showSimInitiale";
+  const [showSimInitiale, setShowSimInitiale] = useState(true);
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SIM_TOGGLE_KEY);
+      if (stored != null) setShowSimInitiale(stored === "1");
+    } catch { /* storage unavailable */ }
+  }, []);
+  useEffect(() => {
+    try { localStorage.setItem(SIM_TOGGLE_KEY, showSimInitiale ? "1" : "0"); } catch { /* ignore */ }
+  }, [showSimInitiale]);
+  useEffect(() => {
+    let cancelled = false;
+    setSimKpis(null);
+    if (!property.simulationId) return;
+    const sim = loadSimulations().find((s) => s.id === property.simulationId);
+    if (!sim) return;
+    hydrateSimulation(sim).then((hydrated) => {
+      if (cancelled) return;
+      const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
+      const results = calculerRentabilite(inputs);
+      const depensesMensuellesHorsCredit = results.chargesAnnuellesTotales / 12;
+      const creditMensuel = results.mensualiteCredit;
+      setSimKpis({
+        revenuMensuel: results.loyerAnnuelBrut / 12,
+        depensesMensuellesHorsCredit,
+        creditMensuel,
+        depensesMensuellesTotal: depensesMensuellesHorsCredit + creditMensuel,
+        cashFlowMensuel: results.cashFlowMensuelAvantImpot,
+        rendementBrut: results.rendementBrut,
+        rendementNet: results.rendementNet,
+      });
+    });
+    return () => { cancelled = true; };
+  }, [property.simulationId]);
+
   // ── Loyer actuel : priorite au "percu" du mois courant si des rent entries
   // existent pour ce mois, sinon on retombe sur la somme des incomes (valeur
   // attendue/theorique).
@@ -188,11 +244,12 @@ export function PropertySummary({
    *  When the loan has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
-  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, color, tooltipRows }: {
+  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, simValue, color, tooltipRows }: {
     label: string;
     theoValue: number;
     actuelValue: number;
     surUtiliseValue?: number;
+    simValue?: number;
     color?: (v: number) => string;
     tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[];
   }) => {
@@ -200,11 +257,12 @@ export function PropertySummary({
     const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
+    const showSim = simValue != null;
     const theoLabel = hasDiffere ? "Theorique / Apres differe" : "Theorique";
     return (
       <CfTooltip rows={tooltipRows}>
         <Card className="border-dotted h-full">
-          <CardContent className="p-3">
+          <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">{label}</p>
             <p className={`text-lg font-bold ${cl(actuelValue)}`}>
               {fc(actuelValue)}
@@ -221,6 +279,12 @@ export function PropertySummary({
                 <span className={`font-medium ${cl(surUtiliseValue!)}`}>{fc(surUtiliseValue!)}</span>
               </p>
             )}
+            {showSim && showSimInitiale && (
+              <p className="text-[10px] mt-auto pt-1">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className={`font-medium ${cl(simValue!)}`}>{fc(simValue!)}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
       </CfTooltip>
@@ -228,6 +292,7 @@ export function PropertySummary({
   };
 
   return (
+    <div className="space-y-2">
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {(() => {
         // Theorique = loyer a pleine occupation (somme des lots). Fallback sur
@@ -281,7 +346,7 @@ export function PropertySummary({
         return (
           <CfTooltip rows={tooltipRows}>
             <Card className="border-dotted h-full">
-              <CardContent className="p-3">
+              <CardContent className="p-3 flex flex-col h-full">
                 <p className="text-xs text-muted-foreground">Revenu mensuel</p>
                 <p className="text-lg font-bold">{fc(revenuActuelAffiche)}</p>
                 {showTheo && (
@@ -302,6 +367,12 @@ export function PropertySummary({
                     {nbLotsImpayes > 0 && ` (${nbLotsImpayes} lot${nbLotsImpayes > 1 ? "s" : ""})`}
                   </p>
                 )}
+                {simKpis && showSimInitiale && (
+                  <p className="text-[10px] mt-auto pt-1">
+                    <span className="text-muted-foreground">Simulation initiale : </span>
+                    <span className="font-medium">{fc(simKpis.revenuMensuel)}</span>
+                  </p>
+                )}
               </CardContent>
             </Card>
           </CfTooltip>
@@ -312,6 +383,7 @@ export function PropertySummary({
         theoValue={depTheorique}
         actuelValue={depActuel}
         surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
+        simValue={simKpis?.depensesMensuellesTotal}
         tooltipRows={[
           { label: "Charges (hors credit)", value: fc(depensesActuel) },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditActuel) },
@@ -341,6 +413,7 @@ export function PropertySummary({
         theoValue={cfTheorique}
         actuelValue={cfActuel}
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
+        simValue={simKpis?.cashFlowMensuel}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
           { label: "Revenus (percu)", value: fc(revenuActuelAffiche), color: "text-green-600" },
@@ -386,13 +459,19 @@ export function PropertySummary({
           : []),
       ]}>
         <Card className="border-dotted h-full">
-          <CardContent className="p-3">
+          <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement brut</p>
             <p className="text-lg font-bold">{formatPercent(rBrut)}</p>
             {showUtilise && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rBrutUtilise)}</span>
+              </p>
+            )}
+            {simKpis && showSimInitiale && (
+              <p className="text-[10px] mt-auto pt-1">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className="font-medium">{formatPercent(simKpis.rendementBrut)}</span>
               </p>
             )}
           </CardContent>
@@ -413,7 +492,7 @@ export function PropertySummary({
           : []),
       ]}>
         <Card className="border-dotted h-full">
-          <CardContent className="p-3">
+          <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement net</p>
             <p className="text-lg font-bold">{formatPercent(rNet)}</p>
             {showUtilise && (
@@ -422,9 +501,43 @@ export function PropertySummary({
                 <span className="font-medium">{formatPercent(rNetUtilise)}</span>
               </p>
             )}
+            {simKpis && showSimInitiale && (
+              <p className="text-[10px] mt-auto pt-1">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className="font-medium">{formatPercent(simKpis.rendementNet)}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
       </CfTooltip>
+    </div>
+    {simKpis && (
+      <button
+        type="button"
+        onClick={() => setShowSimInitiale((v) => !v)}
+        className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none"
+        title={showSimInitiale ? "Masquer la simulation initiale" : "Afficher la simulation initiale"}
+        aria-pressed={showSimInitiale}
+      >
+        <span
+          className={`relative block shrink-0 rounded-full transition-colors ${
+            showSimInitiale ? "bg-primary/60" : "bg-muted-foreground/25"
+          }`}
+          style={{ width: 22, height: 12 }}
+        >
+          <span
+            className="absolute rounded-full bg-background shadow transition-all"
+            style={{
+              width: 8,
+              height: 8,
+              top: 2,
+              left: showSimInitiale ? 12 : 2,
+            }}
+          />
+        </span>
+        <span className="leading-none">Simulation initiale</span>
+      </button>
+    )}
     </div>
   );
 }

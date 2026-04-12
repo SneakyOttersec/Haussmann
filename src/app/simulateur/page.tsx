@@ -118,6 +118,7 @@ function SimulationList({
 function SimulateurContent() {
   const searchParams = useSearchParams();
   const bienId = searchParams.get("bienId");
+  const simId = searchParams.get("simId");
   const { data, setData } = useAppData();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,12 +145,22 @@ function SimulateurContent() {
   useEffect(() => {
     const sims = loadSimulations();
     setSimulations(sims);
-    // Auto-load the most recent simulation if no bienId and not yet loaded
-    if (!initialLoaded && !bienId && sims.length > 0) {
-      const mostRecent = sims.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
-      hydrateSimulation(mostRecent).then((hydrated) => {
-        setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
-      });
+    // Priorite : ?simId=... (ouvre une simulation specifique), sinon le dernier
+    // enregistrement si aucun bienId. bienId est traite dans un effet separe.
+    if (!initialLoaded) {
+      if (simId) {
+        const target = sims.find((s) => s.id === simId);
+        if (target) {
+          hydrateSimulation(target).then((hydrated) => {
+            setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
+          });
+        }
+      } else if (!bienId && sims.length > 0) {
+        const mostRecent = sims.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
+        hydrateSimulation(mostRecent).then((hydrated) => {
+          setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
+        });
+      }
     }
     setInitialLoaded(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

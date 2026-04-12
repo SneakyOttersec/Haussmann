@@ -39,6 +39,10 @@ const RealVsSimulatedSection = dynamic(
   () => import("@/components/property/RealVsSimulatedSection").then((m) => m.RealVsSimulatedSection),
   { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
 );
+const MonthlyRendementChart = dynamic(
+  () => import("@/components/property/MonthlyRendementChart").then((m) => m.MonthlyRendementChart),
+  { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
+);
 
 // Below-the-fold sections — lazy-load to shrink /biens initial bundle.
 // Each section is large (forms, tables, dialogs) and only relevant when the user scrolls to it.
@@ -714,30 +718,43 @@ function PropertyDetailContent() {
               {property.surfaceM2 ? ` — ${property.surfaceM2} m²` : ""}
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {/* Navigation : vues rattachees au bien */}
             <Link
               href={`/loyers?propertyId=${id}`}
-              className="text-sm text-primary hover:underline"
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
               title="Ouvrir le suivi des loyers de ce bien"
             >
               Suivi loyers
             </Link>
             <Link
               href={`/simulateur?bienId=${id}`}
-              className="text-sm text-primary hover:underline"
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
               title="Ouvrir ce bien dans le simulateur"
             >
               Simuler
             </Link>
+            {property.simulationId && (
+              <Link
+                href={`/simulateur?simId=${property.simulationId}`}
+                className="px-2.5 py-1 text-xs rounded-md border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
+                title="Ouvrir la simulation initiale dont ce bien est issu"
+              >
+                Simulation initiale
+              </Link>
+            )}
+            {/* Separateur visuel */}
+            <span className="w-px h-5 bg-muted-foreground/20 mx-1" aria-hidden />
+            {/* Actions : modifier / supprimer */}
             <Link
               href={`/biens/modifier?id=${id}`}
-              className="text-sm text-primary hover:underline"
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/60 transition-colors"
             >
               Modifier
             </Link>
             <button
               onClick={() => { setDeleteConfirmText(""); setDeleteOpen(true); }}
-              className="text-sm text-destructive hover:underline"
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-destructive/30 text-destructive hover:bg-destructive/5 hover:border-destructive/60 transition-colors"
             >
               Supprimer
             </button>
@@ -1079,6 +1096,25 @@ function PropertyDetailContent() {
           />
         </section>
       )}
+
+      {/* Rendement mensuel (valeurs reelles) */}
+      <section>
+        <Card className="border-dotted">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Rendement mensuel (valeurs reelles)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <MonthlyRendementChart
+              property={property}
+              incomes={incomes}
+              expenses={expenses}
+              rentEntries={rentEntries}
+              loan={loan}
+              chargePayments={(data?.chargePayments ?? []).filter((c) => c.propertyId === id)}
+            />
+          </CardContent>
+        </Card>
+      </section>
 
       <Separator className="border-dashed" />
 
