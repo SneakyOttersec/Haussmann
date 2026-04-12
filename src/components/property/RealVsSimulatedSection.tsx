@@ -34,6 +34,8 @@ interface SimBreakdown {
   charges: number;
   mensualitesCredit: number;
   cashFlowAvantImpot: number;
+  /** True if this year is (fully or partially) in the loan defer phase. */
+  isDiffere: boolean;
 }
 
 interface RealBreakdown {
@@ -134,7 +136,11 @@ function BreakdownTooltip({ active, payload, label }: any) {
         </div>
         <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
         <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
-        <TooltipRow label="− Mensualites credit" value={-sim.mensualitesCredit} color="#60a5fa" />
+        <TooltipRow
+          label={sim.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
+          value={-sim.mensualitesCredit}
+          color={sim.isDiffere ? "#f59e0b" : "#60a5fa"}
+        />
         <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
       </div>
 
@@ -188,10 +194,26 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     if (!sim) return;
     hydrateSimulation(sim).then((hydrated) => {
       const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
+      // Patch the simulation inputs with the property's CURRENT loan params.
+      // The simulation may have been saved before defer was added, or the user
+      // may have changed loan terms on the property page without re-saving
+      // the simulation. This ensures the chart reflects the actual loan config.
+      if (loan) {
+        inputs.montantEmprunte = loan.montantEmprunte;
+        inputs.tauxCredit = loan.tauxAnnuel;
+        inputs.dureeCredit = loan.dureeAnnees;
+        inputs.typePret = loan.type;
+        inputs.differePretMois = loan.differeMois ?? 0;
+        inputs.differePretInclus = loan.differeInclus ?? true;
+        if (loan.assuranceAnnuelle > 0) {
+          inputs.assurancePretMode = "eur";
+          inputs.assurancePretAnnuelle = loan.assuranceAnnuelle;
+        }
+      }
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
     });
-  }, [property.simulationId, reloadKey]);
+  }, [property.simulationId, reloadKey, loan]);
 
   /**
    * Real cash flow built from the SAME source of truth as the rest of the app:
@@ -263,6 +285,10 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         charges: Math.round(p.charges),
         mensualitesCredit: Math.round(p.mensualitesCredit),
         cashFlowAvantImpot: Math.round(p.cashFlowAvantImpot),
+        // Detect defer: if this year's credit is significantly lower than the
+        // last projection year's credit (post-amortization), mark as defer.
+        isDiffere: i < years - 1 && p.mensualitesCredit > 0 &&
+          p.mensualitesCredit < projection[years - 1].mensualitesCredit * 0.9,
       },
       realBreakdown: realYear
         ? {

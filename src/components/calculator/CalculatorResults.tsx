@@ -8,6 +8,7 @@ import { calculerTRI } from "@/lib/calculations/irr";
 interface CalculatorResultsProps {
   results: Results;
   associes?: Associe[];
+  differePretMois?: number;
 }
 
 function eur(v: number): string {
@@ -58,7 +59,7 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-export function CalculatorResultsPanel({ results, associes }: CalculatorResultsProps) {
+export function CalculatorResultsPanel({ results, associes, differePretMois }: CalculatorResultsProps) {
   const cfSign = results.cashFlowMensuelApresImpot >= 0 ? "positive" : "negative";
   const r = results;
   const [triAnnee, setTriAnnee] = useState(10);
@@ -216,7 +217,20 @@ export function CalculatorResultsPanel({ results, associes }: CalculatorResultsP
             <DetailRow label="Charges annuelles" value={formatCurrency(r.chargesAnnuellesTotales)} />
           </div>
           <div>
-            <DetailRow label="Mensualite (credit + assurance)" value={formatCurrency(r.mensualiteCredit, true)} />
+            {differePretMois && differePretMois > 0 ? (
+              <>
+                <DetailRow
+                  label={`Mensualite pendant differe (${differePretMois}m)`}
+                  value={formatCurrency(r.projection[0]?.mensualitesCredit ? r.projection[0].mensualitesCredit / 12 : 0, true)}
+                />
+                <DetailRow
+                  label="Mensualite post-differe"
+                  value={formatCurrency(r.mensualiteCredit, true)}
+                />
+              </>
+            ) : (
+              <DetailRow label="Mensualite (credit + assurance)" value={formatCurrency(r.mensualiteCredit, true)} />
+            )}
             <DetailRow label="Cash flow mensuel avant impot" value={formatCurrency(r.cashFlowMensuelAvantImpot)} />
             <DetailRow label="Impot annuel estime" value={formatCurrency(r.impotAnnuel)} />
             <DetailRow label="Cash flow annuel apres impot" value={formatCurrency(r.cashFlowAnnuelApresImpot)} color={r.cashFlowAnnuelApresImpot >= 0 ? "text-green-600" : "text-destructive"} />

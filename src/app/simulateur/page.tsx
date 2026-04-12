@@ -354,7 +354,7 @@ function SimulateurContent() {
           <ChargesCard inputs={inputs} onUpdate={handleUpdate} />
 
           {/* Results — full width */}
-          <CalculatorResultsPanel results={results} associes={data?.settings?.associes} />
+          <CalculatorResultsPanel results={results} associes={data?.settings?.associes} differePretMois={inputs.differePretMois} />
 
           {/* Multi-regime comparison */}
           <RegimesComparison inputs={inputs} />
