@@ -269,7 +269,7 @@ export function ResultsChart({ projection, inputs, results, onUpdateEvolutions }
           </div>
         </div>
         <ResponsiveContainer width="100%" height={320}>
-          <ComposedChart data={chartData.slice(0, fluxYears)} margin={{ top: 10, right: 10, left: 5, bottom: 5 }} stackOffset="sign">
+          <ComposedChart data={chartData.slice(0, fluxYears)} margin={{ top: 30, right: 10, left: 5, bottom: 5 }} stackOffset="sign">
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
             <XAxis dataKey="annee" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
@@ -287,7 +287,7 @@ export function ResultsChart({ projection, inputs, results, onUpdateEvolutions }
 
             {milestones.map((m) => (
               <ReferenceLine key={m.label} x={m.annee} stroke={m.color} strokeWidth={1.5} strokeDasharray="4 4">
-                <RLabel value={m.label} position="insideTopRight" fill={m.color} fontSize={9} fontWeight="bold" />
+                <RLabel value={m.label} position="top" fill={m.color} fontSize={9} fontWeight="bold" offset={6} />
               </ReferenceLine>
             ))}
           </ComposedChart>
@@ -316,7 +316,7 @@ export function ResultsChart({ projection, inputs, results, onUpdateEvolutions }
           </div>
         </div>
         <ResponsiveContainer width="100%" height={240}>
-          <ComposedChart data={chartData.slice(0, patrimoineYears)} margin={{ top: 5, right: 10, left: 5, bottom: 5 }}>
+          <ComposedChart data={chartData.slice(0, patrimoineYears)} margin={{ top: 30, right: 10, left: 5, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
             <XAxis dataKey="annee" tick={{ fontSize: 10 }} />
             <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
