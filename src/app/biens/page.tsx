@@ -847,7 +847,11 @@ function PropertyDetailContent() {
         incomes={incomes}
         loan={loan}
         capitalUtiliseActuel={loan ? coutTotalBien(property) - travauxNonTires : undefined}
-        revenuMensuelTheorique={lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)}
+        revenuMensuelTheorique={lots.reduce((s, l) => {
+          const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
+          return s + (l.loyerMensuel ?? 0) * (1 - vac);
+        }, 0)}
+        revenuMensuelMax={lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)}
         creditApresDiffereSurUtilise={
           loan && showEffectif
             ? mensualiteEffective + loan.assuranceAnnuelle / 12
@@ -1066,6 +1070,8 @@ function PropertyDetailContent() {
           onDelete={handleDeleteLot}
           propertyId={id}
           propertyStatut={property.statut}
+          tauxVacanceGlobal={property.tauxVacanceGlobal}
+          onUpdateTauxVacanceGlobal={(v) => updateProperty(id, { tauxVacanceGlobal: v })}
         />
       </section>
 

@@ -65,7 +65,12 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const autresIncomesAnnuel = incomes
     .filter((i) => i.categorie !== "loyer")
     .reduce((sum, i) => sum + annualiserMontant(i.montant, i.frequence), 0);
-  const lotsMensuel = lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0);
+  const propertyById = new Map(properties.map((p) => [p.id, p]));
+  const lotsMensuel = lots.reduce((s, l) => {
+    const p = propertyById.get(l.propertyId);
+    const vac = p?.tauxVacanceGlobal != null ? p.tauxVacanceGlobal : (l.tauxVacance ?? 0);
+    return s + (l.loyerMensuel ?? 0) * (1 - vac);
+  }, 0);
   const loyerTheoMensuel = lotsMensuel > 0 ? lotsMensuel : loyerIncomesMensuel;
   const loyerTheoAnnuel = lotsMensuel > 0 ? lotsMensuel * 12 : loyerIncomesAnnuel;
 

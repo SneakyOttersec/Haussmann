@@ -126,6 +126,10 @@ export interface Property {
   /** Document attached to each status phase */
   statusDocs?: Partial<Record<PropertyStatus, StatusDocument>>;
   simulationId?: string;
+  /** Taux de vacance locative theorique global au niveau du bien (0..1).
+   *  Quand defini, ecrase le tauxVacance de chaque lot pour le calcul
+   *  du revenu theorique. */
+  tauxVacanceGlobal?: number;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -250,6 +254,9 @@ export interface Lot {
   loyerMensuel: number;
   statut: LotStatut;
   historiqueLoyers?: RentHistoryEntry[];
+  /** Taux de vacance locative theorique (0..1, ex: 0.05 = 5%/an).
+   *  Utilise pour ajuster le revenu theorique a pleine occupation. */
+  tauxVacance?: number;
 }
 
 // --- Rent tracking (month by month) ---

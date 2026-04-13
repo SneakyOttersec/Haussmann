@@ -19,6 +19,10 @@ interface Props {
   propertyStatut?: PropertyStatus;
   /** Optional override for the section card title (defaults to "Lots"). */
   title?: string;
+  /** Taux de vacance global (0..1) — quand defini, ecrase celui des lots. */
+  tauxVacanceGlobal?: number;
+  /** Callback pour modifier le taux global. Si absent, l'input n'est pas affiche. */
+  onUpdateTauxVacanceGlobal?: (value: number | undefined) => void;
 }
 
 function isEnLocation(statut?: PropertyStatus): boolean {
@@ -46,7 +50,14 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [confirmOverride, setConfirmOverride] = useState<LotStatut | null>(null);
-  const [edit, setEdit] = useState({ nom: l.nom, etage: l.etage || "", surface: l.surface || 0, loyerMensuel: l.loyerMensuel, statut: l.statut });
+  const [edit, setEdit] = useState({
+    nom: l.nom,
+    etage: l.etage || "",
+    surface: l.surface || 0,
+    loyerMensuel: l.loyerMensuel,
+    statut: l.statut,
+    tauxVacancePct: ((l.tauxVacance ?? 0) * 100),
+  });
 
   const handleStatutToggle = () => {
     const idx = LOT_STATUT_CYCLE.indexOf(l.statut);
@@ -63,7 +74,13 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    const updates: Partial<Lot> = { ...edit, etage: edit.etage || undefined, surface: edit.surface || undefined };
+    const { tauxVacancePct, ...rest } = edit;
+    const updates: Partial<Lot> = {
+      ...rest,
+      etage: rest.etage || undefined,
+      surface: rest.surface || undefined,
+      tauxVacance: tauxVacancePct > 0 ? tauxVacancePct / 100 : undefined,
+    };
     // Auto-track rent change
     if (edit.loyerMensuel !== l.loyerMensuel) {
       const newEntry: RentHistoryEntry = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: edit.loyerMensuel };
@@ -81,16 +98,14 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
 
   return (
     <>
-      <div className="border-b border-dashed border-muted-foreground/10 last:border-0">
-        <div className="flex items-center gap-3 text-sm py-2">
+      <div className="border-b border-dashed border-muted-foreground/10 last:border-0 py-2 space-y-1">
+        <div className="flex items-center gap-3 text-sm">
           <button
             className="font-medium text-left hover:text-primary transition-colors cursor-pointer"
-            onClick={() => { setEdit({ nom: l.nom, etage: l.etage || "", surface: l.surface || 0, loyerMensuel: l.loyerMensuel, statut: l.statut }); setEditOpen(true); }}
+            onClick={() => { setEdit({ nom: l.nom, etage: l.etage || "", surface: l.surface || 0, loyerMensuel: l.loyerMensuel, statut: l.statut, tauxVacancePct: (l.tauxVacance ?? 0) * 100 }); setEditOpen(true); }}
           >
             {l.nom}
           </button>
-          {l.etage && <span className="text-xs text-muted-foreground">{l.etage}</span>}
-          {l.surface ? <span className="text-xs text-muted-foreground">{l.surface} m²</span> : null}
           <button
             onClick={handleStatutToggle}
             className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 transition-colors cursor-pointer hover:opacity-80 ${LOT_STATUT_STYLE[l.statut]}`}
@@ -109,6 +124,20 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
             </button>
           )}
           <button onClick={() => onDelete(l.id)} className="text-destructive text-sm hover:opacity-70 shrink-0">×</button>
+        </div>
+        {/* Ligne de details : etage, surface, vacance — toujours affichee */}
+        <div className="flex items-center gap-4 text-[11px] text-muted-foreground pl-0.5 flex-wrap">
+          <span>
+            Etage : <span className="text-foreground font-medium">{l.etage || "—"}</span>
+          </span>
+          <span>
+            Surface : <span className="text-foreground font-medium tabular-nums">{l.surface ? `${l.surface} m²` : "—"}</span>
+          </span>
+          <span>
+            Vacance : <span className={`font-medium tabular-nums ${(l.tauxVacance ?? 0) > 0 ? "text-amber-700" : "text-foreground"}`}>
+              {(l.tauxVacance ?? 0) > 0 ? `${((l.tauxVacance ?? 0) * 100).toFixed(1)} %` : "—"}
+            </span>
+          </span>
         </div>
 
         {/* Rent history */}
@@ -148,6 +177,23 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Loyer mensuel (EUR)</Label>
                 <Input type="number" min={0} value={edit.loyerMensuel || ""} onChange={(e) => setEdit({ ...edit, loyerMensuel: Number(e.target.value) })} required />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Vacance locative theorique (%)
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                step="0.1"
+                value={edit.tauxVacancePct || ""}
+                onChange={(e) => setEdit({ ...edit, tauxVacancePct: Number(e.target.value) })}
+                placeholder="Ex: 5 pour 5%/an"
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Pourcentage du temps moyen pendant lequel le lot est vacant. Reduit le revenu theorique a pleine occupation.
+              </p>
             </div>
             <Button type="submit" className="w-full">Enregistrer</Button>
           </form>
@@ -190,26 +236,143 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   );
 }
 
-export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut, title }: Props) {
+/**
+ * Mini-editor inline pour le taux de vacance global. Suit le design pattern
+ * de ApportSection (affichage → clic → input → Enter/Blur → sauvegarde).
+ * La valeur n'est committed que sur validation explicite pour eviter les
+ * ecritures a chaque keystroke.
+ */
+function VacanceGlobaleEditor({
+  value,
+  onChange,
+}: {
+  value: number | undefined;
+  onChange: (v: number | undefined) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<string>(value != null ? String(value * 100) : "");
+
+  // Resync quand value change depuis l'exterieur.
+  const resetDraft = () => setDraft(value != null ? String(value * 100) : "");
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed === "") {
+      onChange(undefined);
+    } else {
+      const num = Number(trimmed);
+      if (!isNaN(num)) {
+        onChange(Math.max(0, Math.min(100, num)) / 100);
+      }
+    }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    resetDraft();
+    setEditing(false);
+  };
+
+  return (
+    <span className="flex items-center gap-1.5 ml-auto">
+      <span className="text-muted-foreground" title="Si defini, ecrase le taux de chaque lot">
+        Vacance globale :
+      </span>
+      {editing ? (
+        <>
+          <Input
+            autoFocus
+            type="number"
+            min={0}
+            max={100}
+            step="0.1"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); commit(); }
+              if (e.key === "Escape") { e.preventDefault(); cancel(); }
+            }}
+            onBlur={commit}
+            placeholder="—"
+            className="w-20 h-7 text-[11px] px-2 tabular-nums"
+          />
+          <span className="text-muted-foreground">%</span>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); commit(); }}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-dotted border-primary/40 text-primary hover:bg-primary/5 transition-colors"
+            title="Valider (Entree)"
+          >
+            OK
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); cancel(); }}
+            className="text-[10px] px-1.5 py-0.5 rounded border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-foreground transition-colors"
+            title="Annuler (Echap)"
+          >
+            Annuler
+          </button>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onClick={() => { resetDraft(); setEditing(true); }}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-dotted border-muted-foreground/30 hover:border-primary/50 hover:text-primary transition-colors tabular-nums"
+            title="Cliquer pour modifier"
+          >
+            {value != null ? `${(value * 100).toFixed(1)} %` : <span className="text-muted-foreground/70">—</span>}
+            <span className="text-[9px] opacity-50">✎</span>
+          </button>
+          {value != null && (
+            <button
+              type="button"
+              onClick={() => onChange(undefined)}
+              className="text-muted-foreground/60 hover:text-destructive text-sm leading-none"
+              title="Revenir aux taux par lot"
+            >
+              ×
+            </button>
+          )}
+        </>
+      )}
+    </span>
+  );
+}
+
+export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut, title, tauxVacanceGlobal, onUpdateTauxVacanceGlobal }: Props) {
   const enLocation = isEnLocation(propertyStatut);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut });
+  const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut, tauxVacancePct: 0 });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const entry: RentHistoryEntry = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: form.loyerMensuel };
+    const { tauxVacancePct, ...rest } = form;
     onAdd({
-      ...form,
+      ...rest,
       propertyId,
       surface: form.surface || undefined,
       etage: form.etage || undefined,
+      tauxVacance: tauxVacancePct > 0 ? tauxVacancePct / 100 : undefined,
       historiqueLoyers: [entry],
     });
     setOpen(false);
-    setForm({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" });
+    setForm({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant", tauxVacancePct: 0 });
   };
 
   const totalLoyer = lots.reduce((s, l) => s + l.loyerMensuel, 0);
+  // Si un taux global est defini, il ecrase les taux par lot.
+  const effectiveVacanceForLot = (l: Lot) =>
+    tauxVacanceGlobal != null ? tauxVacanceGlobal : (l.tauxVacance ?? 0);
+  const totalLoyerEffectif = lots.reduce(
+    (s, l) => s + l.loyerMensuel * (1 - effectiveVacanceForLot(l)),
+    0,
+  );
+  const hasVacance =
+    (tauxVacanceGlobal != null && tauxVacanceGlobal > 0) ||
+    lots.some((l) => (l.tauxVacance ?? 0) > 0);
   const occupes = lots.filter(l => l.statut === "occupe").length;
   const tauxOccupation = lots.length > 0 ? Math.round((occupes / lots.length) * 100) : 0;
 
@@ -242,6 +405,23 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
                   <Input type="number" min={0} value={form.loyerMensuel || ""} onChange={(e) => setForm({ ...form, loyerMensuel: Number(e.target.value) })} required />
                 </div>
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Vacance locative theorique (%)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={100}
+                  step="0.1"
+                  value={form.tauxVacancePct || ""}
+                  onChange={(e) => setForm({ ...form, tauxVacancePct: Number(e.target.value) })}
+                  placeholder="Ex: 5 pour 5%/an"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Pourcentage du temps moyen pendant lequel le lot est vacant. Reduit le revenu theorique a pleine occupation.
+                </p>
+              </div>
               <Button type="submit" className="w-full">Ajouter</Button>
             </form>
           </DialogContent>
@@ -252,13 +432,29 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
           <p className="text-sm text-muted-foreground">Aucun lot enregistre.</p>
         ) : (
           <>
-            <div className="flex gap-4 text-[11px] text-muted-foreground mb-3">
+            <div className="flex gap-4 text-[11px] text-muted-foreground mb-3 flex-wrap items-center">
               <span>Loyer total : <strong className="text-foreground">{formatCurrency(totalLoyer)}/mois</strong></span>
+              {hasVacance && (
+                <span title={tauxVacanceGlobal != null ? "Loyer apres application du taux de vacance global" : "Loyer apres application du taux de vacance theorique lot par lot"}>
+                  Effectif : <strong className="text-foreground">{formatCurrency(totalLoyerEffectif)}/mois</strong>
+                </span>
+              )}
               <span>Occupation : {enLocation
                 ? <strong className={occupes === lots.length ? "text-green-600" : "text-foreground"}>{tauxOccupation}% ({occupes}/{lots.length})</strong>
                 : <strong className="text-muted-foreground">N/A</strong>
               }</span>
+              {onUpdateTauxVacanceGlobal && (
+                <VacanceGlobaleEditor
+                  value={tauxVacanceGlobal}
+                  onChange={onUpdateTauxVacanceGlobal}
+                />
+              )}
             </div>
+            {tauxVacanceGlobal != null && tauxVacanceGlobal > 0 && lots.some((l) => (l.tauxVacance ?? 0) > 0) && (
+              <p className="text-[10px] text-amber-700 mb-2 italic">
+                Le taux global {(tauxVacanceGlobal * 100).toFixed(1)}% ecrase les taux par lot.
+              </p>
+            )}
             <div>
               {lots.map((l) => (
                 <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} propertyStatut={propertyStatut} />

@@ -49,6 +49,10 @@ interface PropertySummaryProps {
   lots?: Lot[];
   /** Rent entries pour deriver le loyer percu du mois courant + impayes. */
   rentEntries?: RentMonthEntry[];
+  /** Somme brute des loyers des lots a 100% d'occupation (sans vacance).
+   *  Si fourni ET different de revenuMensuelTheorique, une ligne "Max"
+   *  est affichee sur les cards Revenu / Cash flow / Rendement. */
+  revenuMensuelMax?: number;
 }
 
 export function PropertySummary({
@@ -61,24 +65,13 @@ export function PropertySummary({
   creditApresDiffereSurUtilise,
   lots,
   rentEntries,
+  revenuMensuelMax,
 }: PropertySummaryProps) {
   // ── Simulation initiale : charge les inputs et calcule les KPIs de l'annee 1.
   // Resultats mis en cache par property.simulationId pour eviter les re-compute
-  // a chaque render. null = pas de sim ou chargement en cours.
+  // a chaque render. null = pas de sim ou chargement en cours. Affichee
+  // uniquement dans les tooltips des cards (plus en ligne sur la card).
   const [simKpis, setSimKpis] = useState<SimKpis | null>(null);
-  // Toggle d'affichage des lignes "Simulation initiale" (persiste dans
-  // localStorage pour survivre au reload de la page).
-  const SIM_TOGGLE_KEY = "haussmann:showSimInitiale";
-  const [showSimInitiale, setShowSimInitiale] = useState(true);
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(SIM_TOGGLE_KEY);
-      if (stored != null) setShowSimInitiale(stored === "1");
-    } catch { /* storage unavailable */ }
-  }, []);
-  useEffect(() => {
-    try { localStorage.setItem(SIM_TOGGLE_KEY, showSimInitiale ? "1" : "0"); } catch { /* ignore */ }
-  }, [showSimInitiale]);
   useEffect(() => {
     let cancelled = false;
     setSimKpis(null);
@@ -137,6 +130,11 @@ export function PropertySummary({
   // aleas de collecte mensuelle.
   const revenuMensuelCF = revenuMensuelTheorique && revenuMensuelTheorique > 0
     ? revenuMensuelTheorique
+    : revenuFromIncomes;
+  // Revenu a pleine occupation (SANS vacance). Quand egal au theorique,
+  // vacance = 0 et la ligne "Max" n'a pas de sens (masquee).
+  const revenuMensuelMaxEff = revenuMensuelMax && revenuMensuelMax > 0
+    ? revenuMensuelMax
     : revenuFromIncomes;
 
   // Occupation : base sur les lots (statut "occupe"). Sans lots, fallback null.
@@ -208,8 +206,15 @@ export function PropertySummary({
     .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
 
   const coutTotal = coutTotalBien(property);
+  // Rendement "Max" = sur la base des incomes bruts (equivaut a pleine
+  // occupation sans vacance — comportement historique).
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);
   const rNet = rendementNet(revenuAnnuel, chargesAnnuelles, coutTotal);
+  // Rendement "Theorique" = revenus avec vacance appliquee (plus honnete).
+  // Quand la vacance est nulle, ils sont egaux.
+  const revenuAnnuelAvecVac = revenuMensuelCF * 12;
+  const rBrutTheo = rendementBrut(revenuAnnuelAvecVac, coutTotal);
+  const rNetTheo = rendementNet(revenuAnnuelAvecVac, chargesAnnuelles, coutTotal);
 
   // Rendement recalcule sur le capital deja tire (coutTotal moins les travaux
   // non encore tires de l'enveloppe credit). Inutile quand egal au coutTotal.
@@ -238,18 +243,24 @@ export function PropertySummary({
     ? revenuMensuelCF - depSurUtilise
     : cfTheorique;
 
+  // Cash flow "Max" = pleine occupation (revenu sans vacance).
+  const cfMax = revenuMensuelMaxEff - depensesMensuelles - creditPostDiffere;
+  // Affichage des lignes "Max" uniquement quand la vacance est > 0 quelque part.
+  const eqRound = (a: number, b: number) => Math.round(a) === Math.round(b);
+  const showMax = !eqRound(revenuMensuelMaxEff, revenuMensuelCF);
+
   const fc = formatCurrency;
 
   /** Renders a KPI card: Actuel (main), then small "Theorique" line.
    *  When the loan has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
-  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, simValue, color, tooltipRows }: {
+  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, color, tooltipRows }: {
     label: string;
     theoValue: number;
     actuelValue: number;
     surUtiliseValue?: number;
-    simValue?: number;
+    maxValue?: number;
     color?: (v: number) => string;
     tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[];
   }) => {
@@ -257,7 +268,7 @@ export function PropertySummary({
     const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
-    const showSim = simValue != null;
+    const showMaxLine = maxValue != null && !eq(maxValue, theoValue);
     const theoLabel = hasDiffere ? "Theorique / Apres differe" : "Theorique";
     return (
       <CfTooltip rows={tooltipRows}>
@@ -279,10 +290,10 @@ export function PropertySummary({
                 <span className={`font-medium ${cl(surUtiliseValue!)}`}>{fc(surUtiliseValue!)}</span>
               </p>
             )}
-            {showSim && showSimInitiale && (
-              <p className="text-[10px] mt-auto pt-1">
-                <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className={`font-medium ${cl(simValue!)}`}>{fc(simValue!)}</span>
+            {showMaxLine && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Max : </span>
+                <span className={`font-medium ${cl(maxValue!)}`}>{fc(maxValue!)}</span>
               </p>
             )}
           </CardContent>
@@ -295,17 +306,19 @@ export function PropertySummary({
     <div className="space-y-2">
     <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
       {(() => {
-        // Theorique = loyer a pleine occupation (somme des lots). Fallback sur
-        // les incomes si aucun lot configure, pour que la ligne reste visible.
+        // Theorique = loyer avec vacance appliquee. Fallback sur les incomes
+        // si aucun lot configure, pour que la ligne reste visible.
         const theo = revenuMensuelTheorique && revenuMensuelTheorique > 0
           ? revenuMensuelTheorique
           : revenuFromIncomes;
+        const max = revenuMensuelMaxEff;
         const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
         // Avant la mise en location, on force le revenu actuel a 0 mais on
         // garde la ligne "Theorique" visible pour projeter le regime cible.
         // Apres la mise en location, on n'affiche la ligne Theorique que si
         // elle differe du percu.
         const showTheo = theo > 0 && (!enLocation || !eq(theo, revenuActuelAffiche));
+        const showMaxRev = max > 0 && !eq(max, theo);
 
         // ── Tooltip enrichi : breakdown par lot / income + contexte temporel ──
         const lotRows = (lots ?? []).map((l) => {
@@ -332,14 +345,28 @@ export function PropertySummary({
           ...(loyerAttenduCurrent > 0 && !eq(loyerAttenduCurrent, revenuMensuel)
             ? [{ label: "Attendu ce mois", value: fc(loyerAttenduCurrent) }]
             : []),
-          ...(theo > 0 && !eq(theo, loyerAttenduCurrent || revenuMensuel)
-            ? [{ label: "Theorique (pleine occ.)", value: fc(theo) }]
-            : []),
+          ...(theo > 0 ? [{ label: "Theorique (avec vacance)", value: fc(theo) }] : []),
+          ...(showMaxRev ? [{ label: "Max (pleine occupation)", value: fc(max) }] : []),
           ...(entriesPrev.length > 0
             ? [{ label: "Percu mois precedent", value: fc(loyerPercuPrev) }]
             : []),
           ...(lastPaidEntry
             ? [{ label: "Dernier encaissement", value: new Date(lastPaidEntry.updatedAt).toLocaleDateString("fr-FR") }]
+            : []),
+          ...(enLocation && tauxOccupation != null
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Occupation", value: `${tauxOccupation.toFixed(0)}% (${lotsOccupes}/${totalLots})` },
+              ]
+            : []),
+          ...(enLocation && impayesCurrent > 0
+            ? [{ label: "Impayes", value: `${fc(impayesCurrent)}${nbLotsImpayes > 0 ? ` (${nbLotsImpayes} lot${nbLotsImpayes > 1 ? "s" : ""})` : ""}`, color: "text-destructive" }]
+            : []),
+          ...(simKpis
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Simulation initiale", value: fc(simKpis.revenuMensuel) },
+              ]
             : []),
         ];
 
@@ -355,22 +382,16 @@ export function PropertySummary({
                     <span className="font-medium">{fc(theo)}</span>
                   </p>
                 )}
-                {/* Occupation et impayes ne sont pertinents qu'en phase de location */}
-                {enLocation && tauxOccupation != null && (
-                  <p className="text-[10px] mt-0.5 text-muted-foreground">
-                    Occupation {tauxOccupation.toFixed(0)}% · {lotsOccupes}/{totalLots} lot{totalLots > 1 ? "s" : ""}
+                {showMaxRev && (
+                  <p className="text-[10px] mt-0.5">
+                    <span className="text-muted-foreground">Max : </span>
+                    <span className="font-medium">{fc(max)}</span>
                   </p>
                 )}
                 {enLocation && impayesCurrent > 0 && (
-                  <p className="text-[10px] mt-0.5 text-destructive font-medium">
+                  <p className="text-[10px] mt-auto pt-1 text-destructive font-medium">
                     Impayes {fc(impayesCurrent)}
                     {nbLotsImpayes > 0 && ` (${nbLotsImpayes} lot${nbLotsImpayes > 1 ? "s" : ""})`}
-                  </p>
-                )}
-                {simKpis && showSimInitiale && (
-                  <p className="text-[10px] mt-auto pt-1">
-                    <span className="text-muted-foreground">Simulation initiale : </span>
-                    <span className="font-medium">{fc(simKpis.revenuMensuel)}</span>
                   </p>
                 )}
               </CardContent>
@@ -383,7 +404,6 @@ export function PropertySummary({
         theoValue={depTheorique}
         actuelValue={depActuel}
         surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
-        simValue={simKpis?.depensesMensuellesTotal}
         tooltipRows={[
           { label: "Charges (hors credit)", value: fc(depensesActuel) },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditActuel) },
@@ -406,6 +426,12 @@ export function PropertySummary({
                 { label: "Apres differe sur capital utilise", value: fc(depSurUtilise), bold: true },
               ]
             : []),
+          ...(simKpis
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Simulation initiale", value: fc(simKpis.depensesMensuellesTotal) },
+              ]
+            : []),
         ]}
       />
       <KpiCard
@@ -413,7 +439,7 @@ export function PropertySummary({
         theoValue={cfTheorique}
         actuelValue={cfActuel}
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
-        simValue={simKpis?.cashFlowMensuel}
+        maxValue={showMax ? cfMax : undefined}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
           { label: "Revenus (percu)", value: fc(revenuActuelAffiche), color: "text-green-600" },
@@ -426,9 +452,7 @@ export function PropertySummary({
             : !enLocation
             ? [{ label: "Pas encore en location", value: "" }]
             : []),
-          {
-            separator: true as const, label: "", value: "",
-          },
+          { separator: true as const, label: "", value: "" },
           { label: "Revenus (theorique)", value: fc(revenuMensuelCF), color: "text-green-600" },
           ...(hasDiffere
             ? [
@@ -436,6 +460,13 @@ export function PropertySummary({
               ]
             : []),
           { label: "Cash flow theorique", value: fc(cfTheorique), bold: true },
+          ...(showMax
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Revenus (max, sans vacance)", value: fc(revenuMensuelMaxEff), color: "text-green-600" },
+                { label: "Cash flow max", value: fc(cfMax), bold: true },
+              ]
+            : []),
           ...(showSurUtilise
             ? [
                 { separator: true as const, label: "", value: "" },
@@ -443,101 +474,106 @@ export function PropertySummary({
                 { label: "Apres differe sur capital utilise", value: fc(cfSurUtilise), bold: true },
               ]
             : []),
+          ...(simKpis
+            ? [
+                { separator: true as const, label: "", value: "" },
+                { label: "Simulation initiale", value: fc(simKpis.cashFlowMensuel) },
+              ]
+            : []),
         ]}
       />
       <CfTooltip rows={[
-        { label: "Loyer annuel brut", value: fc(revenuAnnuel) },
+        { label: "Loyer annuel (avec vacance)", value: fc(revenuAnnuelAvecVac) },
         { label: "Cout total du projet", value: fc(coutTotal) },
         { separator: true, label: "", value: "" },
-        { label: "Rendement", value: formatPercent(rBrut), bold: true },
+        { label: "Rendement theorique", value: formatPercent(rBrutTheo), bold: true },
+        ...(showMax
+          ? [
+              { separator: true as const, label: "", value: "" },
+              { label: "Loyer annuel (pleine occ.)", value: fc(revenuMensuelMaxEff * 12) },
+              { label: "Rendement max", value: formatPercent(rBrut), bold: true },
+            ]
+          : []),
         ...(showUtilise
           ? [
               { separator: true as const, label: "", value: "" },
               { label: "Capital utilise actuel", value: fc(capitalUtiliseActuel!) },
-              { label: "Rendement sur capital utilise", value: formatPercent(rBrutUtilise), bold: true },
+              { label: "Sur capital utilise", value: formatPercent(rBrutUtilise), bold: true },
+            ]
+          : []),
+        ...(simKpis
+          ? [
+              { separator: true as const, label: "", value: "" },
+              { label: "Simulation initiale", value: formatPercent(simKpis.rendementBrut) },
             ]
           : []),
       ]}>
         <Card className="border-dotted h-full">
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement brut</p>
-            <p className="text-lg font-bold">{formatPercent(rBrut)}</p>
+            <p className="text-lg font-bold">{formatPercent(rBrutTheo)}</p>
+            {showMax && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Max : </span>
+                <span className="font-medium">{formatPercent(rBrut)}</span>
+              </p>
+            )}
             {showUtilise && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rBrutUtilise)}</span>
               </p>
             )}
-            {simKpis && showSimInitiale && (
-              <p className="text-[10px] mt-auto pt-1">
-                <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className="font-medium">{formatPercent(simKpis.rendementBrut)}</span>
-              </p>
-            )}
           </CardContent>
         </Card>
       </CfTooltip>
       <CfTooltip rows={[
-        { label: "Loyer annuel", value: fc(revenuAnnuel) },
+        { label: "Loyer annuel (avec vacance)", value: fc(revenuAnnuelAvecVac) },
         { label: "Charges annuelles", value: `-${fc(chargesAnnuelles)}`, color: "text-amber-600" },
         { label: "Cout total du projet", value: fc(coutTotal) },
         { separator: true, label: "", value: "" },
-        { label: "Rendement", value: formatPercent(rNet), bold: true },
+        { label: "Rendement theorique", value: formatPercent(rNetTheo), bold: true },
+        ...(showMax
+          ? [
+              { separator: true as const, label: "", value: "" },
+              { label: "Loyer annuel (pleine occ.)", value: fc(revenuMensuelMaxEff * 12) },
+              { label: "Rendement max", value: formatPercent(rNet), bold: true },
+            ]
+          : []),
         ...(showUtilise
           ? [
               { separator: true as const, label: "", value: "" },
               { label: "Capital utilise actuel", value: fc(capitalUtiliseActuel!) },
-              { label: "Rendement sur capital utilise", value: formatPercent(rNetUtilise), bold: true },
+              { label: "Sur capital utilise", value: formatPercent(rNetUtilise), bold: true },
+            ]
+          : []),
+        ...(simKpis
+          ? [
+              { separator: true as const, label: "", value: "" },
+              { label: "Simulation initiale", value: formatPercent(simKpis.rendementNet) },
             ]
           : []),
       ]}>
         <Card className="border-dotted h-full">
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement net</p>
-            <p className="text-lg font-bold">{formatPercent(rNet)}</p>
+            <p className="text-lg font-bold">{formatPercent(rNetTheo)}</p>
+            {showMax && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Max : </span>
+                <span className="font-medium">{formatPercent(rNet)}</span>
+              </p>
+            )}
             {showUtilise && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rNetUtilise)}</span>
               </p>
             )}
-            {simKpis && showSimInitiale && (
-              <p className="text-[10px] mt-auto pt-1">
-                <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className="font-medium">{formatPercent(simKpis.rendementNet)}</span>
-              </p>
-            )}
           </CardContent>
         </Card>
       </CfTooltip>
     </div>
-    {simKpis && (
-      <button
-        type="button"
-        onClick={() => setShowSimInitiale((v) => !v)}
-        className="inline-flex items-center gap-2 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none"
-        title={showSimInitiale ? "Masquer la simulation initiale" : "Afficher la simulation initiale"}
-        aria-pressed={showSimInitiale}
-      >
-        <span
-          className={`relative block shrink-0 rounded-full transition-colors ${
-            showSimInitiale ? "bg-primary/60" : "bg-muted-foreground/25"
-          }`}
-          style={{ width: 22, height: 12 }}
-        >
-          <span
-            className="absolute rounded-full bg-background shadow transition-all"
-            style={{
-              width: 8,
-              height: 8,
-              top: 2,
-              left: showSimInitiale ? 12 : 2,
-            }}
-          />
-        </span>
-        <span className="leading-none">Simulation initiale</span>
-      </button>
-    )}
     </div>
   );
 }
