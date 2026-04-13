@@ -185,7 +185,7 @@ function BreakdownTooltip({ active, payload, label, showSimule, showOptimum, sho
       {sim && (
         <div style={{ marginBottom: opt || real ? 8 : 0 }}>
           <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            Simule (avant impot)
+            Simulation Initiale (avant impot)
           </div>
           <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
           <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
@@ -293,7 +293,12 @@ function SimSnapshotBlock({
   const history = property.simulationSnapshotHistory ?? [];
 
   // Valeurs effectives : overrides si presents, sinon snapshot derive.
-  type NumField = "loyerMensuelTotal" | "coutTotal" | "apport" | "emprunt" | "mensualiteCredit" | "chargesAnnuelles" | "cashFlowMensuelA1" | "rendementBrut" | "rendementNet" | "tri";
+  type NumField =
+    | "loyerMensuelTotal" | "coutTotal" | "apport" | "emprunt"
+    | "mensualiteCredit" | "chargesAnnuelles" | "cashFlowMensuelA1"
+    | "rendementBrut" | "rendementNet" | "tri"
+    | "prixAchat" | "montantTravaux" | "fraisNotaire"
+    | "tauxCredit" | "dureeCredit" | "differeMois" | "tauxVacance";
   const getVal = (f: NumField): number => {
     const o = overrides[f];
     if (typeof o === "number") return o;
@@ -339,6 +344,14 @@ function SimSnapshotBlock({
     "apport",
     "emprunt",
     "chargesAnnuelles",
+    // Parametres simulation — editables et patches dans les inputs
+    "prixAchat",
+    "montantTravaux",
+    "fraisNotaire",
+    "tauxCredit",
+    "dureeCredit",
+    "differeMois",
+    "tauxVacance",
   ]);
 
   // Helper : construit les props pour un EditableField a partir d'un champ numerique.
@@ -529,6 +542,130 @@ function SimSnapshotBlock({
             </div>
           </dl>
 
+          {/* Parametres de la simulation — editables en mode deverrouille */}
+          <div className="pt-2 mt-1 border-t border-dotted border-muted-foreground/15">
+            <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+              Parametres
+            </p>
+            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px]">
+              <div className="flex justify-between items-center gap-2">
+                <dt className="text-muted-foreground">Prix / Travaux</dt>
+                <dd className="font-medium tabular-nums">
+                  <EditableInline
+                    value={getVal("prixAchat")}
+                    isOverridden={overrides.prixAchat !== undefined}
+                    original={snapshot.prixAchat}
+                    onCommit={(n) => setField("prixAchat", n)}
+                    onReset={() => resetField("prixAchat")}
+                    locked={locked}
+                    format={(v) => formatCurrency(v)}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="prixAchat"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                  {" / "}
+                  <EditableInline
+                    value={getVal("montantTravaux")}
+                    isOverridden={overrides.montantTravaux !== undefined}
+                    original={snapshot.montantTravaux}
+                    onCommit={(n) => setField("montantTravaux", n)}
+                    onReset={() => resetField("montantTravaux")}
+                    locked={locked}
+                    format={(v) => formatCurrency(v)}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="montantTravaux"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                </dd>
+              </div>
+              <EditableField label="Frais notaire" {...editableProps("fraisNotaire", (v) => formatCurrency(v))} />
+              <div className="flex justify-between items-center gap-2">
+                <dt className="text-muted-foreground">Taux / Duree credit</dt>
+                <dd className="font-medium tabular-nums">
+                  <EditableInline
+                    value={getVal("tauxCredit") * 100}
+                    isOverridden={overrides.tauxCredit !== undefined}
+                    original={snapshot.tauxCredit * 100}
+                    onCommit={(n) => setField("tauxCredit", n / 100)}
+                    onReset={() => resetField("tauxCredit")}
+                    locked={locked}
+                    format={(v) => `${v.toFixed(2)} %`}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="tauxCredit"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                  {" / "}
+                  <EditableInline
+                    value={getVal("dureeCredit")}
+                    isOverridden={overrides.dureeCredit !== undefined}
+                    original={snapshot.dureeCredit}
+                    onCommit={(n) => setField("dureeCredit", n)}
+                    onReset={() => resetField("dureeCredit")}
+                    locked={locked}
+                    format={(v) => `${v} ans`}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="dureeCredit"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                </dd>
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <dt className="text-muted-foreground">Mensualite credit</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.mensualiteCredit)}/m</dd>
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <dt className="text-muted-foreground">Type pret / Differe</dt>
+                <dd className="font-medium">
+                  <span>{snapshot.typePret === "amortissable" ? "Amortissable" : "In fine"}</span>
+                  {" · "}
+                  <EditableInline
+                    value={getVal("differeMois")}
+                    isOverridden={overrides.differeMois !== undefined}
+                    original={snapshot.differeMois}
+                    onCommit={(n) => setField("differeMois", Math.max(0, Math.round(n)))}
+                    onReset={() => resetField("differeMois")}
+                    locked={locked}
+                    format={(v) => `${v}m`}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="differeMois"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                </dd>
+              </div>
+              <div className="flex justify-between items-center gap-2">
+                <dt className="text-muted-foreground">Vacance / Regime</dt>
+                <dd className="font-medium tabular-nums">
+                  <EditableInline
+                    value={getVal("tauxVacance") * 100}
+                    isOverridden={overrides.tauxVacance !== undefined}
+                    original={snapshot.tauxVacance * 100}
+                    onCommit={(n) => setField("tauxVacance", Math.max(0, Math.min(100, n)) / 100)}
+                    onReset={() => resetField("tauxVacance")}
+                    locked={locked}
+                    format={(v) => `${v.toFixed(1)} %`}
+                    editingField={editingField}
+                    setEditingField={setEditingField}
+                    fieldKey="tauxVacance"
+                    draft={draft}
+                    setDraft={setDraft}
+                  />
+                  {" / "}
+                  <span>{snapshot.regimeFiscal.toUpperCase()}</span>
+                </dd>
+              </div>
+            </dl>
+          </div>
+
           {history.length > 0 && (
             <div className="border-t border-dashed border-muted-foreground/15 pt-2">
               <button
@@ -702,6 +839,7 @@ interface SimSnapshot {
   savedAt: string;
   prixAchat: number;
   montantTravaux: number;
+  fraisNotaire: number;
   loyerMensuelTotal: number;
   loyerAnnuelBrut: number;
   loyerAnnuelNet: number;
@@ -720,6 +858,13 @@ interface SimSnapshot {
   tri: number;
   apport: number;
   emprunt: number;
+  // Parametres de la simulation (inputs)
+  tauxCredit: number;       // fraction (0.035 = 3.5%)
+  dureeCredit: number;      // annees
+  differeMois: number;
+  typePret: string;
+  tauxVacance: number;      // fraction
+  regimeFiscal: string;
 }
 
 export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty }: Props) {
@@ -793,6 +938,17 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         inputs.gestionLocativePct = 0;
         inputs.autresChargesAnnuelles = ov.chargesAnnuelles;
       }
+      // Parametres simulation (inputs bruts)
+      if (typeof ov.prixAchat === "number") inputs.prixAchat = ov.prixAchat;
+      if (typeof ov.montantTravaux === "number") inputs.montantTravaux = ov.montantTravaux;
+      if (typeof ov.fraisNotaire === "number" && inputs.prixAchat > 0) {
+        // Recalcule le pourcentage pour matcher le montant force.
+        inputs.fraisNotairePct = ov.fraisNotaire / inputs.prixAchat;
+      }
+      if (typeof ov.tauxCredit === "number") inputs.tauxCredit = ov.tauxCredit;
+      if (typeof ov.dureeCredit === "number") inputs.dureeCredit = ov.dureeCredit;
+      if (typeof ov.differeMois === "number") inputs.differePretMois = ov.differeMois;
+      if (typeof ov.tauxVacance === "number") inputs.tauxVacance = ov.tauxVacance;
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
       // ── Optimum : meme simulation mais SANS vacance locative (pleine occupation) ──
@@ -810,6 +966,13 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         savedAt: sim.savedAt,
         prixAchat: inputs.prixAchat,
         montantTravaux: inputs.montantTravaux,
+        fraisNotaire: inputs.prixAchat * inputs.fraisNotairePct,
+        tauxCredit: inputs.tauxCredit,
+        dureeCredit: inputs.dureeCredit,
+        differeMois: inputs.differePretMois ?? 0,
+        typePret: inputs.typePret,
+        tauxVacance: inputs.tauxVacance ?? 0,
+        regimeFiscal: inputs.regimeFiscal,
         loyerMensuelTotal,
         loyerAnnuelBrut: results.loyerAnnuelBrut,
         loyerAnnuelNet: results.loyerAnnuelNet,
@@ -1095,7 +1258,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             {showSimule && (
-              <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
+              <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simulation Initiale (avant impot)" />
             )}
             {hasOptimumDelta && showOptimum && (
               <Line yAxisId="simule" type="monotone" dataKey="optimum" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 1.5 }} name="Optimum (sans vacance)" connectNulls={false} />
@@ -1108,22 +1271,16 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         </ResponsiveContainer>
         <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
           <p className="text-[10px] text-muted-foreground leading-relaxed flex-1 min-w-0">
-            {operating && realByYear.length > 0 ? (
-              <>
-                La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
-                ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
-                {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
-              </>
-            ) : !operating ? (
+            {!operating ? (
               <>
                 <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> le bien n&apos;est pas encore en location — elle s&apos;affichera des
                 que le bien sera en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
               </>
-            ) : (
+            ) : realByYear.length === 0 ? (
               <>
                 <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> aucun loyer percu saisi pour ce bien. Utilisez &quot;Suivi loyers&quot; pour renseigner les encaissements.
               </>
-            )}
+            ) : null}
           </p>
           <RvsCurvesInfo />
         </div>

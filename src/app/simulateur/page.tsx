@@ -323,8 +323,20 @@ function SimulateurContent() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => {
-                  const id = simulationToBien(inputs, setData, activeSimId ?? undefined);
+                onClick={async () => {
+                  // Garantit que la simulation est sauvegardee AVANT de creer
+                  // le bien — sinon property.simulationId reste undefined et
+                  // le "Snapshot simulation initiale" ne peut pas s'afficher.
+                  let simId = activeSimId;
+                  let inputsWithId = inputs;
+                  if (!simId) {
+                    const sim = await saveSimulation(inputs.nomSimulation, inputs);
+                    simId = sim.id;
+                    inputsWithId = { ...inputs, id: sim.id };
+                    setInputs(inputsWithId);
+                    setSimulations(loadSimulations());
+                  }
+                  const id = simulationToBien(inputsWithId, setData, simId);
                   toast.success("Bien cree a partir de la simulation");
                   router.push(`/biens?id=${id}`);
                 }}
