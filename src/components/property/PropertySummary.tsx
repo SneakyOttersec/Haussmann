@@ -8,6 +8,7 @@ import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
 import { calculerRentabilite } from "@/lib/calculations";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
@@ -574,6 +575,44 @@ export function PropertySummary({
         </Card>
       </CfTooltip>
     </div>
+
+    {/* Bouton "Information" qui revele les definitions en grille 2 colonnes. */}
+    {(() => {
+      const defs: { label: string; desc: string }[] = [
+        { label: "Actuel", desc: "Loyer percu, charges payees et mensualite credit en cours ce mois-ci." },
+        { label: "Theorique", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
+      ];
+      if (showMax) defs.push({ label: "Max", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance)." });
+      if (showSurUtilise) defs.push({ label: "Sur capital utilise", desc: "Recalcule sur le capital reellement tire (principal moins les travaux non encore tires)." });
+      if (hasDiffere) defs.push({ label: "Apres differe", desc: "Mensualite d'amortissement une fois le differe termine." });
+      if (simKpis) defs.push({ label: "Simulation initiale", desc: "Valeur projetee par la simulation dont ce bien est issu (annee 1)." });
+      return (
+        <Tooltip>
+          <TooltipTrigger render={
+            <button
+              type="button"
+              className="mt-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-help"
+            />
+          }>
+            <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[9px] leading-none">?</span>
+            Information
+          </TooltipTrigger>
+          <TooltipContent
+            side="bottom"
+            className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+          >
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
+              {defs.map((d) => (
+                <div key={d.label} className="space-y-0.5">
+                  <div className="font-bold">{d.label}</div>
+                  <div className="text-muted-foreground leading-snug">{d.desc}</div>
+                </div>
+              ))}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      );
+    })()}
     </div>
   );
 }
