@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { CalculatorResults as Results, Associe } from "@/types";
+import type { CalculatorResults as Results, CalculatorInputs, Associe } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { calculerTRI } from "@/lib/calculations/irr";
+import { plusValueSortie } from "@/lib/calculations/regimes";
+import { toRegimeFiscalType } from "@/types";
 
 interface CalculatorResultsProps {
   results: Results;
+  inputs?: CalculatorInputs;
   associes?: Associe[];
   differePretMois?: number;
 }
@@ -59,12 +62,74 @@ function DetailRow({ label, value, color }: { label: string; value: string; colo
   );
 }
 
-export function CalculatorResultsPanel({ results, associes, differePretMois }: CalculatorResultsProps) {
-  const cfSign = results.cashFlowMensuelApresImpot >= 0 ? "positive" : "negative";
+export function CalculatorResultsPanel({ results, inputs, associes, differePretMois }: CalculatorResultsProps) {
+  // cfSign recalcule plus bas a partir de avgCashFlowApresImpot (duree du credit).
   const r = results;
   const [triAnnee, setTriAnnee] = useState(10);
   const [showTriTooltip, setShowTriTooltip] = useState(false);
   const [showTriProjetTooltip, setShowTriProjetTooltip] = useState(false);
+
+  // Pre-calcule l'impot sur la plus-value a la revente pour l'horizon choisi
+  // afin d'inclure cette charge dans le TRI investisseur (alignement avec la
+  // comparaison fiscale).
+  const impotPVSortie = useMemo(() => {
+    if (!inputs) return 0;
+    const n = Math.min(triAnnee, r.projection.length);
+    if (n < 1) return 0;
+    const last = r.projection[n - 1];
+    if (!last) return 0;
+    const regime = toRegimeFiscalType(inputs.regimeFiscal);
+    const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
+    // Pour IS/LMNP reel, on a besoin du cumul d'amortissement a la sortie.
+    // Approximation : cumul = somme des amortissements sur les annees projetees.
+    // YearProjection n'expose pas l'amort par annee — on utilise 0 en fallback
+    // pour IR (pas de reintegration) et la methode simple pour IS/LMNP.
+    const amortCumule = (regime === "is" || regime === "lmnp_reel")
+      ? (inputs.prixAchat * 0.80 / 30) * n + (inputs.montantTravaux / 18) * n + (inputs.montantMobilierTotal / 7) * n
+      : 0;
+    const pv = plusValueSortie(
+      regime,
+      inputs.prixAchat,
+      inputs.montantTravaux,
+      fraisNotaire,
+      last.valeurBien,
+      amortCumule,
+      n,
+    );
+    return pv.impotPV;
+  }, [inputs, r.projection, triAnnee]);
+
+  // Cash flow mensuel moyen sur toute la duree du credit (pas seulement A1).
+  // Intègre le differe (ou sa mensualite plus basse) et les annees d'amortissement
+  // complet, ce qui donne une vue plus fiable qu'A1 qui est souvent trompeur
+  // (differe = interets seuls).
+  const loanTotalYears = useMemo(() => {
+    if (!inputs) return 0;
+    const dM = inputs.differePretMois ?? 0;
+    const totalMois = inputs.dureeCredit * 12 + (inputs.differePretInclus ? 0 : dM);
+    return Math.ceil(totalMois / 12);
+  }, [inputs]);
+
+  const avgCashFlowApresImpot = useMemo(() => {
+    const n = Math.min(loanTotalYears || r.projection.length, r.projection.length);
+    if (n < 1) return { annuel: 0, mensuel: 0, years: 0, avantImpotAnnuel: 0, avantImpotMensuel: 0, impotMoyen: 0 };
+    let sum = 0;
+    let sumAvant = 0;
+    let sumImpot = 0;
+    for (let i = 0; i < n; i++) {
+      sum += r.projection[i]?.cashFlowApresImpot ?? 0;
+      sumAvant += r.projection[i]?.cashFlowAvantImpot ?? 0;
+      sumImpot += r.projection[i]?.impot ?? 0;
+    }
+    return {
+      annuel: sum / n,
+      mensuel: sum / n / 12,
+      years: n,
+      avantImpotAnnuel: sumAvant / n,
+      avantImpotMensuel: sumAvant / n / 12,
+      impotMoyen: sumImpot / n,
+    };
+  }, [r.projection, loanTotalYears]);
 
   const triCustom = useMemo(() => {
     const n = Math.min(triAnnee, r.projection.length);
@@ -75,11 +140,13 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
       if (i < n - 1) {
         cfs.push(p.cashFlowApresImpot);
       } else {
-        cfs.push(p.cashFlowApresImpot + p.valeurBien - p.capitalRestantDu);
+        // Revente : deduction de l'impot sur la plus-value (cohereent avec
+        // la comparaison fiscale).
+        cfs.push(p.cashFlowApresImpot + p.valeurBien - p.capitalRestantDu - impotPVSortie);
       }
     }
     return calculerTRI(cfs);
-  }, [r, triAnnee]);
+  }, [r, triAnnee, impotPVSortie]);
 
   const triProjet = useMemo(() => {
     const n = Math.min(triAnnee, r.projection.length);
@@ -97,18 +164,6 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
     return calculerTRI(cfs);
   }, [r, triAnnee]);
 
-  // Compute net-net at different time points
-  const netNetAt = (yr: number) => {
-    const p = r.projection[yr - 1];
-    if (!p) return 0;
-    return r.coutTotalAcquisition > 0
-      ? ((p.loyerNet - p.charges - p.impot) / r.coutTotalAcquisition) * 100
-      : 0;
-  };
-  const nn1 = netNetAt(1);
-  const nn10 = netNetAt(Math.min(10, r.projection.length));
-  const nn21 = netNetAt(Math.min(21, r.projection.length));
-
   const tooltips: Record<string, KpiTooltip> = {
     rdtBrut: {
       formula: "Loyer annuel brut\n/ Cout total d'acquisition\n× 100",
@@ -118,21 +173,17 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
       formula: "(Loyer annuel net - Charges annuelles)\n/ Cout total d'acquisition\n× 100",
       applied: `(${eur(r.loyerAnnuelNet)} - ${eur(r.chargesAnnuellesTotales)})\n/ ${eur(r.coutTotalAcquisition)}\n= ${eur(r.loyerAnnuelNet - r.chargesAnnuellesTotales)} / ${eur(r.coutTotalAcquisition)}\n= ${formatPercent(r.rendementNet)}`,
     },
-    rdtNetNet: {
-      formula: "(Loyer net - Charges - Impots)\n/ Cout total d'acquisition × 100\n\nEvolue dans le temps car l'impot\nchange avec les interets d'emprunt.",
-      applied: `A1:  ${formatPercent(nn1)}${r.projection[0]?.impot === 0 ? " (pas d'impot)" : ""}\nA${Math.min(10, r.projection.length)}: ${formatPercent(nn10)}\nA${Math.min(21, r.projection.length)}: ${formatPercent(nn21)}`,
-    },
     cashFlow: {
-      formula: "(Loyer net - Credit - Charges - Impots)\n/ 12",
-      applied: `(${eur(r.loyerAnnuelNet)} - ${eur(r.mensualiteCredit * 12)} - ${eur(r.chargesAnnuellesTotales)} - ${eur(r.impotAnnuel)})\n/ 12\n= ${eur(r.cashFlowAnnuelApresImpot)} / 12\n= ${formatCurrency(r.cashFlowMensuelApresImpot)}/mois`,
+      formula: `Moyenne du cash flow apres impot\nsur toute la duree du credit\n(${avgCashFlowApresImpot.years} ans, incluant differe et amortissement).\n\n= somme(cashFlowApresImpot annuel)\n  / nb annees / 12`,
+      applied: `Somme CF apres impot: ${eur(avgCashFlowApresImpot.annuel * avgCashFlowApresImpot.years)}\nSur ${avgCashFlowApresImpot.years} ans\n= ${eur(avgCashFlowApresImpot.annuel)}/an\n= ${formatCurrency(avgCashFlowApresImpot.mensuel)}/mois (moyenne)`,
     },
     taeg: {
       formula: "Taux annuel effectif global\n= Taux nominal + cout assurance\ncalcule par methode actuarielle\n(Newton-Raphson)",
       applied: `Mensualite totale: ${formatCurrency(r.mensualiteCredit, true)}/mois\nTAEG = ${formatPercent(r.taeg)}`,
     },
     triInvestisseur: {
-      formula: `Avec levier (point de vue associe)\n\nMise de depart = apport personnel\nFlux annuels = cash flow apres impot\nSortie = cash flow + revente - dette restante`,
-      applied: `Mise de depart: ${eur(r.apportPersonnel)}\nFlux an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nRevente A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\nDette restante A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.capitalRestantDu ?? 0)}\n\n→ TRI = ${formatPercent(triCustom)}`,
+      formula: `Avec levier (point de vue associe)\n\nMise de depart = apport personnel\nFlux annuels = cash flow apres impot\nSortie A${triAnnee} = cash flow + (valeur bien − dette restante) − impot sur la plus-value`,
+      applied: `Mise de depart: ${eur(r.apportPersonnel)}\nFlux an 1: ${eur(r.projection[0]?.cashFlowApresImpot ?? 0)}\nValeur bien A${triAnnee}: ${eur(r.projection[triAnnee - 1]?.valeurBien ?? 0)}\n− Dette restante: ${eur(r.projection[triAnnee - 1]?.capitalRestantDu ?? 0)}\n− Impot plus-value: ${eur(impotPVSortie)}\n\n→ TRI = ${formatPercent(triCustom)}`,
     },
     triProjet: {
       formula: `Sans levier (rentabilite du bien)\n\nMise de depart = cout total acquisition\nFlux annuels = loyers nets - charges\nSortie = flux + revente du bien`,
@@ -144,11 +195,15 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
     <div className="space-y-5">
       {/* KPI band */}
       <div className="border border-dotted rounded-lg p-5">
-        <div className="grid grid-cols-3 sm:grid-cols-7 gap-4">
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-4">
           <Kpi label="Rdt brut" value={formatPercent(r.rendementBrut)} tooltip={tooltips.rdtBrut} />
           <Kpi label="Rdt net" value={formatPercent(r.rendementNet)} tooltip={tooltips.rdtNet} />
-          <Kpi label="Rdt net-net A1" value={formatPercent(nn1)} tooltip={tooltips.rdtNetNet} />
-          <Kpi label="Cash flow/m" value={formatCurrency(r.cashFlowMensuelApresImpot)} accent={cfSign} tooltip={tooltips.cashFlow} />
+          <Kpi
+            label="Cash flow/m (moy.)"
+            value={formatCurrency(avgCashFlowApresImpot.mensuel)}
+            accent={avgCashFlowApresImpot.mensuel >= 0 ? "positive" : "negative"}
+            tooltip={tooltips.cashFlow}
+          />
           <Kpi label="TAEG" value={formatPercent(r.taeg)} tooltip={tooltips.taeg} />
           <div className="text-center col-span-2">
             <div className="flex items-center justify-center gap-1 mb-0.5">
@@ -231,9 +286,19 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
             ) : (
               <DetailRow label="Mensualite (credit + assurance)" value={formatCurrency(r.mensualiteCredit, true)} />
             )}
-            <DetailRow label="Cash flow mensuel avant impot" value={formatCurrency(r.cashFlowMensuelAvantImpot)} />
-            <DetailRow label="Impot annuel estime" value={formatCurrency(r.impotAnnuel)} />
-            <DetailRow label="Cash flow annuel apres impot" value={formatCurrency(r.cashFlowAnnuelApresImpot)} color={r.cashFlowAnnuelApresImpot >= 0 ? "text-green-600" : "text-destructive"} />
+            <DetailRow
+              label={`Cash flow mensuel avant impot (moy. ${avgCashFlowApresImpot.years}a)`}
+              value={formatCurrency(avgCashFlowApresImpot.avantImpotMensuel)}
+            />
+            <DetailRow
+              label={`Impot annuel moyen (${avgCashFlowApresImpot.years}a)`}
+              value={formatCurrency(avgCashFlowApresImpot.impotMoyen)}
+            />
+            <DetailRow
+              label={`Cash flow annuel apres impot (moy. ${avgCashFlowApresImpot.years}a)`}
+              value={formatCurrency(avgCashFlowApresImpot.annuel)}
+              color={avgCashFlowApresImpot.annuel >= 0 ? "text-green-600" : "text-destructive"}
+            />
           </div>
         </div>
       </div>
@@ -257,9 +322,9 @@ export function CalculatorResultsPanel({ results, associes, differePretMois }: C
               <tbody>
                 {[
                   { label: "Apport personnel", value: r.apportPersonnel },
-                  { label: "Cash flow mensuel", value: r.cashFlowMensuelApresImpot, color: true },
-                  { label: "Cash flow annuel", value: r.cashFlowAnnuelApresImpot, color: true },
-                  { label: "Impot annuel", value: r.impotAnnuel },
+                  { label: `Cash flow mensuel moyen (${avgCashFlowApresImpot.years}a)`, value: avgCashFlowApresImpot.mensuel, color: true },
+                  { label: `Cash flow annuel moyen (${avgCashFlowApresImpot.years}a)`, value: avgCashFlowApresImpot.annuel, color: true },
+                  { label: `Impot annuel moyen (${avgCashFlowApresImpot.years}a)`, value: avgCashFlowApresImpot.impotMoyen },
                 ].map((row) => (
                   <tr key={row.label} className="border-b border-dashed border-muted-foreground/10">
                     <td className="py-1.5 pr-4 text-muted-foreground">{row.label}</td>

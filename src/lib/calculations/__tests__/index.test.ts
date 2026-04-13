@@ -8,9 +8,12 @@ describe('computeYearlyFinancials', () => {
 
   it('calcule le cout total d acquisition', () => {
     const fin = computeYearlyFinancials(inputs);
+    const mobilier = (inputs.lotsMobilier ?? []).reduce((s, l) => s + l.montant, 0)
+      || inputs.montantMobilierTotal
+      || 0;
     const expectedCout = inputs.prixAchat + inputs.prixAchat * inputs.fraisNotairePct
       + inputs.fraisAgence + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0)
-      + inputs.montantTravaux;
+      + (inputs.fraisGarantie ?? 0) + inputs.montantTravaux + mobilier;
     expect(fin.coutTotalAcquisition).toBeCloseTo(expectedCout, 0);
   });
 

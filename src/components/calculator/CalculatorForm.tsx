@@ -1,6 +1,6 @@
 "use client";
 
-import type { CalculatorInputs, PropertyType, TaxRegime, LoanType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
+import type { CalculatorInputs, PropertyType, TaxRegime, LoanType, LotLoyer, LotMobilier, LotTravaux } from "@/types";
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
 import { checkFileSize } from "@/lib/utils";
@@ -60,15 +60,16 @@ function SelectField({ label, value, onChange, options }: {
   );
 }
 
-function ToggleEurPct({ label, pctValue, eurValue, onChangePct, onChangeEur, suffix }: {
+function ToggleEurPct({ label, pctValue, eurValue, onChangePct, onChangeEur, suffix, initialMode }: {
   label: string;
   pctValue: number;
   eurValue: number;
   onChangePct: (v: number) => void;
   onChangeEur: (v: number) => void;
   suffix?: string;
+  initialMode?: "pct" | "eur";
 }) {
-  const [mode, setMode] = useState<"pct" | "eur">("pct");
+  const [mode, setMode] = useState<"pct" | "eur">(initialMode ?? "pct");
   const sfx = suffix ? `EUR/${suffix}` : "EUR";
 
   return (
@@ -87,6 +88,11 @@ function ToggleEurPct({ label, pctValue, eurValue, onChangePct, onChangeEur, suf
         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
           {mode === "pct" ? "%" : "€"}
         </span>
+        {suffix && (
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">
+            /{suffix}
+          </span>
+        )}
         {mode === "pct" ? (
           <input
             type="number"
@@ -94,7 +100,7 @@ function ToggleEurPct({ label, pctValue, eurValue, onChangePct, onChangeEur, suf
             step="0.01"
             value={Math.round(pctValue * 10000) / 100 === 0 ? "0" : Math.round(pctValue * 10000) / 100 || ""}
             onChange={(e) => onChangePct((e.target.value === "" ? 0 : Number(e.target.value)) / 100)}
-            className={`${inputClass} pl-7`}
+            className={`${inputClass} pl-7 ${suffix ? "pr-9" : ""}`}
           />
         ) : (
           <input
@@ -102,7 +108,7 @@ function ToggleEurPct({ label, pctValue, eurValue, onChangePct, onChangeEur, suf
             min={0}
             value={eurValue === 0 ? "0" : eurValue || ""}
             onChange={(e) => onChangeEur(e.target.value === "" ? 0 : Number(e.target.value))}
-            className={`${inputClass} pl-7`}
+            className={`${inputClass} pl-7 ${suffix ? "pr-9" : ""}`}
           />
         )}
       </div>
@@ -292,8 +298,10 @@ function LotsEditor({ lots, onChange }: { lots: LotLoyer[]; onChange: (lots: Lot
 
 /* ── Mobilier editor ── */
 
-function MobilierEditor({ lots, onChange }: { lots: LotMobilier[]; onChange: (lots: LotMobilier[]) => void }) {
+function MobilierEditor({ lots, enveloppe, onChange }: { lots: LotMobilier[]; enveloppe: number; onChange: (lots: LotMobilier[]) => void }) {
   const total = lots.reduce((sum, l) => sum + (l.montant || 0), 0);
+  const reste = enveloppe - total;
+  const overBudget = reste < 0;
 
   const updateLot = (id: string, field: keyof LotMobilier, value: string | number) => {
     onChange(lots.map((l) => l.id === id ? { ...l, [field]: value } : l));
@@ -345,18 +353,35 @@ function MobilierEditor({ lots, onChange }: { lots: LotMobilier[]; onChange: (lo
         </button>
         {lots.length > 0 && (
           <span className="text-[11px] text-muted-foreground">
-            Total : <span className="font-bold text-foreground">{total.toLocaleString("fr-FR")} EUR</span>
+            Alloue : <span className="font-bold text-foreground">{total.toLocaleString("fr-FR")} EUR</span>
+            {enveloppe > 0 && (
+              <>
+                {" / "}
+                <span className={`font-bold ${overBudget ? "text-destructive" : "text-foreground"}`}>
+                  {enveloppe.toLocaleString("fr-FR")} EUR
+                </span>
+              </>
+            )}
           </span>
         )}
       </div>
+      {enveloppe > 0 && lots.length > 0 && reste !== 0 && (
+        <p className={`text-[10px] italic ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>
+          {overBudget
+            ? `⚠ Depassement : ${Math.abs(reste).toLocaleString("fr-FR")} EUR au-dela de l'enveloppe`
+            : `Reste a allouer : ${reste.toLocaleString("fr-FR")} EUR`}
+        </p>
+      )}
     </div>
   );
 }
 
 /* ── Travaux editor ── */
 
-function TravauxEditor({ lots, onChange }: { lots: LotTravaux[]; onChange: (lots: LotTravaux[]) => void }) {
+function TravauxEditor({ lots, enveloppe, onChange }: { lots: LotTravaux[]; enveloppe: number; onChange: (lots: LotTravaux[]) => void }) {
   const total = lots.reduce((sum, l) => sum + (l.montant || 0), 0);
+  const reste = enveloppe - total;
+  const overBudget = reste < 0;
 
   const updateLot = (id: string, field: keyof LotTravaux, value: string | number) => {
     onChange(lots.map((l) => l.id === id ? { ...l, [field]: value } : l));
@@ -405,10 +430,25 @@ function TravauxEditor({ lots, onChange }: { lots: LotTravaux[]; onChange: (lots
         </div>
         {lots.length > 0 && (
           <span className="text-[11px] text-muted-foreground">
-            Total : <span className="font-bold text-foreground">{total.toLocaleString("fr-FR")} EUR</span>
+            Alloue : <span className="font-bold text-foreground">{total.toLocaleString("fr-FR")} EUR</span>
+            {enveloppe > 0 && (
+              <>
+                {" / "}
+                <span className={`font-bold ${overBudget ? "text-destructive" : "text-foreground"}`}>
+                  {enveloppe.toLocaleString("fr-FR")} EUR
+                </span>
+              </>
+            )}
           </span>
         )}
       </div>
+      {enveloppe > 0 && lots.length > 0 && reste !== 0 && (
+        <p className={`text-[10px] italic ${overBudget ? "text-destructive" : "text-muted-foreground"}`}>
+          {overBudget
+            ? `⚠ Depassement : ${Math.abs(reste).toLocaleString("fr-FR")} EUR au-dela de l'enveloppe`
+            : `Reste a allouer : ${reste.toLocaleString("fr-FR")} EUR (amortis par defaut sur 18 ans)`}
+        </p>
+      )}
     </div>
   );
 }
@@ -443,14 +483,38 @@ export function BienCard({ inputs, onUpdate }: CalculatorFormProps) {
         )}
       </div>
 
-      <SectionLabel>Travaux</SectionLabel>
-      <TravauxEditor lots={inputs.lotsTravaux ?? []} onChange={(lots) => {
-        onUpdate("lotsTravaux", lots);
-        onUpdate("montantTravaux", lots.reduce((s, l) => s + (l.montant || 0), 0));
-      }} />
-
-      <SectionLabel>Mobilier</SectionLabel>
-      <MobilierEditor lots={inputs.lotsMobilier ?? []} onChange={(lots) => onUpdate("lotsMobilier", lots)} />
+      <SectionLabel>Travaux & Mobilier</SectionLabel>
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <NumField
+          label="Montant total travaux"
+          suffix="EUR"
+          value={inputs.montantTravaux}
+          onChange={(v) => onUpdate("montantTravaux", v)}
+        />
+        <NumField
+          label="Montant total mobilier"
+          suffix="EUR"
+          value={inputs.montantMobilierTotal}
+          onChange={(v) => onUpdate("montantMobilierTotal", v)}
+        />
+      </div>
+      <TravauxEditor
+        lots={inputs.lotsTravaux ?? []}
+        enveloppe={inputs.montantTravaux}
+        onChange={(lots) => onUpdate("lotsTravaux", lots)}
+      />
+      <p className="text-[10px] uppercase tracking-widest text-muted-foreground/70 pt-1">Mobilier</p>
+      <MobilierEditor
+        lots={inputs.lotsMobilier ?? []}
+        enveloppe={inputs.montantMobilierTotal}
+        onChange={(lots) => onUpdate("lotsMobilier", lots)}
+      />
+      <div className="flex items-center justify-between pt-2 text-[11px] border-t border-dashed border-muted-foreground/20">
+        <span className="text-muted-foreground">Total travaux + mobilier</span>
+        <span className="font-bold tabular-nums">
+          {(inputs.montantTravaux + inputs.montantMobilierTotal).toLocaleString("fr-FR")} EUR
+        </span>
+      </div>
 
       <SectionLabel>Loyers mensuels</SectionLabel>
       <LotsEditor lots={inputs.lots ?? []} onChange={(lots) => onUpdate("lots", lots)} />
@@ -631,20 +695,21 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
             ]}
           />
         )}
-        <SelectField
+        <ToggleEurPct
           label="Assurance pret"
-          value={inputs.assurancePretMode}
-          onChange={(v) => onUpdate("assurancePretMode", v as AssurancePretMode)}
-          options={[
-            { value: "eur", label: "EUR/an" },
-            { value: "pct", label: "% capital" },
-          ]}
+          suffix="an"
+          initialMode={inputs.assurancePretMode === "eur" ? "eur" : "pct"}
+          pctValue={inputs.assurancePretPct}
+          eurValue={inputs.assurancePretAnnuelle}
+          onChangePct={(v) => {
+            onUpdate("assurancePretMode", "pct");
+            onUpdate("assurancePretPct", v);
+          }}
+          onChangeEur={(v) => {
+            onUpdate("assurancePretMode", "eur");
+            onUpdate("assurancePretAnnuelle", v);
+          }}
         />
-        {inputs.assurancePretMode === "eur" ? (
-          <NumField label="Assurance" suffix="EUR/an" value={inputs.assurancePretAnnuelle} onChange={(v) => onUpdate("assurancePretAnnuelle", v)} />
-        ) : (
-          <NumField label="Taux assurance" suffix="%" step="0.01" value={Math.round(inputs.assurancePretPct * 10000) / 100} onChange={(v) => onUpdate("assurancePretPct", v / 100)} />
-        )}
         <NumField label="Frais de dossier" suffix="EUR" value={inputs.fraisDossier} onChange={(v) => onUpdate("fraisDossier", v)} />
         <NumField label="Frais de courtage" suffix="EUR" value={inputs.fraisCourtage} onChange={(v) => onUpdate("fraisCourtage", v)} />
         <NumField label="Frais de garantie" suffix="EUR" value={inputs.fraisGarantie} onChange={(v) => onUpdate("fraisGarantie", v)} />
@@ -712,6 +777,13 @@ function AmortissementSummary({ inputs }: { inputs: CalculatorInputs }) {
     if (lot.montant > 0) {
       lines.push({ label: lot.nom, montant: lot.montant, duree: lot.dureeAmortissement, annuel: lot.montant / lot.dureeAmortissement });
     }
+  }
+  // Residu non detaille : montantTravaux > somme des lots → amorti par defaut
+  // sur 18 ans (compromis entre travaux courants et lourds).
+  const sumLotsTravaux = lotsTravaux.reduce((s, l) => s + (l.montant || 0), 0);
+  const residuTravaux = Math.max(0, inputs.montantTravaux - sumLotsTravaux);
+  if (residuTravaux > 0) {
+    lines.push({ label: "Travaux (non detailles)", montant: residuTravaux, duree: 18, annuel: residuTravaux / 18 });
   }
 
   const totalAn1 = lines.reduce((s, l) => s + l.annuel, 0);

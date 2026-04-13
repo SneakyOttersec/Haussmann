@@ -154,8 +154,12 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
     : inputs.loyerMensuel;
 
   const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
+  const mobilierTotal = (inputs.lotsMobilier ?? []).reduce((s, l) => s + (l.montant || 0), 0)
+    || inputs.montantMobilierTotal
+    || 0;
   const coutTotalAcquisition = inputs.prixAchat + fraisNotaire + inputs.fraisAgence
-    + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + inputs.montantTravaux;
+    + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + (inputs.fraisGarantie ?? 0)
+    + inputs.montantTravaux + mobilierTotal;
 
   const assuranceAnnuelle = resolveAssuranceAnnuelle(inputs);
   const assuranceMensuelle = assuranceAnnuelle / 12;
