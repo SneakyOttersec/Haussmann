@@ -104,6 +104,7 @@ interface ChartPoint {
   optimum: number | null;
   reel: number | null;
   simBreakdown: SimBreakdown;
+  optBreakdown: SimBreakdown | null;
   realBreakdown: RealBreakdown | null;
 }
 
@@ -154,6 +155,7 @@ function BreakdownTooltip({ active, payload, label }: any) {
   const point = payload[0]?.payload as ChartPoint | undefined;
   if (!point) return null;
   const sim = point.simBreakdown;
+  const opt = point.optBreakdown;
   const real = point.realBreakdown;
   const ecart = real ? real.cashFlow - sim.cashFlowAvantImpot : 0;
 
@@ -173,7 +175,7 @@ function BreakdownTooltip({ active, payload, label }: any) {
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
 
       {/* Simule */}
-      <div style={{ marginBottom: real ? 8 : 0 }}>
+      <div style={{ marginBottom: opt || real ? 8 : 0 }}>
         <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
           Simule (avant impot)
         </div>
@@ -186,6 +188,39 @@ function BreakdownTooltip({ active, payload, label }: any) {
         />
         <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
       </div>
+
+      {/* Optimum */}
+      {opt && (
+        <div style={{ marginBottom: real ? 8 : 0 }}>
+          <div style={{ color: "#a855f7", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+            Optimum (pleine occupation)
+          </div>
+          <TooltipRow label="Loyer net" value={opt.loyerNet} color="#16a34a" />
+          <TooltipRow label="− Charges" value={-opt.charges} color="#fb923c" />
+          <TooltipRow
+            label={opt.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
+            value={-opt.mensualitesCredit}
+            color={opt.isDiffere ? "#f59e0b" : "#60a5fa"}
+          />
+          <TooltipTotal label="= Cash flow" value={opt.cashFlowAvantImpot} />
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 16,
+              marginTop: 4,
+              fontSize: 10,
+              color: "#737373",
+            }}
+          >
+            <span>vs Simule :</span>
+            <span style={{ color: opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
+              {opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
+              {fmtEur(opt.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Reel — only on the matching year */}
       {real && (
@@ -847,6 +882,16 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         isDiffere: i < years - 1 && p.mensualitesCredit > 0 &&
           p.mensualitesCredit < projection[years - 1].mensualitesCredit * 0.9,
       },
+      optBreakdown: hasOptimumDelta && pOpt
+        ? {
+            loyerNet: Math.round(pOpt.loyerNet),
+            charges: Math.round(pOpt.charges),
+            mensualitesCredit: Math.round(pOpt.mensualitesCredit),
+            cashFlowAvantImpot: Math.round(pOpt.cashFlowAvantImpot),
+            isDiffere: i < years - 1 && pOpt.mensualitesCredit > 0 &&
+              pOpt.mensualitesCredit < projectionOptimum![years - 1].mensualitesCredit * 0.9,
+          }
+        : null,
       realBreakdown: realYear
         ? {
             loyersPercus: Math.round(realYear.breakdown.loyersPercus),
