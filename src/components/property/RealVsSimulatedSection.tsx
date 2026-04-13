@@ -5,7 +5,7 @@ import type { Property, Income, Expense, LoanDetails, RentMonthEntry, YearProjec
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
-import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
+import { formatCurrency, formatPercent, getPropertyAcquisitionDate } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
 
 /** Real cash flow only makes sense once the property is generating rent (location or beyond). */
@@ -177,8 +177,26 @@ function BreakdownTooltip({ active, payload, label }: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+interface SimSnapshot {
+  nomSimulation: string;
+  savedAt: string;
+  prixAchat: number;
+  montantTravaux: number;
+  loyerMensuelTotal: number;
+  coutTotal: number;
+  mensualiteCredit: number;
+  chargesAnnuelles: number;
+  rendementBrut: number;
+  rendementNet: number;
+  cashFlowMensuelA1: number;
+  tri: number;
+  apport: number;
+  emprunt: number;
+}
+
 export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
+  const [snapshot, setSnapshot] = useState<SimSnapshot | null>(null);
   // Counter bumped to force-reload the simulation from localStorage.
   // Incremented by a "Recharger" button so the user can pull fresh data
   // after editing the simulation in the simulator.
@@ -212,6 +230,25 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       }
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
+      const loyerMensuelTotal = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)
+        || inputs.loyerMensuel
+        || 0;
+      setSnapshot({
+        nomSimulation: sim.nom || inputs.nomSimulation || "Simulation initiale",
+        savedAt: sim.savedAt,
+        prixAchat: inputs.prixAchat,
+        montantTravaux: inputs.montantTravaux,
+        loyerMensuelTotal,
+        coutTotal: results.coutTotalAcquisition,
+        mensualiteCredit: results.mensualiteCredit,
+        chargesAnnuelles: results.chargesAnnuellesTotales,
+        rendementBrut: results.rendementBrut,
+        rendementNet: results.rendementNet,
+        cashFlowMensuelA1: results.cashFlowMensuelAvantImpot,
+        tri: results.tri,
+        apport: results.apportPersonnel,
+        emprunt: inputs.montantEmprunte,
+      });
     });
   }, [property.simulationId, reloadKey, loan]);
 
@@ -406,6 +443,59 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             </>
           )}
         </p>
+
+        {/* Snapshot de la simulation initiale : compact, en bas */}
+        {snapshot && (
+          <div className="mt-4 pt-3 border-t border-dashed border-muted-foreground/15">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                Snapshot simulation initiale
+              </p>
+              <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[60%]" title={snapshot.nomSimulation}>
+                {snapshot.nomSimulation}
+                {snapshot.savedAt && (
+                  <> · {new Date(snapshot.savedAt).toLocaleDateString("fr-FR")}</>
+                )}
+              </span>
+            </div>
+            <dl className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[11px]">
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Loyer mensuel</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.loyerMensuelTotal)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Cout total</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.coutTotal)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Apport / Emprunt</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.apport)} / {formatCurrency(snapshot.emprunt)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Mensualite credit</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.mensualiteCredit)}/m</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Charges annuelles</dt>
+                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.chargesAnnuelles)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Cash flow A1</dt>
+                <dd className={`font-medium tabular-nums ${snapshot.cashFlowMensuelA1 >= 0 ? "text-green-600" : "text-destructive"}`}>
+                  {formatCurrency(snapshot.cashFlowMensuelA1)}/m
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">Rdt brut / net</dt>
+                <dd className="font-medium tabular-nums">{formatPercent(snapshot.rendementBrut)} / {formatPercent(snapshot.rendementNet)}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted-foreground">TRI 10 ans</dt>
+                <dd className="font-medium tabular-nums">{formatPercent(snapshot.tri * 100)}</dd>
+              </div>
+            </dl>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
