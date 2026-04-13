@@ -46,6 +46,8 @@ export const ABATTEMENT_MICRO_BIC = FISCAL_RULES.microBic.abattement;
 export const DEFAULT_CALCULATOR_INPUTS = {
   nomSimulation: '',
   adresse: '',
+  type: 'appartement' as const,
+  dateSaisie: new Date().toISOString().slice(0, 10),
   pointsNotables: '',
   attachments: [],
   photo: '',
@@ -55,6 +57,7 @@ export const DEFAULT_CALCULATOR_INPUTS = {
   surfaceM2: 0,
   fraisDossier: 0,
   fraisCourtage: 0,
+  fraisGarantie: 0,
   montantTravaux: 0,
   lotsTravaux: [],
   lotsMobilier: [],

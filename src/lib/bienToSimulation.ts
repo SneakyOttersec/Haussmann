@@ -81,6 +81,8 @@ export function bienToSimulation(data: AppData, propertyId: string): CalculatorI
     // Meta
     nomSimulation: property.nom,
     adresse: property.adresse,
+    type: property.type,
+    dateSaisie: property.dateSaisie,
 
     // Acquisition
     prixAchat: property.prixAchat,
@@ -90,6 +92,7 @@ export function bienToSimulation(data: AppData, propertyId: string): CalculatorI
     fraisAgence: property.fraisAgence ?? 0,
     fraisDossier: property.fraisDossier ?? 0,
     fraisCourtage: property.fraisCourtage ?? 0,
+    fraisGarantie: property.allocationCredit?.garantie ?? 0,
     surfaceM2: property.surfaceM2 ?? 0,
     montantTravaux: property.montantTravaux,
     montantMobilier: property.montantMobilier ?? 0,

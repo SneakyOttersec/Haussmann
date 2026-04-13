@@ -1,6 +1,6 @@
 "use client";
 
-import type { CalculatorInputs, TaxRegime, LoanType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
+import type { CalculatorInputs, PropertyType, TaxRegime, LoanType, AssurancePretMode, LotLoyer, LotMobilier, LotTravaux } from "@/types";
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
 import { checkFileSize } from "@/lib/utils";
@@ -170,6 +170,29 @@ export function SimulationCard({ inputs, onUpdate }: CalculatorFormProps) {
       <h2 className="text-xs font-bold uppercase tracking-wider">Simulation</h2>
       <TextField label="Nom" value={inputs.nomSimulation} onChange={(v) => onUpdate("nomSimulation", v)} placeholder="Ex: Appartement Lyon T3" />
       <TextField label="Adresse du bien" value={inputs.adresse} onChange={(v) => onUpdate("adresse", v)} placeholder="12 rue de la Paix, 75001 Paris" />
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">Type de bien</Label>
+          <select
+            className={inputClass}
+            value={inputs.type ?? "appartement"}
+            onChange={(e) => onUpdate("type", e.target.value as PropertyType)}
+          >
+            <option value="appartement">Appartement</option>
+            <option value="maison">Maison</option>
+            <option value="immeuble">Immeuble</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">Date de saisie</Label>
+          <input
+            type="date"
+            className={inputClass}
+            value={inputs.dateSaisie ?? ""}
+            onChange={(e) => onUpdate("dateSaisie", e.target.value)}
+          />
+        </div>
+      </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <PhotoUpload photo={inputs.photo ?? ""} onChange={(v) => onUpdate("photo", v)} />
@@ -537,7 +560,7 @@ export function ChargesCard({ inputs, onUpdate }: CalculatorFormProps) {
 
 export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
   const mobilierTotal = (inputs.lotsMobilier ?? []).reduce((s, l) => s + (l.montant || 0), 0);
-  const coutProjet = inputs.prixAchat + (inputs.prixAchat * inputs.fraisNotairePct) + inputs.fraisAgence + inputs.montantTravaux + mobilierTotal + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0);
+  const coutProjet = inputs.prixAchat + (inputs.prixAchat * inputs.fraisNotairePct) + inputs.fraisAgence + inputs.montantTravaux + mobilierTotal + (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + (inputs.fraisGarantie ?? 0);
   const apport = inputs.apportPersonnel ?? 0;
   const empruntAuto = Math.max(0, Math.round(coutProjet - apport));
   const totalFinance = inputs.montantEmprunte + apport;
@@ -624,6 +647,7 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
         )}
         <NumField label="Frais de dossier" suffix="EUR" value={inputs.fraisDossier} onChange={(v) => onUpdate("fraisDossier", v)} />
         <NumField label="Frais de courtage" suffix="EUR" value={inputs.fraisCourtage} onChange={(v) => onUpdate("fraisCourtage", v)} />
+        <NumField label="Frais de garantie" suffix="EUR" value={inputs.fraisGarantie} onChange={(v) => onUpdate("fraisGarantie", v)} />
       </div>
 
       {inputs.montantEmprunte > 0 && inputs.dureeCredit > 0 && (() => {

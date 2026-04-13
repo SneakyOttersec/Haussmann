@@ -479,6 +479,10 @@ export interface CalculatorInputs {
   // Meta
   nomSimulation: string;
   adresse: string;
+  /** Type de bien (appartement / maison / immeuble). Default: "appartement". */
+  type: PropertyType;
+  /** Date de saisie / acquisition (YYYY-MM-DD). Default: today. */
+  dateSaisie: string;
 
   // Photo
   photo: string; // base64 data URI
@@ -490,6 +494,7 @@ export interface CalculatorInputs {
   surfaceM2: number;
   fraisDossier: number;
   fraisCourtage: number;
+  fraisGarantie: number;
   montantTravaux: number;
   lotsTravaux: LotTravaux[];
   lotsMobilier: LotMobilier[];

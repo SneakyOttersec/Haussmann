@@ -42,7 +42,7 @@ function Bar({ result, maxSpread }: { result: SensitivityResult; maxSpread: numb
             className={`absolute inset-y-0.5 ${deltaLow < 0 ? "bg-destructive/60" : "bg-green-600/60"} rounded-sm`}
             style={{
               [lowLeft ? "right" : "left"]: "50%",
-              width: `${widthLow / 2}%`,
+              width: `${(widthLow / 2).toFixed(4)}%`,
             }}
             title={`${deltaLow < 0 ? "Defavorable" : "Favorable"} : ${signed(deltaLow)}`}
           />
@@ -54,7 +54,7 @@ function Bar({ result, maxSpread }: { result: SensitivityResult; maxSpread: numb
             className={`absolute inset-y-0.5 ${deltaHigh < 0 ? "bg-destructive/60" : "bg-green-600/60"} rounded-sm`}
             style={{
               [highLeft ? "right" : "left"]: "50%",
-              width: `${widthHigh / 2}%`,
+              width: `${(widthHigh / 2).toFixed(4)}%`,
             }}
             title={`${deltaHigh < 0 ? "Defavorable" : "Favorable"} : ${signed(deltaHigh)}`}
           />

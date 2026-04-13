@@ -19,15 +19,16 @@ export function simulationToBien(
   const fraisAgence = inputs.fraisAgence || 0;
   const fraisDossier = inputs.fraisDossier || 0;
   const fraisCourtage = inputs.fraisCourtage || 0;
-  const autreAlloc = fraisDossier + fraisCourtage;
+  const fraisGarantie = inputs.fraisGarantie || 0;
+  const autreAlloc = fraisCourtage;
 
   const property: Property = {
     id: propertyId,
     nom: inputs.nomSimulation || "Nouveau bien",
     adresse: inputs.adresse || "",
-    type: "appartement",
+    type: inputs.type ?? "appartement",
     prixAchat: inputs.prixAchat,
-    dateSaisie: today,
+    dateSaisie: inputs.dateSaisie || today,
     fraisNotaire,
     fraisAgence,
     fraisDossier,
@@ -44,15 +45,15 @@ export function simulationToBien(
     statusDates: { prospection: today },
     allocationCredit: inputs.montantEmprunte > 0 ? (() => {
       // L'apport couvre une partie du prix du bien — le credit finance le reste
-      const autresCouts = inputs.montantTravaux + fraisNotaire + fraisAgence + autreAlloc;
+      const autresCouts = inputs.montantTravaux + fraisNotaire + fraisAgence + fraisDossier + fraisGarantie + autreAlloc;
       const bienFinance = Math.max(0, inputs.montantEmprunte - autresCouts);
       return {
         bien: bienFinance,
         travaux: inputs.montantTravaux,
         notaire: fraisNotaire,
         agence: fraisAgence,
-        dossier: 0,
-        garantie: 0,
+        dossier: fraisDossier,
+        garantie: fraisGarantie,
         autre: autreAlloc,
       };
     })() : undefined,
