@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ComposedChart, Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
 
@@ -19,6 +19,14 @@ export interface PatrimoineMonth {
   valeurBiens: number;
   capitalRestantDu: number;
   patrimoineNet: number;
+}
+
+export interface RendementMonth {
+  mois: string;
+  rBrutRoll: number;
+  rNetRoll: number;
+  rBrutCumul: number | null;
+  rNetCumul: number | null;
 }
 
 const fmtEur = (v: number) =>
@@ -61,6 +69,60 @@ export function CashFlowChartFinances({ data, seuil }: { data: MonthlyFinance[];
           {seuil > 0 && <ReferenceLine y={seuil} stroke="#dc2626" strokeWidth={1} strokeDasharray="4 4" />}
         </ComposedChart>
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function RendementTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  const get = (k: string): number | null => {
+    const p = payload.find((p: any) => p.dataKey === k);
+    return p?.value ?? null;
+  };
+  const fmt = (v: number | null) => (v == null ? "—" : `${v.toFixed(2)} %`);
+  return (
+    <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 6, padding: "8px 12px", fontSize: 11, lineHeight: 1.7, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 240 }}>
+      <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 10, color: "#737373", marginBottom: 2 }}>12 mois glissants</div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#0ea5e9" }}>Brut</span><span style={{ fontWeight: 600 }}>{fmt(get("rBrutRoll"))}</span></div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#16a34a" }}>Net</span><span style={{ fontWeight: 600 }}>{fmt(get("rNetRoll"))}</span></div>
+      <div style={{ fontSize: 10, color: "#737373", marginTop: 6, marginBottom: 2 }}>Cumul depuis premier loyer</div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#7dd3fc" }}>Brut</span><span style={{ fontWeight: 600 }}>{fmt(get("rBrutCumul"))}</span></div>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}><span style={{ color: "#86efac" }}>Net</span><span style={{ fontWeight: 600 }}>{fmt(get("rNetCumul"))}</span></div>
+    </div>
+  );
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
+export function RendementChartFinances({ data }: { data: RendementMonth[] }) {
+  return (
+    <div className="border border-dotted rounded-md p-4">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+        Rendement mensuel du portefeuille (valeurs reelles)
+      </p>
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={data} margin={{ top: 10, right: 10, left: 5, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="2 4" stroke="#e5e5e5" />
+          <XAxis dataKey="mois" tick={{ fontSize: 10 }} />
+          <YAxis
+            tick={{ fontSize: 10 }}
+            tickFormatter={(v) => `${v.toFixed(1)} %`}
+            domain={["auto", "auto"]}
+            width={50}
+          />
+          <Tooltip content={<RendementTooltip />} wrapperStyle={{ zIndex: 50 }} />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} iconSize={10} />
+          <ReferenceLine y={0} stroke="#999" strokeWidth={1} />
+          <Line type="monotone" dataKey="rBrutRoll" name="Brut 12m" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 1.5 }} />
+          <Line type="monotone" dataKey="rNetRoll" name="Net 12m" stroke="#16a34a" strokeWidth={2} dot={{ r: 1.5 }} />
+          <Line type="monotone" dataKey="rBrutCumul" name="Brut cumul" stroke="#7dd3fc" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />
+          <Line type="monotone" dataKey="rNetCumul" name="Net cumul" stroke="#86efac" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />
+        </LineChart>
+      </ResponsiveContainer>
+      <p className="text-[10px] text-muted-foreground mt-2 italic leading-relaxed">
+        Pleines : fenetre glissante 12 mois. Pointillees : cumul depuis le premier loyer percu. Credit exclu (capture par le cash flow).
+      </p>
     </div>
   );
 }

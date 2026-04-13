@@ -6,11 +6,11 @@ import { useAppData } from "@/hooks/useLocalStorage";
 import type { AppData, Property, PropertyStatus } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { toast } from "sonner";
-import { formatCurrency, mensualiserMontant, annualiserMontant, getPropertyAcquisitionDate } from "@/lib/utils";
+import { formatCurrency, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
 import { crdAtMonth, loanDureeTotaleMois } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
-import type { MonthlyFinance, PatrimoineMonth } from "@/components/finances/FinancesCharts";
+import type { MonthlyFinance, PatrimoineMonth, RendementMonth } from "@/components/finances/FinancesCharts";
 
 // recharts (~8.5 MB) lives only inside FinancesCharts — lazy-load to keep /finances cold-load light.
 const CashFlowChartFinances = dynamic(
@@ -20,6 +20,10 @@ const CashFlowChartFinances = dynamic(
 const PatrimoineChart = dynamic(
   () => import("@/components/finances/FinancesCharts").then((m) => m.PatrimoineChart),
   { ssr: false, loading: () => <div className="h-[250px] border border-dotted rounded-md" /> }
+);
+const RendementChartFinances = dynamic(
+  () => import("@/components/finances/FinancesCharts").then((m) => m.RendementChartFinances),
+  { ssr: false, loading: () => <div className="h-[320px] border border-dotted rounded-md" /> }
 );
 
 /** Hard cap so charts stay snappy even when a property has very old prospection dates. */
@@ -238,6 +242,52 @@ export default function Finances() {
 
   const cashFlowData = useMemo(() => filteredData ? buildMonthlyCashFlow(filteredData) : [], [filteredData]);
   const patrimoineData = useMemo(() => filteredData ? buildPatrimoine(filteredData, projectionYears) : [], [filteredData, projectionYears]);
+  // Rendement mensuel = (revenus × 12) / coutTotal — fenetre glissante 12m
+  // + cumul depuis le premier mois avec loyer percu.
+  const rendementData = useMemo<RendementMonth[]>(() => {
+    if (!filteredData) return [];
+    const coutTotal = filteredData.properties
+      .filter((p) => !p.deletedAt && isPropertyActive(p.statut))
+      .reduce((s, p) => s + coutTotalBien(p), 0);
+    if (coutTotal <= 0 || cashFlowData.length === 0) return [];
+    // Trouve l'index du premier mois avec loyer percu > 0 pour demarrer
+    // la courbe cumulative.
+    const firstRentIdx = cashFlowData.findIndex((m) => m.revenus > 0);
+    // Derniere ligne avec loyer percu (pour couper l'historique et eviter
+    // la chute a droite).
+    const lastRentIdx = cashFlowData.reduce(
+      (acc, m, i) => (m.revenus > 0 ? i : acc),
+      -1,
+    );
+    const effective = lastRentIdx >= 0 ? cashFlowData.slice(0, lastRentIdx + 1) : cashFlowData;
+    return effective.map((m, i) => {
+      // Rolling 12 mois
+      const rollWin = effective.slice(Math.max(0, i - 11), i + 1);
+      const rollRev = rollWin.reduce((s, x) => s + x.revenus, 0);
+      const rollDep = rollWin.reduce((s, x) => s + x.depenses, 0);
+      const rollFactor = 12 / rollWin.length;
+      const rBrutRoll = ((rollRev * rollFactor) / coutTotal) * 100;
+      const rNetRoll = (((rollRev - rollDep) * rollFactor) / coutTotal) * 100;
+      // Cumul depuis premier loyer
+      let rBrutCumul: number | null = null;
+      let rNetCumul: number | null = null;
+      if (firstRentIdx >= 0 && i >= firstRentIdx) {
+        const cumulWin = effective.slice(firstRentIdx, i + 1);
+        const cumulRev = cumulWin.reduce((s, x) => s + x.revenus, 0);
+        const cumulDep = cumulWin.reduce((s, x) => s + x.depenses, 0);
+        const cumulFactor = 12 / cumulWin.length;
+        rBrutCumul = ((cumulRev * cumulFactor) / coutTotal) * 100;
+        rNetCumul = (((cumulRev - cumulDep) * cumulFactor) / coutTotal) * 100;
+      }
+      return {
+        mois: m.mois,
+        rBrutRoll: Math.round(rBrutRoll * 100) / 100,
+        rNetRoll: Math.round(rNetRoll * 100) / 100,
+        rBrutCumul: rBrutCumul != null ? Math.round(rBrutCumul * 100) / 100 : null,
+        rNetCumul: rNetCumul != null ? Math.round(rNetCumul * 100) / 100 : null,
+      };
+    });
+  }, [filteredData, cashFlowData]);
   const bilan = useMemo(() => filteredData ? computeBilanFiscal(filteredData, bilanYear) : null, [filteredData, bilanYear]);
   const availableYears = useMemo(() => filteredData ? getAvailableYears(filteredData) : [], [filteredData]);
 
@@ -413,6 +463,9 @@ export default function Finances() {
 
       {/* Cash flow chart (lazy-loaded) */}
       <CashFlowChartFinances data={cashFlowData} seuil={seuil} />
+
+      {/* Rendement chart (lazy-loaded) */}
+      {rendementData.length > 0 && <RendementChartFinances data={rendementData} />}
 
       {/* Patrimoine chart (lazy-loaded) */}
       <PatrimoineChart data={patrimoineData} projectionYears={projectionYears} onProjectionChange={setProjectionYears} />
