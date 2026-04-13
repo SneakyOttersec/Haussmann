@@ -278,7 +278,7 @@ function LoyersContent() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => { setActiveTab(tab.id); setSelectedPropertyId(null); }}
+            onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 text-sm transition-colors border-b-2 -mb-px ${
               activeTab === tab.id
                 ? "border-primary text-primary font-semibold"

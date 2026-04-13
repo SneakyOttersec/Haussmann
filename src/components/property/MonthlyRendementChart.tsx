@@ -80,53 +80,56 @@ interface Props {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 function ChartTooltip({ active, payload, label, showBrutRoll, showNetRoll, showBrutCumul, showNetCumul }: any) {
   if (!active || !payload?.length) return null;
-  const get = (key: string): number | null => {
-    const p = payload.find((p: any) => p.dataKey === key);
-    return p?.value ?? null;
-  };
-  const brutRoll = showBrutRoll ? get("rBrutRoll") : null;
-  const netRoll = showNetRoll ? get("rNetRoll") : null;
-  const brutCumul = showBrutCumul ? get("rBrutCumul") : null;
-  const netCumul = showNetCumul ? get("rNetCumul") : null;
+  const point = payload[0]?.payload as {
+    rBrutRoll: number;
+    rNetRoll: number;
+    rBrutCumul: number | null;
+    rNetCumul: number | null;
+    loyersAnnRoll: number;
+    chargesAnnRoll: number;
+    loyersAnnCumul: number | null;
+    chargesAnnCumul: number | null;
+    rollN: number;
+    cumulN: number | null;
+    coutTotal: number;
+  } | undefined;
+  if (!point) return null;
   const fmt = (v: number | null) => v == null ? "—" : `${v.toFixed(2)} %`;
+  const fc = (v: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
   const showRoll = showBrutRoll || showNetRoll;
   const showCumul = showBrutCumul || showNetCumul;
   if (!showRoll && !showCumul) return null;
+  const row = (color: string, lbl: string, val: string, bold = false) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+      <span style={{ color }}>{lbl}</span>
+      <span style={{ fontWeight: bold ? 700 : 500, fontVariantNumeric: "tabular-nums" }}>{val}</span>
+    </div>
+  );
   return (
-    <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 6, padding: "8px 12px", fontSize: 11, lineHeight: 1.7, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 240 }}>
+    <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 6, padding: "8px 12px", fontSize: 11, lineHeight: 1.6, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 260 }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
       {showRoll && (
         <>
-          <div style={{ fontSize: 10, color: "#737373", marginBottom: 2 }}>12 mois glissants</div>
-          {showBrutRoll && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-              <span style={{ color: "#0ea5e9" }}>Rendement brut</span>
-              <span style={{ fontWeight: 600 }}>{fmt(brutRoll)}</span>
-            </div>
-          )}
-          {showNetRoll && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-              <span style={{ color: "#16a34a" }}>Rendement net</span>
-              <span style={{ fontWeight: 600 }}>{fmt(netRoll)}</span>
-            </div>
-          )}
+          <div style={{ fontSize: 10, color: "#737373", marginBottom: 2 }}>
+            12 mois glissants ({point.rollN} mois)
+          </div>
+          {row("#737373", "Loyers annualises", fc(point.loyersAnnRoll))}
+          {row("#737373", "− Charges annualisees", `−${fc(point.chargesAnnRoll)}`)}
+          {row("#737373", "÷ Cout total projet", fc(point.coutTotal))}
+          {showBrutRoll && row("#0ea5e9", "→ Rendement brut", fmt(point.rBrutRoll), true)}
+          {showNetRoll && row("#16a34a", "→ Rendement net", fmt(point.rNetRoll), true)}
         </>
       )}
-      {showCumul && (
+      {showCumul && point.rBrutCumul != null && (
         <>
-          <div style={{ fontSize: 10, color: "#737373", marginTop: showRoll ? 6 : 0, marginBottom: 2 }}>Cumul depuis mise en location</div>
-          {showBrutCumul && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-              <span style={{ color: "#7dd3fc" }}>Rendement brut</span>
-              <span style={{ fontWeight: 600 }}>{fmt(brutCumul)}</span>
-            </div>
-          )}
-          {showNetCumul && (
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-              <span style={{ color: "#86efac" }}>Rendement net</span>
-              <span style={{ fontWeight: 600 }}>{fmt(netCumul)}</span>
-            </div>
-          )}
+          <div style={{ fontSize: 10, color: "#737373", marginTop: showRoll ? 6 : 0, marginBottom: 2 }}>
+            Cumul depuis mise en location ({point.cumulN ?? 0} mois)
+          </div>
+          {point.loyersAnnCumul != null && row("#737373", "Loyers annualises", fc(point.loyersAnnCumul))}
+          {point.chargesAnnCumul != null && row("#737373", "− Charges annualisees", `−${fc(point.chargesAnnCumul)}`)}
+          {row("#737373", "÷ Cout total projet", fc(point.coutTotal))}
+          {showBrutCumul && row("#7dd3fc", "→ Rendement brut", fmt(point.rBrutCumul), true)}
+          {showNetCumul && row("#86efac", "→ Rendement net", fmt(point.rNetCumul), true)}
         </>
       )}
     </div>
@@ -247,20 +250,27 @@ export function MonthlyRendementChart({ property, incomes, expenses, rentEntries
     const rollLoyers = rollWindow.reduce((s, x) => s + x.revenusLoyers + x.revenusAutres, 0);
     const rollDepenses = rollWindow.reduce((s, x) => s + x.depenses, 0);
     const rollFactor = 12 / rollN;
-    const rBrutRoll = ((rollLoyers * rollFactor) / coutTotal) * 100;
-    const rNetRoll = (((rollLoyers - rollDepenses) * rollFactor) / coutTotal) * 100;
+    const loyersAnnRoll = rollLoyers * rollFactor;
+    const chargesAnnRoll = rollDepenses * rollFactor;
+    const rBrutRoll = (loyersAnnRoll / coutTotal) * 100;
+    const rNetRoll = ((loyersAnnRoll - chargesAnnRoll) / coutTotal) * 100;
 
     // ── Cumul depuis la mise en location ──
     let rBrutCumul: number | null = null;
     let rNetCumul: number | null = null;
+    let loyersAnnCumul: number | null = null;
+    let chargesAnnCumul: number | null = null;
+    let cumulN: number | null = null;
     if (cumulStartIdx >= 0 && i >= cumulStartIdx) {
       const cumulWindow = monthlyEffective.slice(cumulStartIdx, i + 1);
-      const cumulN = cumulWindow.length;
+      cumulN = cumulWindow.length;
       const cumulLoyers = cumulWindow.reduce((s, x) => s + x.revenusLoyers + x.revenusAutres, 0);
       const cumulDepenses = cumulWindow.reduce((s, x) => s + x.depenses, 0);
       const cumulFactor = 12 / cumulN;
-      rBrutCumul = ((cumulLoyers * cumulFactor) / coutTotal) * 100;
-      rNetCumul = (((cumulLoyers - cumulDepenses) * cumulFactor) / coutTotal) * 100;
+      loyersAnnCumul = cumulLoyers * cumulFactor;
+      chargesAnnCumul = cumulDepenses * cumulFactor;
+      rBrutCumul = (loyersAnnCumul / coutTotal) * 100;
+      rNetCumul = ((loyersAnnCumul - chargesAnnCumul) / coutTotal) * 100;
     }
 
     return {
@@ -269,6 +279,14 @@ export function MonthlyRendementChart({ property, incomes, expenses, rentEntries
       rNetRoll: Math.round(rNetRoll * 100) / 100,
       rBrutCumul: rBrutCumul != null ? Math.round(rBrutCumul * 100) / 100 : null,
       rNetCumul: rNetCumul != null ? Math.round(rNetCumul * 100) / 100 : null,
+      // Donnees du calcul (pour l'infobulle detaillee)
+      loyersAnnRoll: Math.round(loyersAnnRoll),
+      chargesAnnRoll: Math.round(chargesAnnRoll),
+      loyersAnnCumul: loyersAnnCumul != null ? Math.round(loyersAnnCumul) : null,
+      chargesAnnCumul: chargesAnnCumul != null ? Math.round(chargesAnnCumul) : null,
+      rollN,
+      cumulN,
+      coutTotal: Math.round(coutTotal),
     };
   });
 

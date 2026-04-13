@@ -1081,22 +1081,19 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         </ResponsiveContainer>
         <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
           <p className="text-[10px] text-muted-foreground leading-relaxed flex-1 min-w-0">
-            Comparaison <strong>avant impot</strong> : meme convention des deux cotes.
             {operating && realByYear.length > 0 ? (
               <>
-                {" "}La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
+                La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
                 ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
                 {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
               </>
             ) : !operating ? (
               <>
-                {" "}
                 <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> le bien n&apos;est pas encore en location — elle s&apos;affichera des
                 que le bien sera en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
               </>
             ) : (
               <>
-                {" "}
                 <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> aucun loyer percu saisi pour ce bien. Utilisez &quot;Suivi loyers&quot; pour renseigner les encaissements.
               </>
             )}

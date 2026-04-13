@@ -1057,6 +1057,9 @@ function PropertyDetailContent() {
           </CardHeader>
           <CardContent>
             <ExpenseList expenses={expenses} onDelete={deleteExpense} onUpdate={updateExpense} colorByValidation={isPreActe} />
+            <p className="text-[11px] text-amber-700 italic mt-3">
+              ⚠ Donnees non utilisees dans les graphiques, seules les charges dans &quot;Loyer et charges&quot; le sont.
+            </p>
           </CardContent>
         </Card>
       </section>
