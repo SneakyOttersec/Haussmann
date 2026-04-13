@@ -37,8 +37,8 @@ function CurvesInfoTooltip() {
         Information
       </TooltipTrigger>
       <TooltipContent
-        side="bottom"
-        className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+        side="top"
+        className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-2xl"
       >
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
           {CURVE_DEFINITIONS.map((d) => (
@@ -78,38 +78,57 @@ interface Props {
  * financing costs (that's what cash flow captures).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label, showBrutRoll, showNetRoll, showBrutCumul, showNetCumul }: any) {
   if (!active || !payload?.length) return null;
   const get = (key: string): number | null => {
     const p = payload.find((p: any) => p.dataKey === key);
     return p?.value ?? null;
   };
-  const brutRoll = get("rBrutRoll");
-  const netRoll = get("rNetRoll");
-  const brutCumul = get("rBrutCumul");
-  const netCumul = get("rNetCumul");
+  const brutRoll = showBrutRoll ? get("rBrutRoll") : null;
+  const netRoll = showNetRoll ? get("rNetRoll") : null;
+  const brutCumul = showBrutCumul ? get("rBrutCumul") : null;
+  const netCumul = showNetCumul ? get("rNetCumul") : null;
   const fmt = (v: number | null) => v == null ? "—" : `${v.toFixed(2)} %`;
+  const showRoll = showBrutRoll || showNetRoll;
+  const showCumul = showBrutCumul || showNetCumul;
+  if (!showRoll && !showCumul) return null;
   return (
     <div style={{ background: "#fff", border: "1px solid #e5e5e5", borderRadius: 6, padding: "8px 12px", fontSize: 11, lineHeight: 1.7, boxShadow: "0 2px 8px rgba(0,0,0,0.08)", minWidth: 240 }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 10, color: "#737373", marginBottom: 2 }}>12 mois glissants</div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-        <span style={{ color: "#0ea5e9" }}>Rendement brut</span>
-        <span style={{ fontWeight: 600 }}>{fmt(brutRoll)}</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-        <span style={{ color: "#16a34a" }}>Rendement net</span>
-        <span style={{ fontWeight: 600 }}>{fmt(netRoll)}</span>
-      </div>
-      <div style={{ fontSize: 10, color: "#737373", marginTop: 6, marginBottom: 2 }}>Cumul depuis mise en location</div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-        <span style={{ color: "#7dd3fc" }}>Rendement brut</span>
-        <span style={{ fontWeight: 600 }}>{fmt(brutCumul)}</span>
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
-        <span style={{ color: "#86efac" }}>Rendement net</span>
-        <span style={{ fontWeight: 600 }}>{fmt(netCumul)}</span>
-      </div>
+      {showRoll && (
+        <>
+          <div style={{ fontSize: 10, color: "#737373", marginBottom: 2 }}>12 mois glissants</div>
+          {showBrutRoll && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+              <span style={{ color: "#0ea5e9" }}>Rendement brut</span>
+              <span style={{ fontWeight: 600 }}>{fmt(brutRoll)}</span>
+            </div>
+          )}
+          {showNetRoll && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+              <span style={{ color: "#16a34a" }}>Rendement net</span>
+              <span style={{ fontWeight: 600 }}>{fmt(netRoll)}</span>
+            </div>
+          )}
+        </>
+      )}
+      {showCumul && (
+        <>
+          <div style={{ fontSize: 10, color: "#737373", marginTop: showRoll ? 6 : 0, marginBottom: 2 }}>Cumul depuis mise en location</div>
+          {showBrutCumul && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+              <span style={{ color: "#7dd3fc" }}>Rendement brut</span>
+              <span style={{ fontWeight: 600 }}>{fmt(brutCumul)}</span>
+            </div>
+          )}
+          {showNetCumul && (
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+              <span style={{ color: "#86efac" }}>Rendement net</span>
+              <span style={{ fontWeight: 600 }}>{fmt(netCumul)}</span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -309,7 +328,11 @@ export function MonthlyRendementChart({ property, incomes, expenses, rentEntries
               domain={["auto", "auto"]}
               width={50}
             />
-            <Tooltip content={<ChartTooltip />} wrapperStyle={{ zIndex: 50 }} />
+            <Tooltip
+              content={(props: object) => <ChartTooltip {...props} showBrutRoll={showBrutRoll} showNetRoll={showNetRoll} showBrutCumul={showBrutCumul} showNetCumul={showNetCumul} />}
+              wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+              position={{ y: -100 }}
+            />
             <Legend wrapperStyle={{ fontSize: 10 }} iconSize={10} />
             <ReferenceLine y={0} stroke="#999" strokeWidth={1} />
             {showBrutRoll && <Line type="monotone" dataKey="rBrutRoll" name="Brut 12m" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 2 }} />}

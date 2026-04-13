@@ -305,7 +305,7 @@ export function PropertySummary({
 
   return (
     <div className="space-y-2">
-    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {(() => {
         // Theorique = loyer avec vacance appliquee. Fallback sur les incomes
         // si aucun lot configure, pour que la ligne reste visible.
@@ -598,8 +598,8 @@ export function PropertySummary({
             Information
           </TooltipTrigger>
           <TooltipContent
-            side="bottom"
-            className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+            side="top"
+            className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-2xl"
           >
             <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
               {defs.map((d) => (

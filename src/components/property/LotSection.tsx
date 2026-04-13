@@ -99,9 +99,9 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   return (
     <>
       <div className="border-b border-dashed border-muted-foreground/10 last:border-0 py-2 space-y-1">
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center gap-2 sm:gap-3 text-sm flex-wrap">
           <button
-            className="font-medium text-left hover:text-primary transition-colors cursor-pointer"
+            className="font-medium text-left hover:text-primary transition-colors cursor-pointer truncate min-w-0"
             onClick={() => { setEdit({ nom: l.nom, etage: l.etage || "", surface: l.surface || 0, loyerMensuel: l.loyerMensuel, statut: l.statut, tauxVacancePct: (l.tauxVacance ?? 0) * 100 }); setEditOpen(true); }}
           >
             {l.nom}

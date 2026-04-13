@@ -417,7 +417,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             ↳ credit {formatCurrency(loan.montantEmprunte)} + apport {formatCurrency(apport)}
           </p>
           {ecart !== 0 && (
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <p className="text-[10px] text-amber-600">
                 {formatCurrency(Math.abs(ecart))} {ecart > 0 ? "non alloues" : "en trop"}
               </p>
@@ -439,7 +439,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Allocation du credit</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
             {([
@@ -451,8 +451,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
               { key: "garantie", label: "Frais de garantie" },
               { key: "autre", label: "Autre" },
             ] as const).map((field) => (
-              <div key={field.key} className="flex items-center gap-4">
-                <Label className="text-sm text-muted-foreground w-40 shrink-0">{field.label}</Label>
+              <div key={field.key} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
+                <Label className="text-sm text-muted-foreground sm:w-40 shrink-0">{field.label}</Label>
                 <Input
                   type="number"
                   min={0}
@@ -706,19 +706,19 @@ function PropertyDetailContent() {
         <Link href="/" className="text-sm text-muted-foreground hover:text-primary transition-colors">
           ← Tableau de bord
         </Link>
-        <div className="flex items-start justify-between mt-4">
-          <div>
-            <div className="flex items-center gap-3">
-              <h1>{property.nom}</h1>
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mt-4">
+          <div className="min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <h1 className="break-words">{property.nom}</h1>
               <Badge variant="secondary">{PROPERTY_TYPE_LABELS[property.type]}</Badge>
             </div>
-            <p className="text-muted-foreground mt-1">{property.adresse}</p>
+            <p className="text-muted-foreground mt-1 break-words">{property.adresse}</p>
             <p className="text-sm text-muted-foreground">
               Achat : {formatCurrency(property.prixAchat)} — {property.dateSaisie}
               {property.surfaceM2 ? ` — ${property.surfaceM2} m²` : ""}
             </p>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 flex-wrap md:justify-end">
             {/* Navigation : vues rattachees au bien */}
             <Link
               href={`/loyers?propertyId=${id}`}
@@ -743,8 +743,8 @@ function PropertyDetailContent() {
                 Simulation initiale
               </Link>
             )}
-            {/* Separateur visuel */}
-            <span className="w-px h-5 bg-muted-foreground/20 mx-1" aria-hidden />
+            {/* Separateur visuel — masque sur mobile pour ne pas flotter en fin de ligne */}
+            <span className="hidden md:inline-block w-px h-5 bg-muted-foreground/20 mx-1" aria-hidden />
             {/* Actions : modifier / supprimer */}
             <Link
               href={`/biens/modifier?id=${id}`}
@@ -973,7 +973,7 @@ function PropertyDetailContent() {
                           : []),
                       ];
                       return (
-                        <div className={`flex items-start justify-center ${dM > 0 ? "gap-12" : ""} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
+                        <div className={`flex items-start justify-center flex-wrap ${dM > 0 ? "gap-6 sm:gap-12" : ""} text-sm mt-4 pt-3 border-t border-dashed border-muted-foreground/10`}>
                           {/* Apres le differe (or single Mensualite) — primary */}
                           <CfTooltip rows={apresRows}>
                             <div className="text-center">

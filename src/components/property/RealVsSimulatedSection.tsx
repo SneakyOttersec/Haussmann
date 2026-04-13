@@ -38,8 +38,8 @@ function RvsCurvesInfo() {
         Information
       </TooltipTrigger>
       <TooltipContent
-        side="bottom"
-        className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+        side="top"
+        className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-3xl"
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2 font-mono text-[11px]">
           {RVS_CURVE_DEFINITIONS.map((d) => (
@@ -150,14 +150,15 @@ function TooltipTotal({ label, value }: { label: string; value: number }) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function BreakdownTooltip({ active, payload, label }: any) {
+function BreakdownTooltip({ active, payload, label, showSimule, showOptimum, showReel }: any) {
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
   if (!point) return null;
-  const sim = point.simBreakdown;
-  const opt = point.optBreakdown;
-  const real = point.realBreakdown;
-  const ecart = real ? real.cashFlow - sim.cashFlowAvantImpot : 0;
+  const sim = showSimule ? point.simBreakdown : null;
+  const opt = showOptimum ? point.optBreakdown : null;
+  const real = showReel ? point.realBreakdown : null;
+  const ecart = real && sim ? real.cashFlow - sim.cashFlowAvantImpot : 0;
+  if (!sim && !opt && !real) return null;
 
   return (
     <div
@@ -175,19 +176,21 @@ function BreakdownTooltip({ active, payload, label }: any) {
       <div style={{ fontWeight: 700, marginBottom: 6 }}>{label}</div>
 
       {/* Simule */}
-      <div style={{ marginBottom: opt || real ? 8 : 0 }}>
-        <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-          Simule (avant impot)
+      {sim && (
+        <div style={{ marginBottom: opt || real ? 8 : 0 }}>
+          <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+            Simule (avant impot)
+          </div>
+          <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
+          <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
+          <TooltipRow
+            label={sim.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
+            value={-sim.mensualitesCredit}
+            color={sim.isDiffere ? "#f59e0b" : "#60a5fa"}
+          />
+          <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
         </div>
-        <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
-        <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
-        <TooltipRow
-          label={sim.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
-          value={-sim.mensualitesCredit}
-          color={sim.isDiffere ? "#f59e0b" : "#60a5fa"}
-        />
-        <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
-      </div>
+      )}
 
       {/* Optimum */}
       {opt && (
@@ -203,22 +206,24 @@ function BreakdownTooltip({ active, payload, label }: any) {
             color={opt.isDiffere ? "#f59e0b" : "#60a5fa"}
           />
           <TooltipTotal label="= Cash flow" value={opt.cashFlowAvantImpot} />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 16,
-              marginTop: 4,
-              fontSize: 10,
-              color: "#737373",
-            }}
-          >
-            <span>vs Simule :</span>
-            <span style={{ color: opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
-              {opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
-              {fmtEur(opt.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
-            </span>
-          </div>
+          {sim && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                marginTop: 4,
+                fontSize: 10,
+                color: "#737373",
+              }}
+            >
+              <span>vs Simule :</span>
+              <span style={{ color: opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
+                {opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
+                {fmtEur(opt.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -233,21 +238,23 @@ function BreakdownTooltip({ active, payload, label }: any) {
           <TooltipRow label="− Charges" value={-real.depenses} color="#fb923c" />
           <TooltipRow label="− Credit" value={-real.credit} color="#60a5fa" />
           <TooltipTotal label="= Cash flow" value={real.cashFlow} />
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 16,
-              marginTop: 4,
-              fontSize: 10,
-              color: "#666",
-            }}
-          >
-            <span>Ecart vs simule</span>
-            <span style={{ fontWeight: 600, color: ecart >= 0 ? "#16a34a" : "#991b1b", fontVariantNumeric: "tabular-nums" }}>
-              {ecart >= 0 ? "+" : ""}{fmtEur(ecart)}
-            </span>
-          </div>
+          {sim && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                marginTop: 4,
+                fontSize: 10,
+                color: "#666",
+              }}
+            >
+              <span>Ecart vs simule</span>
+              <span style={{ fontWeight: 600, color: ecart >= 0 ? "#16a34a" : "#991b1b", fontVariantNumeric: "tabular-nums" }}>
+                {ecart >= 0 ? "+" : ""}{fmtEur(ecart)}
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -384,22 +391,22 @@ function SimSnapshotBlock({
       {/* Conteneur global : bordure dotted qui englobe header + contenu deplie */}
       <div className="rounded-md border border-dotted border-muted-foreground/30 transition-colors hover:border-muted-foreground/50">
       {/* Header toujours visible — clic pour deplier */}
-      <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2 rounded-md hover:bg-muted/40 transition-colors">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-3 flex-wrap px-3 py-2 rounded-md hover:bg-muted/40 transition-colors">
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="flex items-center gap-2 text-xs font-medium text-foreground transition-colors flex-1 text-left cursor-pointer"
+          className="flex items-center gap-2 text-xs font-medium text-foreground transition-colors sm:flex-1 text-left cursor-pointer min-w-0"
           aria-expanded={expanded}
         >
-          <span className={`inline-flex items-center justify-center w-4 h-4 rounded border border-current text-[10px] leading-none transition-transform ${expanded ? "rotate-90" : ""}`}>▸</span>
-          <span>Snapshot simulation initiale</span>
-          <span className="text-[10px] text-muted-foreground font-normal ml-1">({expanded ? "replier" : "cliquer pour deplier"})</span>
+          <span className={`inline-flex items-center justify-center w-4 h-4 rounded border border-current text-[10px] leading-none transition-transform shrink-0 ${expanded ? "rotate-90" : ""}`}>▸</span>
+          <span className="truncate">Snapshot simulation initiale</span>
+          <span className="text-[10px] text-muted-foreground font-normal ml-1 hidden sm:inline">({expanded ? "replier" : "cliquer pour deplier"})</span>
         </button>
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
           {property.simulationId && (
             <Link
               href={`/simulateur?simId=${property.simulationId}`}
-              className="text-[10px] text-primary hover:underline"
+              className="text-[10px] text-primary hover:underline shrink-0"
               title="Ouvrir la simulation initiale dans le simulateur"
             >
               ↗ Simulation
@@ -409,7 +416,7 @@ function SimSnapshotBlock({
             <button
               type="button"
               onClick={toggleLock}
-              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors shrink-0 ${
                 locked
                   ? "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
                   : "border-amber-500/50 bg-amber-500/10 text-amber-700"
@@ -420,7 +427,7 @@ function SimSnapshotBlock({
               {locked ? "🔒 Verrouille" : "🔓 Deverrouille"}
             </button>
           )}
-          <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[40%]" title={snapshot.nomSimulation}>
+          <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[40%] hidden md:inline" title={snapshot.nomSimulation}>
             {snapshot.nomSimulation}
             {snapshot.savedAt && (<> · {new Date(snapshot.savedAt).toLocaleDateString("fr-FR")}</>)}
           </span>
@@ -861,6 +868,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     && projection.length > 0
     && Math.round(projectionOptimum[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot);
 
+
   const data: ChartPoint[] = [];
   for (let i = 0; i < years; i++) {
     const p = projection[i];
@@ -914,7 +922,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
 
   return (
     <Card className="border-dotted">
-      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
+      <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap">
         <CardTitle className="text-base">Cash flow annuel</CardTitle>
         <div className="flex items-center gap-2 flex-wrap">
           {/* Toggles : afficher / masquer chaque courbe */}
@@ -1033,7 +1041,11 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
                 }}
               />
             )}
-            <Tooltip content={<BreakdownTooltip />} wrapperStyle={{ zIndex: 50 }} />
+            <Tooltip
+              content={(props: object) => <BreakdownTooltip {...props} showSimule={showSimule} showOptimum={showOptimum} showReel={showReel} />}
+              wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
+              position={{ y: -100 }}
+            />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             {showSimule && (
               <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
