@@ -436,8 +436,22 @@ function SimSnapshotBlock({
 
       {expanded && (
         <div className="px-3 pb-3 pt-1 space-y-3 border-t border-dotted border-muted-foreground/20">
-          <dl className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[11px]">
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 text-[11px]">
             <EditableField label="Loyer mensuel" {...editableProps("loyerMensuelTotal", (v) => formatCurrency(v))} />
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Depenses mensuelles</dt>
+              <dd className="font-medium tabular-nums" title="Charges + mensualite credit">
+                {formatCurrency(snapshot.depensesMensuellesTotal)}/m
+              </dd>
+            </div>
+            <EditableField
+              label="Cash flow A1"
+              {...editableProps(
+                "cashFlowMensuelA1",
+                (v) => `${formatCurrency(v)}/m`,
+                getVal("cashFlowMensuelA1") >= 0 ? "text-green-600" : "text-destructive",
+              )}
+            />
             <EditableField label="Cout total" {...editableProps("coutTotal", (v) => formatCurrency(v))} />
             <div className="flex justify-between items-center gap-2">
               <dt className="text-muted-foreground">Apport / Emprunt</dt>
@@ -473,16 +487,6 @@ function SimSnapshotBlock({
                 />
               </dd>
             </div>
-            <EditableField label="Mensualite credit" {...editableProps("mensualiteCredit", (v) => `${formatCurrency(v)}/m`)} />
-            <EditableField label="Charges annuelles" {...editableProps("chargesAnnuelles", (v) => formatCurrency(v))} />
-            <EditableField
-              label="Cash flow A1"
-              {...editableProps(
-                "cashFlowMensuelA1",
-                (v) => `${formatCurrency(v)}/m`,
-                getVal("cashFlowMensuelA1") >= 0 ? "text-green-600" : "text-destructive",
-              )}
-            />
             <div className="flex justify-between items-center gap-2">
               <dt className="text-muted-foreground">Rdt brut / net</dt>
               <dd className="font-medium tabular-nums">
@@ -517,7 +521,6 @@ function SimSnapshotBlock({
                 />
               </dd>
             </div>
-            <EditableField label="TRI 10 ans" {...editableProps("tri", (v) => formatPercent(v * 100))} />
           </dl>
 
           {history.length > 0 && (
@@ -694,12 +697,20 @@ interface SimSnapshot {
   prixAchat: number;
   montantTravaux: number;
   loyerMensuelTotal: number;
+  loyerAnnuelBrut: number;
+  loyerAnnuelNet: number;
   coutTotal: number;
   mensualiteCredit: number;
   chargesAnnuelles: number;
+  chargesMensuelles: number;
+  depensesMensuellesTotal: number;
   rendementBrut: number;
   rendementNet: number;
+  rendementNetNet: number;
   cashFlowMensuelA1: number;
+  cashFlowApresImpotMensuel: number;
+  impotAnnuel: number;
+  taeg: number;
   tri: number;
   apport: number;
   emprunt: number;
@@ -786,18 +797,28 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       const loyerMensuelTotal = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)
         || inputs.loyerMensuel
         || 0;
+      const chargesMensuelles = results.chargesAnnuellesTotales / 12;
+      const depensesMensuellesTotal = chargesMensuelles + results.mensualiteCredit;
       setSnapshot({
         nomSimulation: sim.nom || inputs.nomSimulation || "Simulation initiale",
         savedAt: sim.savedAt,
         prixAchat: inputs.prixAchat,
         montantTravaux: inputs.montantTravaux,
         loyerMensuelTotal,
+        loyerAnnuelBrut: results.loyerAnnuelBrut,
+        loyerAnnuelNet: results.loyerAnnuelNet,
         coutTotal: results.coutTotalAcquisition,
         mensualiteCredit: results.mensualiteCredit,
         chargesAnnuelles: results.chargesAnnuellesTotales,
+        chargesMensuelles,
+        depensesMensuellesTotal,
         rendementBrut: results.rendementBrut,
         rendementNet: results.rendementNet,
+        rendementNetNet: results.rendementNetNet,
         cashFlowMensuelA1: results.cashFlowMensuelAvantImpot,
+        cashFlowApresImpotMensuel: results.cashFlowMensuelApresImpot,
+        impotAnnuel: results.impotAnnuel,
+        taeg: results.taeg,
         tri: results.tri,
         apport: results.apportPersonnel,
         emprunt: inputs.montantEmprunte,
