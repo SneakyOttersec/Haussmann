@@ -122,8 +122,11 @@ function TooltipRow({
   return (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
       <span style={{ color: color ?? "#666" }}>{label}</span>
-      <span style={{ fontWeight: 600, color: color ?? undefined, fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ fontWeight: 600, color: color ?? undefined, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
         {fmtEur(value)}
+        <span style={{ color: "#999", fontWeight: 400, marginLeft: 6 }}>
+          ({fmtEur(value / 12)}/m)
+        </span>
       </span>
     </div>
   );
@@ -142,8 +145,11 @@ function TooltipTotal({ label, value }: { label: string; value: number }) {
       }}
     >
       <span style={{ fontWeight: 700 }}>{label}</span>
-      <span style={{ fontWeight: 700, color: value >= 0 ? "#16a34a" : "#991b1b", fontVariantNumeric: "tabular-nums" }}>
+      <span style={{ fontWeight: 700, color: value >= 0 ? "#16a34a" : "#991b1b", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
         {fmtEur(value)}
+        <span style={{ color: value >= 0 ? "#16a34a" : "#991b1b", opacity: 0.6, fontWeight: 400, marginLeft: 6 }}>
+          ({fmtEur(value / 12)}/m)
+        </span>
       </span>
     </div>
   );
