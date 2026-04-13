@@ -5,7 +5,8 @@ import type { Property, Income, Expense, LoanDetails, RentMonthEntry, YearProjec
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
-import { formatCurrency, formatPercent, getPropertyAcquisitionDate } from "@/lib/utils";
+import Link from "next/link";
+import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
 
 /** Real cash flow only makes sense once the property is generating rent (location or beyond). */
@@ -13,9 +14,48 @@ function isOperating(statut?: PropertyStatus): boolean {
   return statut === "location" || statut === "exploitation";
 }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
   ComposedChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
+
+const RVS_CURVE_DEFINITIONS: { label: string; color: string; desc: string }[] = [
+  { label: "Simule", color: "#60a5fa", desc: "Cash flow projete par la simulation initiale (avec la vacance configuree), annee par annee. Parametres credit patches avec ceux actuels du bien." },
+  { label: "Optimum", color: "#a855f7", desc: "Meme simulation mais sans vacance locative (100% d'occupation). Plafond theorique du cash flow." },
+  { label: "Reel", color: "#16a34a", desc: "Cash flow reel annualise pour chaque annee d'exploitation, base sur les loyers percus et les charges reelles. S'affiche uniquement a partir de la mise en location." },
+];
+
+function RvsCurvesInfo() {
+  return (
+    <UiTooltip>
+      <TooltipTrigger render={
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-help"
+        />
+      }>
+        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[9px] leading-none">?</span>
+        Information
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-2 font-mono text-[11px]">
+          {RVS_CURVE_DEFINITIONS.map((d) => (
+            <div key={d.label} className="space-y-0.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+                {d.label}
+              </div>
+              <div className="text-muted-foreground leading-snug">{d.desc}</div>
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </UiTooltip>
+  );
+}
 
 interface Props {
   property: Property;
@@ -23,6 +63,8 @@ interface Props {
   expenses: Expense[];
   rentEntries: RentMonthEntry[];
   loan?: LoanDetails | null;
+  /** Callback pour persister lock / overrides / history du snapshot. */
+  onUpdateProperty?: (updates: Partial<Property>) => void;
 }
 
 const fmtEur = (v: number) =>
@@ -59,6 +101,7 @@ interface RealYearData {
 interface ChartPoint {
   annee: string;
   simule: number;
+  optimum: number | null;
   reel: number | null;
   simBreakdown: SimBreakdown;
   realBreakdown: RealBreakdown | null;
@@ -177,6 +220,432 @@ function BreakdownTooltip({ active, payload, label }: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
+/**
+ * Snapshot repliable + verrouillable + editable de la simulation initiale.
+ * - Header cliquable pour deplier/replier.
+ * - Cadenas (verrouille par defaut) pour autoriser l'edition.
+ * - Chaque modification pousse une entree dans property.simulationSnapshotHistory.
+ */
+function SimSnapshotBlock({
+  snapshot,
+  property,
+  onUpdateProperty,
+}: {
+  snapshot: SimSnapshot;
+  property: Property;
+  onUpdateProperty?: (updates: Partial<Property>) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string>("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  const locked = property.simulationSnapshotLocked ?? true;
+  const overrides = property.simulationSnapshotOverrides ?? {};
+  const history = property.simulationSnapshotHistory ?? [];
+
+  // Valeurs effectives : overrides si presents, sinon snapshot derive.
+  type NumField = "loyerMensuelTotal" | "coutTotal" | "apport" | "emprunt" | "mensualiteCredit" | "chargesAnnuelles" | "cashFlowMensuelA1" | "rendementBrut" | "rendementNet" | "tri";
+  const getVal = (f: NumField): number => {
+    const o = overrides[f];
+    if (typeof o === "number") return o;
+    return snapshot[f];
+  };
+
+  const setField = (field: NumField, newVal: number) => {
+    if (!onUpdateProperty) return;
+    const oldVal = getVal(field);
+    if (Math.abs(oldVal - newVal) < 0.001) {
+      setEditingField(null);
+      return;
+    }
+    const newOverrides = { ...overrides, [field]: newVal };
+    const newHistory = [
+      {
+        id: generateId(),
+        date: new Date().toISOString(),
+        field,
+        oldValue: oldVal,
+        newValue: newVal,
+      },
+      ...history,
+    ];
+    onUpdateProperty({
+      simulationSnapshotOverrides: newOverrides,
+      simulationSnapshotHistory: newHistory,
+    });
+    setEditingField(null);
+  };
+
+  const toggleLock = () => {
+    onUpdateProperty?.({ simulationSnapshotLocked: !locked });
+    if (!locked) setEditingField(null); // on re-verrouille: ferme toute edition en cours
+  };
+
+  // Champs dont l'override peut reellement modifier la courbe de projection.
+  // Les autres (mensualite credit, rendement, cash flow, TRI) sont derives :
+  // les editer n'a pas de sens, on les rend non modifiables meme deverrouille.
+  const EDITABLE_FIELDS = new Set<NumField>([
+    "loyerMensuelTotal",
+    "coutTotal",
+    "apport",
+    "emprunt",
+    "chargesAnnuelles",
+  ]);
+
+  // Helper : construit les props pour un EditableField a partir d'un champ numerique.
+  const editableProps = (field: NumField, format: (v: number) => string, color?: string) => {
+    const isEditableField = EDITABLE_FIELDS.has(field);
+    return {
+      value: getVal(field),
+      isOverridden: overrides[field] !== undefined,
+      originalValue: snapshot[field],
+      isEditing: editingField === field,
+      // Force le "locked" si le champ n'est pas editable (derives).
+      locked: locked || !isEditableField,
+      format,
+      color,
+      draft,
+      setDraft,
+      onStartEdit: () => {
+        setDraft(String(getVal(field)));
+        setEditingField(field);
+      },
+      onCommit: () => {
+        const n = Number(draft);
+        if (!isNaN(n)) setField(field, n);
+        else setEditingField(null);
+      },
+      onCancel: () => setEditingField(null),
+      onReset: () => resetField(field),
+    };
+  };
+
+  const resetField = (field: NumField) => {
+    if (!onUpdateProperty) return;
+    const oldVal = getVal(field);
+    const originalVal = snapshot[field];
+    const { [field]: _removed, ...rest } = overrides;
+    void _removed;
+    const newHistory = [
+      {
+        id: generateId(),
+        date: new Date().toISOString(),
+        field: `${field} (reset)`,
+        oldValue: oldVal,
+        newValue: originalVal,
+      },
+      ...history,
+    ];
+    onUpdateProperty({
+      simulationSnapshotOverrides: rest,
+      simulationSnapshotHistory: newHistory,
+    });
+  };
+
+
+  return (
+    <div className="mt-4 pt-3 border-t border-dashed border-muted-foreground/15">
+      {/* Conteneur global : bordure dotted qui englobe header + contenu deplie */}
+      <div className="rounded-md border border-dotted border-muted-foreground/30 transition-colors hover:border-muted-foreground/50">
+      {/* Header toujours visible — clic pour deplier */}
+      <div className="flex items-center justify-between gap-3 flex-wrap px-3 py-2 rounded-md hover:bg-muted/40 transition-colors">
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex items-center gap-2 text-xs font-medium text-foreground transition-colors flex-1 text-left cursor-pointer"
+          aria-expanded={expanded}
+        >
+          <span className={`inline-flex items-center justify-center w-4 h-4 rounded border border-current text-[10px] leading-none transition-transform ${expanded ? "rotate-90" : ""}`}>▸</span>
+          <span>Snapshot simulation initiale</span>
+          <span className="text-[10px] text-muted-foreground font-normal ml-1">({expanded ? "replier" : "cliquer pour deplier"})</span>
+        </button>
+        <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+          {property.simulationId && (
+            <Link
+              href={`/simulateur?simId=${property.simulationId}`}
+              className="text-[10px] text-primary hover:underline"
+              title="Ouvrir la simulation initiale dans le simulateur"
+            >
+              ↗ Simulation
+            </Link>
+          )}
+          {onUpdateProperty && (
+            <button
+              type="button"
+              onClick={toggleLock}
+              className={`text-[10px] px-1.5 py-0.5 rounded border transition-colors ${
+                locked
+                  ? "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+                  : "border-amber-500/50 bg-amber-500/10 text-amber-700"
+              }`}
+              title={locked ? "Deverrouiller pour modifier" : "Verrouiller (lecture seule)"}
+              aria-pressed={!locked}
+            >
+              {locked ? "🔒 Verrouille" : "🔓 Deverrouille"}
+            </button>
+          )}
+          <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[40%]" title={snapshot.nomSimulation}>
+            {snapshot.nomSimulation}
+            {snapshot.savedAt && (<> · {new Date(snapshot.savedAt).toLocaleDateString("fr-FR")}</>)}
+          </span>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="px-3 pb-3 pt-1 space-y-3 border-t border-dotted border-muted-foreground/20">
+          <dl className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[11px]">
+            <EditableField label="Loyer mensuel" {...editableProps("loyerMensuelTotal", (v) => formatCurrency(v))} />
+            <EditableField label="Cout total" {...editableProps("coutTotal", (v) => formatCurrency(v))} />
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Apport / Emprunt</dt>
+              <dd className="font-medium tabular-nums">
+                <EditableInline
+                  value={getVal("apport")}
+                  isOverridden={overrides.apport !== undefined}
+                  original={snapshot.apport}
+                  onCommit={(n) => setField("apport", n)}
+                  onReset={() => resetField("apport")}
+                  locked={locked}
+                  format={(v) => formatCurrency(v)}
+                  editingField={editingField}
+                  setEditingField={setEditingField}
+                  fieldKey="apport"
+                  draft={draft}
+                  setDraft={setDraft}
+                />
+                {" / "}
+                <EditableInline
+                  value={getVal("emprunt")}
+                  isOverridden={overrides.emprunt !== undefined}
+                  original={snapshot.emprunt}
+                  onCommit={(n) => setField("emprunt", n)}
+                  onReset={() => resetField("emprunt")}
+                  locked={locked}
+                  format={(v) => formatCurrency(v)}
+                  editingField={editingField}
+                  setEditingField={setEditingField}
+                  fieldKey="emprunt"
+                  draft={draft}
+                  setDraft={setDraft}
+                />
+              </dd>
+            </div>
+            <EditableField label="Mensualite credit" {...editableProps("mensualiteCredit", (v) => `${formatCurrency(v)}/m`)} />
+            <EditableField label="Charges annuelles" {...editableProps("chargesAnnuelles", (v) => formatCurrency(v))} />
+            <EditableField
+              label="Cash flow A1"
+              {...editableProps(
+                "cashFlowMensuelA1",
+                (v) => `${formatCurrency(v)}/m`,
+                getVal("cashFlowMensuelA1") >= 0 ? "text-green-600" : "text-destructive",
+              )}
+            />
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Rdt brut / net</dt>
+              <dd className="font-medium tabular-nums">
+                <EditableInline
+                  value={getVal("rendementBrut")}
+                  isOverridden={overrides.rendementBrut !== undefined}
+                  original={snapshot.rendementBrut}
+                  onCommit={(n) => setField("rendementBrut", n)}
+                  onReset={() => resetField("rendementBrut")}
+                  locked={locked}
+                  format={(v) => formatPercent(v)}
+                  editingField={editingField}
+                  setEditingField={setEditingField}
+                  fieldKey="rendementBrut"
+                  draft={draft}
+                  setDraft={setDraft}
+                />
+                {" / "}
+                <EditableInline
+                  value={getVal("rendementNet")}
+                  isOverridden={overrides.rendementNet !== undefined}
+                  original={snapshot.rendementNet}
+                  onCommit={(n) => setField("rendementNet", n)}
+                  onReset={() => resetField("rendementNet")}
+                  locked={locked}
+                  format={(v) => formatPercent(v)}
+                  editingField={editingField}
+                  setEditingField={setEditingField}
+                  fieldKey="rendementNet"
+                  draft={draft}
+                  setDraft={setDraft}
+                />
+              </dd>
+            </div>
+            <EditableField label="TRI 10 ans" {...editableProps("tri", (v) => formatPercent(v * 100))} />
+          </dl>
+
+          {history.length > 0 && (
+            <div className="border-t border-dashed border-muted-foreground/15 pt-2">
+              <button
+                type="button"
+                onClick={() => setHistoryOpen((v) => !v)}
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+              >
+                {historyOpen ? "▾" : "▸"} Historique ({history.length} modification{history.length > 1 ? "s" : ""})
+              </button>
+              {historyOpen && (
+                <div className="mt-1.5 space-y-0.5 max-h-40 overflow-y-auto">
+                  {history.map((h) => (
+                    <div key={h.id} className="text-[10px] text-muted-foreground flex items-center gap-2">
+                      <span className="tabular-nums w-20 shrink-0">{new Date(h.date).toLocaleDateString("fr-FR")}</span>
+                      <span className="font-mono truncate">{h.field}</span>
+                      <span className="tabular-nums">
+                        {typeof h.oldValue === "number" ? h.oldValue.toFixed(2) : h.oldValue}
+                        {" → "}
+                        <span className="text-foreground">{typeof h.newValue === "number" ? h.newValue.toFixed(2) : h.newValue}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}
+
+// Top-level stable component — if defined inside SimSnapshotBlock the input
+// loses focus on every keystroke (React treats it as a new component type).
+function EditableField({
+  label, value, isOverridden, originalValue, isEditing, locked, format, color,
+  draft, setDraft, onStartEdit, onCommit, onCancel, onReset,
+}: {
+  label: string;
+  value: number;
+  isOverridden: boolean;
+  originalValue: number;
+  isEditing: boolean;
+  locked: boolean;
+  format: (v: number) => string;
+  color?: string;
+  draft: string;
+  setDraft: (s: string) => void;
+  onStartEdit: () => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="flex justify-between items-center gap-2">
+      <dt className="text-muted-foreground">{label}</dt>
+      {isEditing ? (
+        <input
+          autoFocus
+          type="number"
+          step="any"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); onCommit(); }
+            if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+          }}
+          onBlur={onCommit}
+          className="w-24 h-6 px-1.5 text-[11px] text-right tabular-nums border border-input rounded bg-transparent outline-none focus:border-ring"
+        />
+      ) : (
+        <dd className={`font-medium tabular-nums flex items-center gap-1 ${color ?? ""}`}>
+          {format(value)}
+          {isOverridden && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onReset(); }}
+              className="text-[8px] text-amber-600 hover:text-destructive"
+              title={`Reinitialiser (original : ${format(originalValue)})`}
+            >
+              ↺
+            </button>
+          )}
+          {!locked && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onStartEdit(); }}
+              className="text-[9px] opacity-50 hover:opacity-100 hover:text-primary"
+              title="Modifier"
+            >
+              ✎
+            </button>
+          )}
+        </dd>
+      )}
+    </div>
+  );
+}
+
+// Helper sub-component for the combined Apport/Emprunt and Rdt brut/net rows
+// where two editable values share a cell.
+function EditableInline({
+  value, isOverridden, original, onCommit, onReset, locked, format, editingField, setEditingField, fieldKey, draft, setDraft,
+}: {
+  value: number;
+  isOverridden: boolean;
+  original: number;
+  onCommit: (n: number) => void;
+  onReset: () => void;
+  locked: boolean;
+  format: (v: number) => string;
+  editingField: string | null;
+  setEditingField: (f: string | null) => void;
+  fieldKey: string;
+  draft: string;
+  setDraft: (s: string) => void;
+}) {
+  const isEditing = editingField === fieldKey;
+  const commit = () => {
+    const n = Number(draft);
+    if (!isNaN(n)) onCommit(n);
+    else setEditingField(null);
+  };
+  if (isEditing) {
+    return (
+      <input
+        autoFocus
+        type="number"
+        step="any"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); commit(); }
+          if (e.key === "Escape") { e.preventDefault(); setEditingField(null); }
+        }}
+        onBlur={commit}
+        className="w-20 h-5 px-1 text-[11px] text-right tabular-nums border border-input rounded bg-transparent outline-none focus:border-ring"
+      />
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      {format(value)}
+      {isOverridden && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-[8px] text-amber-600 hover:text-destructive"
+          title={`Reinitialiser (original : ${format(original)})`}
+        >
+          ↺
+        </button>
+      )}
+      {!locked && (
+        <button
+          type="button"
+          onClick={() => { setDraft(String(value)); setEditingField(fieldKey); }}
+          className="text-[9px] opacity-50 hover:opacity-100 hover:text-primary"
+          title="Modifier"
+        >
+          ✎
+        </button>
+      )}
+    </span>
+  );
+}
+
 interface SimSnapshot {
   nomSimulation: string;
   savedAt: string;
@@ -194,9 +663,13 @@ interface SimSnapshot {
   emprunt: number;
 }
 
-export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan }: Props) {
+export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
+  const [projectionOptimum, setProjectionOptimum] = useState<YearProjection[] | null>(null);
   const [snapshot, setSnapshot] = useState<SimSnapshot | null>(null);
+  const [showSimule, setShowSimule] = useState(true);
+  const [showReel, setShowReel] = useState(true);
+  const [showOptimum, setShowOptimum] = useState(true);
   // Counter bumped to force-reload the simulation from localStorage.
   // Incremented by a "Recharger" button so the user can pull fresh data
   // after editing the simulation in the simulator.
@@ -228,8 +701,46 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
           inputs.assurancePretAnnuelle = loan.assuranceAnnuelle;
         }
       }
+      // Applique les overrides snapshot (input-level) pour que la courbe
+      // reflete les modifications de l'utilisateur. Les champs derivies
+      // (mensualite credit, rendement, TRI) restent recalcules a partir
+      // des inputs ajustes — overrider ces valeurs directement n'aurait
+      // pas de sens pour la courbe de projection annuelle.
+      const ov = property.simulationSnapshotOverrides ?? {};
+      if (typeof ov.loyerMensuelTotal === "number") {
+        inputs.loyerMensuel = ov.loyerMensuelTotal;
+        inputs.lots = []; // la surcharge remplace la somme des lots
+      }
+      if (typeof ov.apport === "number") inputs.apportPersonnel = ov.apport;
+      if (typeof ov.emprunt === "number") inputs.montantEmprunte = ov.emprunt;
+      if (typeof ov.coutTotal === "number") {
+        // Ajuste prixAchat pour que la somme des composants corresponde au
+        // nouveau cout total (approximation : absorbe le delta sur prixAchat).
+        const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
+        const otherCosts = fraisNotaire + (inputs.fraisAgence ?? 0) + (inputs.fraisDossier ?? 0)
+          + (inputs.fraisCourtage ?? 0) + inputs.montantTravaux + (inputs.montantMobilierTotal ?? 0);
+        inputs.prixAchat = Math.max(0, ov.coutTotal - otherCosts);
+      }
+      if (typeof ov.chargesAnnuelles === "number") {
+        // Somme des charges actuelles, puis redirige tout vers autresCharges
+        // pour que le total corresponde a la valeur overridee.
+        inputs.chargesCopro = 0;
+        inputs.taxeFonciere = 0;
+        inputs.assurancePNO = 0;
+        inputs.comptabilite = 0;
+        inputs.cfeCrl = 0;
+        inputs.entretien = 0;
+        inputs.gli = 0;
+        inputs.gestionLocativePct = 0;
+        inputs.autresChargesAnnuelles = ov.chargesAnnuelles;
+      }
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
+      // ── Optimum : meme simulation mais SANS vacance locative (pleine occupation) ──
+      // Donne le plafond theorique du cash flow.
+      const inputsOpt: CalculatorInputs = { ...inputs, tauxVacance: 0 };
+      const resultsOpt = calculerRentabilite(inputsOpt);
+      setProjectionOptimum(resultsOpt.projection);
       const loyerMensuelTotal = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)
         || inputs.loyerMensuel
         || 0;
@@ -250,7 +761,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         emprunt: inputs.montantEmprunte,
       });
     });
-  }, [property.simulationId, reloadKey, loan]);
+  }, [property.simulationId, reloadKey, loan, property.simulationSnapshotOverrides]);
 
   /**
    * Real cash flow built from the SAME source of truth as the rest of the app:
@@ -308,14 +819,23 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
   const realLookup = new Map(realByYear.map((r) => [r.yearIdx, r]));
   const latestReal = realByYear.length > 0 ? realByYear[realByYear.length - 1] : null;
 
+  // L'optimum diverge du simule uniquement si la simulation a un tauxVacance > 0.
+  // On detecte cela en comparant le loyer net de A1 entre les deux projections.
+  const hasOptimumDelta = projectionOptimum != null
+    && projectionOptimum.length > 0
+    && projection.length > 0
+    && Math.round(projectionOptimum[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot);
+
   const data: ChartPoint[] = [];
   for (let i = 0; i < years; i++) {
     const p = projection[i];
+    const pOpt = projectionOptimum?.[i];
     // Show real data for every year we have tracking data — not just one point.
     const realYear = operating ? realLookup.get(i) ?? null : null;
     data.push({
       annee: `A${i + 1}`,
       simule: Math.round(p.cashFlowAvantImpot),
+      optimum: hasOptimumDelta && pOpt ? Math.round(pOpt.cashFlowAvantImpot) : null,
       reel: realYear ? Math.round(realYear.annualCF) : null,
       simBreakdown: {
         loyerNet: Math.round(p.loyerNet),
@@ -349,15 +869,64 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
 
   return (
     <Card className="border-dotted">
-      <CardHeader className="pb-3 flex flex-row items-center justify-between">
-        <CardTitle className="text-base">Reel vs Simule</CardTitle>
-        <button
-          onClick={() => setReloadKey((k) => k + 1)}
-          className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
-          title="Recharger la simulation depuis les donnees sauvegardees"
-        >
-          ↻ Recharger la simulation
-        </button>
+      <CardHeader className="pb-3 flex flex-row items-center justify-between gap-2 flex-wrap">
+        <CardTitle className="text-base">Cash flow annuel</CardTitle>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Toggles : afficher / masquer chaque courbe */}
+          <button
+            type="button"
+            onClick={() => setShowSimule((v) => !v)}
+            className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+              showSimule
+                ? "border-[#60a5fa]/50 bg-[#60a5fa]/10 text-[#60a5fa] font-medium"
+                : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+            }`}
+            title={showSimule ? "Masquer la courbe Simule" : "Afficher la courbe Simule"}
+            aria-pressed={showSimule}
+          >
+            <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showSimule ? "#60a5fa" : "transparent", border: "1px solid #60a5fa" }} />
+            Simule
+          </button>
+          {hasOptimumDelta && (
+            <button
+              type="button"
+              onClick={() => setShowOptimum((v) => !v)}
+              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                showOptimum
+                  ? "border-[#a855f7]/50 bg-[#a855f7]/10 text-[#a855f7] font-medium"
+                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+              }`}
+              title={showOptimum ? "Masquer la courbe Optimum" : "Afficher la courbe Optimum (sans vacance)"}
+              aria-pressed={showOptimum}
+            >
+              <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showOptimum ? "#a855f7" : "transparent", border: "1px solid #a855f7" }} />
+              Optimum
+            </button>
+          )}
+          {operating && (
+            <button
+              type="button"
+              onClick={() => setShowReel((v) => !v)}
+              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                showReel
+                  ? "border-[#16a34a]/50 bg-[#16a34a]/10 text-[#16a34a] font-medium"
+                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+              }`}
+              title={showReel ? "Masquer la courbe Reel" : "Afficher la courbe Reel"}
+              aria-pressed={showReel}
+            >
+              <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showReel ? "#16a34a" : "transparent", border: "1px solid #16a34a" }} />
+              Reel
+            </button>
+          )}
+          <button
+            onClick={() => setReloadKey((k) => k + 1)}
+            className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
+            title="Recharger la simulation depuis les donnees sauvegardees"
+          >
+            ↻ Recharger la simulation
+          </button>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground mb-3">
@@ -421,80 +990,44 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             )}
             <Tooltip content={<BreakdownTooltip />} wrapperStyle={{ zIndex: 50 }} />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-            <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
-            {operating && (
+            {showSimule && (
+              <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simule (avant impot)" />
+            )}
+            {hasOptimumDelta && showOptimum && (
+              <Line yAxisId="simule" type="monotone" dataKey="optimum" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 1.5 }} name="Optimum (sans vacance)" connectNulls={false} />
+            )}
+            {operating && showReel && (
               <Line yAxisId="reel" type="monotone" dataKey="reel" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 4, fill: "#16a34a" }} name="Reel (avant impot)" connectNulls={false} />
             )}
             <ReferenceLine yAxisId="simule" y={0} stroke="#999" strokeWidth={1} />
           </ComposedChart>
         </ResponsiveContainer>
-        <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-          Comparaison <strong>avant impot</strong> : meme convention des deux cotes.
-          {operating ? (
-            <>
-              {" "}La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
-              ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
-              {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
-            </>
-          ) : (
-            <>
-              {" "}Le bien n&apos;est pas encore en location — la courbe reelle s&apos;affichera des
-              que le bien sera passe en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
-            </>
-          )}
-        </p>
+        <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
+          <p className="text-[10px] text-muted-foreground leading-relaxed flex-1 min-w-0">
+            Comparaison <strong>avant impot</strong> : meme convention des deux cotes.
+            {operating ? (
+              <>
+                {" "}La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
+                ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
+                {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
+              </>
+            ) : (
+              <>
+                {" "}Le bien n&apos;est pas encore en location — la courbe reelle s&apos;affichera des
+                que le bien sera passe en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
+              </>
+            )}
+          </p>
+          <RvsCurvesInfo />
+        </div>
 
-        {/* Snapshot de la simulation initiale : compact, en bas */}
+        {/* Snapshot de la simulation initiale : repliable, verrouillable, editable */}
         {snapshot && (
-          <div className="mt-4 pt-3 border-t border-dashed border-muted-foreground/15">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                Snapshot simulation initiale
-              </p>
-              <span className="text-[10px] text-muted-foreground/70 font-mono truncate max-w-[60%]" title={snapshot.nomSimulation}>
-                {snapshot.nomSimulation}
-                {snapshot.savedAt && (
-                  <> · {new Date(snapshot.savedAt).toLocaleDateString("fr-FR")}</>
-                )}
-              </span>
-            </div>
-            <dl className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[11px]">
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Loyer mensuel</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.loyerMensuelTotal)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Cout total</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.coutTotal)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Apport / Emprunt</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.apport)} / {formatCurrency(snapshot.emprunt)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Mensualite credit</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.mensualiteCredit)}/m</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Charges annuelles</dt>
-                <dd className="font-medium tabular-nums">{formatCurrency(snapshot.chargesAnnuelles)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Cash flow A1</dt>
-                <dd className={`font-medium tabular-nums ${snapshot.cashFlowMensuelA1 >= 0 ? "text-green-600" : "text-destructive"}`}>
-                  {formatCurrency(snapshot.cashFlowMensuelA1)}/m
-                </dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">Rdt brut / net</dt>
-                <dd className="font-medium tabular-nums">{formatPercent(snapshot.rendementBrut)} / {formatPercent(snapshot.rendementNet)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-muted-foreground">TRI 10 ans</dt>
-                <dd className="font-medium tabular-nums">{formatPercent(snapshot.tri * 100)}</dd>
-              </div>
-            </dl>
-          </div>
+          <SimSnapshotBlock
+            snapshot={snapshot}
+            property={property}
+            onUpdateProperty={onUpdateProperty}
+          />
         )}
       </CardContent>
     </Card>

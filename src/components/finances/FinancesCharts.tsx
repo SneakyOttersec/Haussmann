@@ -1,9 +1,50 @@
 "use client";
 
+import { useState } from "react";
 import {
   ComposedChart, Bar, Line, LineChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, ReferenceLine,
 } from "recharts";
+import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+
+const RENDEMENT_CURVE_DEFINITIONS: { label: string; color: string; desc: string }[] = [
+  { label: "Brut 12m", color: "#0ea5e9", desc: "Rendement brut sur les 12 derniers mois glissants (loyers percus / cout total, annualise). Reagit aux variations recentes." },
+  { label: "Net 12m", color: "#16a34a", desc: "Rendement net 12 mois glissants (loyers − charges). Credit exclu (capture par le cash flow)." },
+  { label: "Brut cumul", color: "#7dd3fc", desc: "Rendement brut cumulatif depuis le premier loyer percu, annualise. Plus stable, converge vers le rendement reel observe." },
+  { label: "Net cumul", color: "#86efac", desc: "Rendement net cumulatif depuis le premier loyer percu (loyers − charges cumulees). Reference long-terme." },
+];
+
+function RendementCurvesInfo() {
+  return (
+    <UiTooltip>
+      <TooltipTrigger render={
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-help"
+        />
+      }>
+        <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[9px] leading-none">?</span>
+        Information
+      </TooltipTrigger>
+      <TooltipContent
+        side="bottom"
+        className="bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 max-w-xl"
+      >
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
+          {RENDEMENT_CURVE_DEFINITIONS.map((d) => (
+            <div key={d.label} className="space-y-0.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: d.color }} />
+                {d.label}
+              </div>
+              <div className="text-muted-foreground leading-snug">{d.desc}</div>
+            </div>
+          ))}
+        </div>
+      </TooltipContent>
+    </UiTooltip>
+  );
+}
 
 export interface MonthlyFinance {
   mois: string;
@@ -96,11 +137,53 @@ function RendementTooltip({ active, payload, label }: any) {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 export function RendementChartFinances({ data }: { data: RendementMonth[] }) {
+  const [showBrutRoll, setShowBrutRoll] = useState(true);
+  const [showNetRoll, setShowNetRoll] = useState(true);
+  const [showBrutCumul, setShowBrutCumul] = useState(true);
+  const [showNetCumul, setShowNetCumul] = useState(true);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const toggles: { key: string; label: string; color: string; value: boolean; set: (v: boolean) => void }[] = [
+    { key: "brutRoll", label: "Brut 12m", color: "#0ea5e9", value: showBrutRoll, set: setShowBrutRoll },
+    { key: "netRoll", label: "Net 12m", color: "#16a34a", value: showNetRoll, set: setShowNetRoll },
+    { key: "brutCumul", label: "Brut cumul", color: "#7dd3fc", value: showBrutCumul, set: setShowBrutCumul },
+    { key: "netCumul", label: "Net cumul", color: "#86efac", value: showNetCumul, set: setShowNetCumul },
+  ];
+
   return (
     <div className="border border-dotted rounded-md p-4">
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-        Rendement mensuel du portefeuille (valeurs reelles)
-      </p>
+      <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Rendement mensuel du portefeuille
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {toggles.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => t.set(!t.value)}
+              className="text-[10px] px-2 py-1 rounded border transition-colors"
+              style={{
+                borderColor: t.value ? `${t.color}80` : undefined,
+                backgroundColor: t.value ? `${t.color}1a` : undefined,
+                color: t.value ? t.color : undefined,
+                borderStyle: t.value ? "solid" : "dashed",
+                fontWeight: t.value ? 500 : 400,
+              }}
+              aria-pressed={t.value}
+            >
+              <span
+                className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
+                style={{
+                  backgroundColor: t.value ? t.color : "transparent",
+                  border: `1px solid ${t.color}`,
+                }}
+              />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <ResponsiveContainer width="100%" height={320}>
         <LineChart data={data} margin={{ top: 10, right: 10, left: 5, bottom: 5 }}>
           <CartesianGrid strokeDasharray="2 4" stroke="#e5e5e5" />
@@ -114,15 +197,78 @@ export function RendementChartFinances({ data }: { data: RendementMonth[] }) {
           <Tooltip content={<RendementTooltip />} wrapperStyle={{ zIndex: 50 }} />
           <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} iconSize={10} />
           <ReferenceLine y={0} stroke="#999" strokeWidth={1} />
-          <Line type="monotone" dataKey="rBrutRoll" name="Brut 12m" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 1.5 }} />
-          <Line type="monotone" dataKey="rNetRoll" name="Net 12m" stroke="#16a34a" strokeWidth={2} dot={{ r: 1.5 }} />
-          <Line type="monotone" dataKey="rBrutCumul" name="Brut cumul" stroke="#7dd3fc" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />
-          <Line type="monotone" dataKey="rNetCumul" name="Net cumul" stroke="#86efac" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />
+          {showBrutRoll && <Line type="monotone" dataKey="rBrutRoll" name="Brut 12m" stroke="#0ea5e9" strokeWidth={2} dot={{ r: 1.5 }} />}
+          {showNetRoll && <Line type="monotone" dataKey="rNetRoll" name="Net 12m" stroke="#16a34a" strokeWidth={2} dot={{ r: 1.5 }} />}
+          {showBrutCumul && <Line type="monotone" dataKey="rBrutCumul" name="Brut cumul" stroke="#7dd3fc" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />}
+          {showNetCumul && <Line type="monotone" dataKey="rNetCumul" name="Net cumul" stroke="#86efac" strokeWidth={1.5} strokeDasharray="4 4" dot={false} connectNulls={false} />}
         </LineChart>
       </ResponsiveContainer>
-      <p className="text-[10px] text-muted-foreground mt-2 italic leading-relaxed">
-        Pleines : fenetre glissante 12 mois. Pointillees : cumul depuis le premier loyer percu. Credit exclu (capture par le cash flow).
-      </p>
+      <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
+        <p className="text-[10px] text-muted-foreground italic leading-relaxed flex-1 min-w-0">
+          Credit exclu (capture par le cash flow). Loyers percus + charges reelles consolidees sur tous les biens selectionnes.
+        </p>
+        <RendementCurvesInfo />
+      </div>
+
+      {/* Detail repliable des donnees du graph */}
+      {data.length > 0 && (() => {
+        const lastPoint = data[data.length - 1];
+        // Premier mois avec rendement cumul defini = 1er loyer percu
+        const firstCumulIdx = data.findIndex((d) => d.rBrutCumul != null);
+        const cumulCount = firstCumulIdx >= 0 ? data.length - firstCumulIdx : 0;
+        const fp = (v: number | null) => v == null ? "—" : `${v.toFixed(2)} %`;
+        return (
+          <div className="mt-3">
+            <div className="rounded-md border border-dotted border-muted-foreground/30 transition-colors hover:border-muted-foreground/50">
+              <button
+                type="button"
+                onClick={() => setDetailOpen((v) => !v)}
+                className="flex items-center justify-between gap-3 w-full px-3 py-2 hover:bg-muted/40 rounded-md transition-colors text-left cursor-pointer"
+                aria-expanded={detailOpen}
+              >
+                <span className="flex items-center gap-2 text-xs font-medium text-foreground">
+                  <span className={`inline-flex items-center justify-center w-4 h-4 rounded border border-current text-[10px] leading-none transition-transform ${detailOpen ? "rotate-90" : ""}`}>▸</span>
+                  Detail du rendement
+                  <span className="text-[10px] text-muted-foreground font-normal ml-1">
+                    ({detailOpen ? "replier" : "cliquer pour deplier"})
+                  </span>
+                </span>
+                <span className="text-[10px] text-muted-foreground/70 font-mono">
+                  {data.length} mois · dernier : {lastPoint.mois}
+                </span>
+              </button>
+              {detailOpen && (
+                <div className="px-3 pb-3 pt-1 space-y-3 border-t border-dotted border-muted-foreground/20">
+                  <dl className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-x-4 gap-y-1.5 text-[11px]">
+                    <div className="flex justify-between">
+                      <dt style={{ color: "#0ea5e9" }}>Brut 12m</dt>
+                      <dd className="font-medium tabular-nums">{fp(lastPoint.rBrutRoll)}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt style={{ color: "#16a34a" }}>Net 12m</dt>
+                      <dd className="font-medium tabular-nums">{fp(lastPoint.rNetRoll)}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt style={{ color: "#7dd3fc" }}>Brut cumul</dt>
+                      <dd className="font-medium tabular-nums">{fp(lastPoint.rBrutCumul)}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt style={{ color: "#86efac" }}>Net cumul</dt>
+                      <dd className="font-medium tabular-nums">{fp(lastPoint.rNetCumul)}</dd>
+                    </div>
+                    <div className="flex justify-between col-span-2 sm:col-span-3 md:col-span-4 pt-1 mt-1 border-t border-dotted border-muted-foreground/15">
+                      <dt className="text-muted-foreground italic">Periode couverte</dt>
+                      <dd className="text-muted-foreground italic tabular-nums">
+                        {data.length} mois · cumul depuis 1er loyer ({cumulCount} mois)
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

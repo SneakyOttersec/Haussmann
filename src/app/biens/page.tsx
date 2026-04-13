@@ -1090,7 +1090,7 @@ function PropertyDetailContent() {
         </section>
       )}
 
-      {/* Reel vs Simule */}
+      {/* Cash flow annuel (Reel vs Simule) */}
       {property.simulationId && (
         <section>
           <RealVsSimulatedSection
@@ -1099,15 +1099,16 @@ function PropertyDetailContent() {
             expenses={expenses}
             rentEntries={rentEntries}
             loan={loan}
+            onUpdateProperty={(updates) => updateProperty(id, updates)}
           />
         </section>
       )}
 
-      {/* Rendement mensuel (valeurs reelles) */}
+      {/* Rendement mensuel */}
       <section>
         <Card className="border-dotted">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Rendement mensuel (valeurs reelles)</CardTitle>
+            <CardTitle className="text-base">Rendement mensuel</CardTitle>
           </CardHeader>
           <CardContent>
             <MonthlyRendementChart

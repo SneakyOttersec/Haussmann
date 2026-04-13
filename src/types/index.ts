@@ -130,6 +130,21 @@ export interface Property {
    *  Quand defini, ecrase le tauxVacance de chaque lot pour le calcul
    *  du revenu theorique. */
   tauxVacanceGlobal?: number;
+  /** Verrou sur le snapshot de la simulation initiale. Par defaut verrouille
+   *  (lecture seule). Quand deverrouille, l'utilisateur peut editer les
+   *  valeurs du snapshot (stockees dans simulationSnapshotOverrides). */
+  simulationSnapshotLocked?: boolean;
+  /** Overrides utilisateur sur le snapshot de simulation initiale.
+   *  Cle = nom du champ (voir SimSnapshot), valeur = override. */
+  simulationSnapshotOverrides?: Record<string, number | string>;
+  /** Historique des modifications du snapshot (chrono, plus recent en premier). */
+  simulationSnapshotHistory?: Array<{
+    id: string;
+    date: string; // ISO
+    field: string;
+    oldValue: number | string;
+    newValue: number | string;
+  }>;
   deletedAt?: string;
   createdAt: string;
   updatedAt: string;
