@@ -956,22 +956,42 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
               Optimum
             </button>
           )}
-          {operating && (
-            <button
-              type="button"
-              onClick={() => setShowReel((v) => !v)}
-              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                showReel
-                  ? "border-[#16a34a]/50 bg-[#16a34a]/10 text-[#16a34a] font-medium"
-                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-              }`}
-              title={showReel ? "Masquer la courbe Reel" : "Afficher la courbe Reel"}
-              aria-pressed={showReel}
-            >
-              <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showReel ? "#16a34a" : "transparent", border: "1px solid #16a34a" }} />
-              Reel
-            </button>
-          )}
+          {(() => {
+            const hasRealData = operating && realByYear.length > 0;
+            const reelDisabled = !hasRealData;
+            return (
+              <button
+                type="button"
+                onClick={() => { if (!reelDisabled) setShowReel((v) => !v); }}
+                disabled={reelDisabled}
+                className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                  reelDisabled
+                    ? "border-dotted border-muted-foreground/20 text-muted-foreground/40 cursor-not-allowed"
+                    : showReel
+                    ? "border-[#16a34a]/50 bg-[#16a34a]/10 text-[#16a34a] font-medium"
+                    : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+                }`}
+                title={
+                  reelDisabled
+                    ? !operating
+                      ? "Pas de courbe reelle — le bien n'est pas encore en location/exploitation"
+                      : "Pas de courbe reelle — aucune donnee de loyer percu"
+                    : showReel ? "Masquer la courbe Reel" : "Afficher la courbe Reel"
+                }
+                aria-pressed={showReel && !reelDisabled}
+              >
+                <span
+                  className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
+                  style={{
+                    backgroundColor: !reelDisabled && showReel ? "#16a34a" : "transparent",
+                    border: `1px solid ${reelDisabled ? "var(--color-muted-foreground)" : "#16a34a"}`,
+                    opacity: reelDisabled ? 0.4 : 1,
+                  }}
+                />
+                Reel
+              </button>
+            );
+          })()}
           <button
             onClick={() => setReloadKey((k) => k + 1)}
             className="text-[10px] text-muted-foreground hover:text-primary transition-colors"
@@ -1062,16 +1082,22 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
           <p className="text-[10px] text-muted-foreground leading-relaxed flex-1 min-w-0">
             Comparaison <strong>avant impot</strong> : meme convention des deux cotes.
-            {operating ? (
+            {operating && realByYear.length > 0 ? (
               <>
                 {" "}La courbe verte montre le cash flow reel annualise pour chaque annee d&apos;exploitation
                 ({yearsOwned} annee{yearsOwned > 1 ? "s" : ""} de donnees).
                 {latestReal?.isExtrapolated && ` L'annee en cours (A${yearsOwned}) est extrapolee sur ${latestReal.monthsUsed} mois.`}
               </>
+            ) : !operating ? (
+              <>
+                {" "}
+                <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> le bien n&apos;est pas encore en location — elle s&apos;affichera des
+                que le bien sera en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
+              </>
             ) : (
               <>
-                {" "}Le bien n&apos;est pas encore en location — la courbe reelle s&apos;affichera des
-                que le bien sera passe en phase &quot;Mise en location&quot; ou &quot;Exploitation&quot;.
+                {" "}
+                <span className="text-amber-700">⚠ Courbe reelle indisponible :</span> aucun loyer percu saisi pour ce bien. Utilisez &quot;Suivi loyers&quot; pour renseigner les encaissements.
               </>
             )}
           </p>
