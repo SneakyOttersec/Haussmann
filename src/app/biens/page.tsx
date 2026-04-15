@@ -1103,6 +1103,7 @@ function PropertyDetailContent() {
             rentEntries={rentEntries}
             loan={loan}
             onUpdateProperty={(updates) => updateProperty(id, updates)}
+            montantEmprunteConsomme={loan ? montantEmprunteEffectif : undefined}
           />
         </section>
       )}
