@@ -15,8 +15,7 @@ import { useLots } from "@/hooks/useLots";
 import { PROPERTY_TYPE_LABELS } from "@/types";
 import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervention } from "@/types";
 import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
-import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte, annualiserMontant } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
@@ -38,7 +37,7 @@ const CashFlowChart = dynamic(
 );
 const RealVsSimulatedSection = dynamic(
   () => import("@/components/property/RealVsSimulatedSection").then((m) => m.RealVsSimulatedSection),
-  { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
+  { ssr: false, loading: () => <div className="h-[330px] border border-dashed rounded-md" /> }
 );
 const MonthlyRendementChart = dynamic(
   () => import("@/components/property/MonthlyRendementChart").then((m) => m.MonthlyRendementChart),
@@ -509,6 +508,10 @@ function PropertyDetailContent() {
   // Tracks whether we've already auto-synced lots for the current "travaux" session.
   // Reset when the property leaves "travaux", so re-entering triggers a new sync.
   const travauxSyncedRef = useRef(false);
+  // Snapshot "Projection actuelle" A1 remonte par RealVsSimulatedSection —
+  // source de verite partagee avec le graph pour la marge travaux / CF negatif.
+  // Place ici (avant l'early return) pour respecter les rules of hooks.
+  const [actuelSnapshot, setActuelSnapshot] = useState<{ loyerNetAnnuel: number; chargesAnnuelles: number } | null>(null);
 
   if (!data || !id) return null;
 
@@ -577,31 +580,17 @@ function PropertyDetailContent() {
   const showEffectif = loan != null && travauxNonTires > 0;
 
   // ── Marge travaux avant CF negatif ──
-  // Principal P* qui fait basculer le CF annuel a 0 en regime **post-differe**
-  // (amortissement plein — c'est la phase qui dimensionne la capacite de
-  // remboursement reelle, le differe n'etant qu'une pause temporaire).
-  //
-  // La mensualite post-differe est lineaire en principal (le facteur de
-  // capitalisation pour differe total et le facteur d'annuite sont des
-  // constantes pour un loan donne), donc :
-  //   k_eff = mensualiteAmortissement(loanEffectif) / montantEmprunteEffectif
-  //   P* = (loyer_net − charges − assurance) / (k_eff × 12)
+  // Principal P* qui fait basculer le CF annuel a 0 en regime post-differe :
+  //   CF(P) = loyerNet − charges − assurance_annuelle − P × kEff × 12
+  //   P* = (loyerNet − charges − assurance_annuelle) / (kEff × 12)
   //   marge = P* − montantEmprunteEffectif
-  // On reutilise `mensualiteAmortissement` pour couvrir correctement
-  // differeInclus + differe partiel/total (capitalisation).
+  // kEff vient de `mensualiteAmortissement(loanEffectif) / montantEmprunteEffectif`
+  // — gere correctement differeInclus + differe partiel/total (capitalisation).
   const breakEvenMarge: number | null = (() => {
-    if (!loan || !loanEffectif) return null;
+    if (!loan || !loanEffectif || !actuelSnapshot) return null;
     if (montantEmprunteEffectif <= 0 || mensualiteEffective <= 0) return null;
-    const loyerMensuelAvecVac = lots.reduce((s, l) => {
-      const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
-      return s + (l.loyerMensuel ?? 0) * (1 - vac);
-    }, 0);
-    const loyerAnnuel = loyerMensuelAvecVac * 12;
-    const EXCLUDED = new Set(["credit", "vacance", "frais_notaire", "travaux", "ameublement"]);
-    const chargesAnnuelles = expenses
-      .filter((e) => !EXCLUDED.has(e.categorie))
-      .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
-    const disponibleAvantCredit = loyerAnnuel - chargesAnnuelles - loan.assuranceAnnuelle;
+    const { loyerNetAnnuel, chargesAnnuelles } = actuelSnapshot;
+    const disponibleAvantCredit = loyerNetAnnuel - chargesAnnuelles - loan.assuranceAnnuelle;
     const kEff = mensualiteEffective / montantEmprunteEffectif;
     if (kEff <= 0) return null;
     const pStar = disponibleAvantCredit / (kEff * 12);
@@ -1163,6 +1152,7 @@ function PropertyDetailContent() {
             onUpdateProperty={(updates) => updateProperty(id, updates)}
             montantEmprunteConsomme={loan ? montantEmprunteEffectif : undefined}
             lots={lots}
+            onActuelSnapshot={setActuelSnapshot}
           />
         </section>
       )}

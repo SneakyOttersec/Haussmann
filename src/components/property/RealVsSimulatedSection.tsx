@@ -88,6 +88,11 @@ interface Props {
   /** Lots du bien (live) — utilises pour calculer la "Projection actuelle"
    *  qui patche la simulation avec les donnees courantes du bien. */
   lots?: Lot[];
+  /** Callback notifie avec le snapshot annuel de "Projection actuelle"
+   *  (annee 1 post-differe, donc loyer et charges stables). Utilise par le
+   *  parent pour calculer la marge travaux avant CF negatif avec la meme
+   *  source de verite que le graph. */
+  onActuelSnapshot?: (snapshot: { loyerNetAnnuel: number; chargesAnnuelles: number } | null) => void;
 }
 
 const fmtEur = (v: number) =>
@@ -950,7 +955,7 @@ interface SimSnapshot {
   regimeFiscal: string;
 }
 
-export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots }: Props) {
+export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots, onActuelSnapshot }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
   const [projectionActuel, setProjectionActuel] = useState<YearProjection[] | null>(null);
   const [projectionActuelConsomme, setProjectionActuelConsomme] = useState<YearProjection[] | null>(null);
@@ -1096,6 +1101,15 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       }
       const resultsActuel = calculerRentabilite(inputsActuel);
       setProjectionActuel(resultsActuel.projection);
+      // Notifie le parent du snapshot annuel (annee 1 — loyer et charges sont
+      // stables sur la duree, la variation ne vient que de l'indexation).
+      const firstYear = resultsActuel.projection[0];
+      if (firstYear && onActuelSnapshot) {
+        onActuelSnapshot({
+          loyerNetAnnuel: firstYear.loyerNet,
+          chargesAnnuelles: firstYear.charges,
+        });
+      }
       // Variante "sur capital consomme" : meme inputsActuel mais principal tire.
       if (hasConsomme) {
         const inputsActuelCons: CalculatorInputs = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
@@ -1461,7 +1475,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
           </span>
         </div>
 
-        <ResponsiveContainer width="100%" height={220}>
+        <ResponsiveContainer width="100%" height={330}>
           <ComposedChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
             <XAxis dataKey="annee" tick={{ fontSize: 10 }} />
