@@ -288,7 +288,7 @@ export function PropertySummary({
     const showSimLine = showExtended && simValue != null;
     // L'asterisque indique que la valeur theorique applique le taux de vacance.
     // La legende est en-dessous du grid (voir bas du composant).
-    const theoLabel = (hasDiffere ? "Theorique / Apres differe" : "Theorique")
+    const theoLabel = (hasDiffere ? "Projete (post-differe)" : "Projete")
       + (showMaxLine ? "*" : "");
     return (
       <CfTooltip rows={tooltipRows}>
@@ -334,7 +334,7 @@ export function PropertySummary({
     {(() => {
       const defs: { label: string; desc: string }[] = [
         { label: "Actuel", desc: "Loyer percu, charges payees et mensualite credit en cours ce mois-ci." },
-        { label: "Theorique", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
+        { label: "Projete", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
       ];
       if (showMax) defs.push({ label: "Optimum", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance). Le Theorique applique la vacance configuree." });
       if (showSurUtilise) defs.push({ label: "Sur capital utilise", desc: "Recalcule sur le capital reellement tire (principal moins les travaux non encore tires)." });
@@ -410,7 +410,7 @@ export function PropertySummary({
           ...(loyerAttenduCurrent > 0 && !eq(loyerAttenduCurrent, revenuMensuel)
             ? [{ label: "Attendu ce mois", value: fc(loyerAttenduCurrent) }]
             : []),
-          ...(theo > 0 ? [{ label: "Theorique (avec vacance)", value: fc(theo) }] : []),
+          ...(theo > 0 ? [{ label: "Projete (avec vacance)", value: fc(theo) }] : []),
           ...(showMaxRev ? [{ label: "Max (pleine occupation)", value: fc(max) }] : []),
           ...(entriesPrev.length > 0
             ? [{ label: "Percu mois precedent", value: fc(loyerPercuPrev) }]
@@ -443,7 +443,7 @@ export function PropertySummary({
                 <p className="text-lg font-bold">{fc(revenuActuelAffiche)}</p>
                 {showTheo && (
                   <p className="text-[10px] mt-0.5">
-                    <span className="text-muted-foreground">Theorique{showMaxRev ? "*" : ""} : </span>
+                    <span className="text-muted-foreground">Projete{showMaxRev ? "*" : ""} : </span>
                     <span className="font-medium">{fc(theo)}</span>
                   </p>
                 )}
@@ -488,7 +488,7 @@ export function PropertySummary({
             ? [
                 { separator: true as const, label: "", value: "" },
                 { label: "Credit apres differe", value: fc(creditPostDiffere) },
-                { label: "Total theorique", value: fc(depTheorique), bold: true },
+                { label: "Total projete", value: fc(depTheorique), bold: true },
               ]
             : []),
           ...(showSurUtilise
@@ -526,13 +526,13 @@ export function PropertySummary({
             ? [{ label: "Pas encore en location", value: "" }]
             : []),
           { separator: true as const, label: "", value: "" },
-          { label: "Revenus (theorique)", value: fc(revenuMensuelCF), color: "text-green-600" },
+          { label: "Revenus (projete)", value: fc(revenuMensuelCF), color: "text-green-600" },
           ...(hasDiffere
             ? [
                 { label: "Credit apres differe", value: `-${fc(creditPostDiffere)}`, color: "text-amber-600" },
               ]
             : []),
-          { label: "Cash flow theorique", value: fc(cfTheorique), bold: true },
+          { label: "Cash flow projete", value: fc(cfTheorique), bold: true },
           ...(showMax
             ? [
                 { separator: true as const, label: "", value: "" },
@@ -559,7 +559,7 @@ export function PropertySummary({
         { label: "Loyer annuel (avec vacance)", value: fc(revenuAnnuelAvecVac) },
         { label: "Cout total du projet", value: fc(coutTotal) },
         { separator: true, label: "", value: "" },
-        { label: "Rendement theorique", value: formatPercent(rBrutTheo), bold: true },
+        { label: "Rendement projete", value: formatPercent(rBrutTheo), bold: true },
         ...(showMax
           ? [
               { separator: true as const, label: "", value: "" },
@@ -611,7 +611,7 @@ export function PropertySummary({
         { label: "Charges annuelles", value: `-${fc(chargesAnnuelles)}`, color: "text-amber-600" },
         { label: "Cout total du projet", value: fc(coutTotal) },
         { separator: true, label: "", value: "" },
-        { label: "Rendement theorique", value: formatPercent(rNetTheo), bold: true },
+        { label: "Rendement projete", value: formatPercent(rNetTheo), bold: true },
         ...(showMax
           ? [
               { separator: true as const, label: "", value: "" },
@@ -675,7 +675,7 @@ export function PropertySummary({
       ) : <span />}
       {tauxVacanceApplique > 0.001 && (
         <p className="text-[10px] text-muted-foreground italic text-right">
-          * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
+          * Le revenu projete prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
         </p>
       )}
     </div>
