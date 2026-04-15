@@ -14,6 +14,11 @@ import { calculerRentabilite } from "@/lib/calculations";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 
+interface SimYearValue {
+  a1: number;
+  a4: number;
+  a15: number;
+}
 interface SimKpis {
   revenuMensuel: number;
   depensesMensuellesHorsCredit: number;
@@ -22,7 +27,13 @@ interface SimKpis {
   cashFlowMensuel: number;
   rendementBrut: number;
   rendementNet: number;
-  tauxVacance: number; // 0..1, taux de vacance defini dans la simulation
+  tauxVacance: number;
+  // Valeurs par annee (A1/A4/A15) pour chaque metrique affichee sur les cards
+  revenuMensuelByYear: SimYearValue;
+  depensesMensuellesTotalByYear: SimYearValue;
+  cashFlowMensuelByYear: SimYearValue;
+  rendementBrutByYear: SimYearValue;
+  rendementNetByYear: SimYearValue;
 }
 
 function statusAtLeast(statut: PropertyStatus | undefined, min: PropertyStatus): boolean {
@@ -89,12 +100,25 @@ export function PropertySummary({
       const results = calculerRentabilite(inputs);
       const depensesMensuellesHorsCredit = results.chargesAnnuellesTotales / 12;
       const creditMensuel = results.mensualiteCredit;
+      // Helper pour extraire une annee (1-indexed) de la projection avec fallback A1
+      const yr = (n: number) => results.projection[Math.max(0, Math.min(results.projection.length - 1, n - 1))];
+      const cout = results.coutTotalAcquisition;
+      const mkYearValue = (fn: (p: typeof results.projection[0]) => number): SimYearValue => ({
+        a1: fn(yr(1)),
+        a4: fn(yr(4)),
+        a15: fn(yr(15)),
+      });
       setSimKpis({
         revenuMensuel: results.loyerAnnuelBrut / 12,
         depensesMensuellesHorsCredit,
         creditMensuel,
         depensesMensuellesTotal: depensesMensuellesHorsCredit + creditMensuel,
         cashFlowMensuel: results.cashFlowMensuelAvantImpot,
+        revenuMensuelByYear: mkYearValue((p) => p.loyerBrut / 12),
+        depensesMensuellesTotalByYear: mkYearValue((p) => (p.charges + p.mensualitesCredit) / 12),
+        cashFlowMensuelByYear: mkYearValue((p) => p.cashFlowAvantImpot / 12),
+        rendementBrutByYear: mkYearValue((p) => cout > 0 ? (p.loyerBrut / cout) * 100 : 0),
+        rendementNetByYear: mkYearValue((p) => cout > 0 ? ((p.loyerNet - p.charges) / cout) * 100 : 0),
         rendementBrut: results.rendementBrut,
         rendementNet: results.rendementNet,
         tauxVacance: inputs.tauxVacance ?? 0,
@@ -270,13 +294,15 @@ export function PropertySummary({
    *  When the loan has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
-  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, simValue, color, tooltipRows }: {
+  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, simValue, simYearValues, simFormat, color, tooltipRows }: {
     label: string;
     theoValue: number;
     actuelValue: number;
     surUtiliseValue?: number;
     maxValue?: number;
     simValue?: number;
+    simYearValues?: SimYearValue;
+    simFormat?: (v: number) => string;
     color?: (v: number) => string;
     tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[];
   }) => {
@@ -285,7 +311,8 @@ export function PropertySummary({
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
     const showMaxLine = showExtended && maxValue != null && !eq(maxValue, theoValue);
-    const showSimLine = showExtended && simValue != null;
+    const showSimLine = showExtended && (simYearValues != null || simValue != null);
+    const fmtSim = simFormat ?? fc;
     // L'asterisque indique que la valeur theorique applique le taux de vacance.
     // La legende est en-dessous du grid (voir bas du composant).
     const theoLabel = (hasDiffere ? "Projete (post-differe)" : "Projete")
@@ -317,10 +344,21 @@ export function PropertySummary({
               </p>
             )}
             {showSimLine && (
-              <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className={`font-medium ${cl(simValue!)}`}>{fc(simValue!)}</span>
-              </p>
+              simYearValues ? (
+                <p className="text-[10px] mt-0.5 leading-snug">
+                  <span className="text-muted-foreground">Simulation initiale : </span>
+                  <span className={`font-medium ${cl(simYearValues.a1)}`}>A1 {fmtSim(simYearValues.a1)}</span>
+                  <span className="text-muted-foreground/50"> · </span>
+                  <span className={`font-medium ${cl(simYearValues.a4)}`}>A4 {fmtSim(simYearValues.a4)}</span>
+                  <span className="text-muted-foreground/50"> · </span>
+                  <span className={`font-medium ${cl(simYearValues.a15)}`}>A15 {fmtSim(simYearValues.a15)}</span>
+                </p>
+              ) : simValue != null ? (
+                <p className="text-[10px] mt-0.5">
+                  <span className="text-muted-foreground">Simulation initiale : </span>
+                  <span className={`font-medium ${cl(simValue)}`}>{fmtSim(simValue)}</span>
+                </p>
+              ) : null
             )}
           </CardContent>
         </Card>
@@ -454,9 +492,13 @@ export function PropertySummary({
                   </p>
                 )}
                 {showExtended && simKpis && (
-                  <p className="text-[10px] mt-0.5">
+                  <p className="text-[10px] mt-0.5 leading-snug">
                     <span className="text-muted-foreground">Simulation initiale : </span>
-                    <span className="font-medium">{fc(simKpis.revenuMensuel)}</span>
+                    <span className="font-medium">A1 {fc(simKpis.revenuMensuelByYear.a1)}</span>
+                    <span className="text-muted-foreground/50"> · </span>
+                    <span className="font-medium">A4 {fc(simKpis.revenuMensuelByYear.a4)}</span>
+                    <span className="text-muted-foreground/50"> · </span>
+                    <span className="font-medium">A15 {fc(simKpis.revenuMensuelByYear.a15)}</span>
                   </p>
                 )}
                 {enLocation && impayesCurrent > 0 && (
@@ -475,7 +517,7 @@ export function PropertySummary({
         theoValue={depTheorique}
         actuelValue={depActuel}
         surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
-        simValue={simKpis?.depensesMensuellesTotal}
+        simYearValues={simKpis?.depensesMensuellesTotalByYear}
         tooltipRows={[
           { label: "Charges (hors credit)", value: fc(depensesActuel) },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditActuel) },
@@ -512,7 +554,7 @@ export function PropertySummary({
         actuelValue={cfActuel}
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
         maxValue={showMax ? cfMax : undefined}
-        simValue={simKpis?.cashFlowMensuel}
+        simYearValues={simKpis?.cashFlowMensuelByYear}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
           { label: "Revenus (percu)", value: fc(revenuActuelAffiche), color: "text-green-600" },
@@ -598,9 +640,13 @@ export function PropertySummary({
               </p>
             )}
             {showExtended && simKpis && (
-              <p className="text-[10px] mt-0.5">
+              <p className="text-[10px] mt-0.5 leading-snug">
                 <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className="font-medium">{formatPercent(simKpis.rendementBrut)}</span>
+                <span className="font-medium">A1 {formatPercent(simKpis.rendementBrutByYear.a1)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium">A4 {formatPercent(simKpis.rendementBrutByYear.a4)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium">A15 {formatPercent(simKpis.rendementBrutByYear.a15)}</span>
               </p>
             )}
           </CardContent>
@@ -650,9 +696,13 @@ export function PropertySummary({
               </p>
             )}
             {showExtended && simKpis && (
-              <p className="text-[10px] mt-0.5">
+              <p className="text-[10px] mt-0.5 leading-snug">
                 <span className="text-muted-foreground">Simulation initiale : </span>
-                <span className="font-medium">{formatPercent(simKpis.rendementNet)}</span>
+                <span className="font-medium">A1 {formatPercent(simKpis.rendementNetByYear.a1)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium">A4 {formatPercent(simKpis.rendementNetByYear.a4)}</span>
+                <span className="text-muted-foreground/50"> · </span>
+                <span className="font-medium">A15 {formatPercent(simKpis.rendementNetByYear.a15)}</span>
               </p>
             )}
           </CardContent>
