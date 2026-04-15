@@ -330,6 +330,45 @@ export function PropertySummary({
 
   return (
     <div className="space-y-2">
+    {/* Header : info tooltip en haut a droite */}
+    {(() => {
+      const defs: { label: string; desc: string }[] = [
+        { label: "Actuel", desc: "Loyer percu, charges payees et mensualite credit en cours ce mois-ci." },
+        { label: "Theorique", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
+      ];
+      if (showMax) defs.push({ label: "Optimum", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance). Le Theorique applique la vacance configuree." });
+      if (showSurUtilise) defs.push({ label: "Sur capital utilise", desc: "Recalcule sur le capital reellement tire (principal moins les travaux non encore tires)." });
+      if (hasDiffere) defs.push({ label: "Apres differe", desc: "Mensualite d'amortissement une fois le differe termine." });
+      if (simKpis) defs.push({ label: "Simulation initiale", desc: "Valeur projetee par la simulation dont ce bien est issu (annee 1)." });
+      return (
+        <div className="flex justify-end">
+          <Tooltip>
+            <TooltipTrigger render={
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-help"
+              />
+            }>
+              <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[9px] leading-none">?</span>
+              Information
+            </TooltipTrigger>
+            <TooltipContent
+              side="bottom"
+              className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-2xl"
+            >
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
+                {defs.map((d) => (
+                  <div key={d.label} className="space-y-0.5">
+                    <div className="font-bold">{d.label}</div>
+                    <div className="text-muted-foreground leading-snug">{d.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      );
+    })()}
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {(() => {
         // Theorique = loyer avec vacance appliquee. Fallback sur les incomes
@@ -621,63 +660,26 @@ export function PropertySummary({
       </CfTooltip>
     </div>
 
-    {/* Toggle pour etendre les cards avec Optimum + Simulation initiale */}
-    {(simKpis || revenuMensuelMaxEff !== revenuMensuelCF) && (
-      <button
-        type="button"
-        onClick={() => setShowExtended((v) => !v)}
-        className="mt-2 inline-flex items-center gap-1 text-[10px] text-destructive/60 hover:text-destructive transition-colors select-none cursor-pointer"
-        aria-expanded={showExtended}
-      >
-        <span className={`inline-flex items-center justify-center w-3 h-3 text-[10px] leading-none transition-transform ${showExtended ? "rotate-90" : ""}`}>▸</span>
-        {showExtended ? "Masquer Optimum / Simulation initiale" : "Afficher Optimum / Simulation initiale"}
-      </button>
-    )}
+    {/* Footer sous les cards : toggle a gauche, legende asterisque a droite */}
+    <div className="mt-2 flex items-start justify-between gap-3 flex-wrap">
+      {(simKpis || revenuMensuelMaxEff !== revenuMensuelCF) ? (
+        <button
+          type="button"
+          onClick={() => setShowExtended((v) => !v)}
+          className="inline-flex items-center gap-1 text-[10px] text-destructive/60 hover:text-destructive transition-colors select-none cursor-pointer"
+          aria-expanded={showExtended}
+        >
+          <span className={`inline-flex items-center justify-center w-3 h-3 text-[10px] leading-none transition-transform ${showExtended ? "rotate-90" : ""}`}>▸</span>
+          {showExtended ? "Masquer Optimum / Simulation initiale" : "Afficher Optimum / Simulation initiale"}
+        </button>
+      ) : <span />}
+      {tauxVacanceApplique > 0.001 && (
+        <p className="text-[10px] text-muted-foreground italic text-right">
+          * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
+        </p>
+      )}
+    </div>
 
-    {/* Legende sur l'asterisque (Theorique avec vacance) */}
-    {tauxVacanceApplique > 0.001 && (
-      <p className="text-[10px] text-muted-foreground italic mt-1">
-        * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
-      </p>
-    )}
-
-    {/* Bouton "Information" qui revele les definitions en grille 2 colonnes. */}
-    {(() => {
-      const defs: { label: string; desc: string }[] = [
-        { label: "Actuel", desc: "Loyer percu, charges payees et mensualite credit en cours ce mois-ci." },
-        { label: "Theorique", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
-      ];
-      if (showMax) defs.push({ label: "Optimum", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance). Le Theorique applique la vacance configuree." });
-      if (showSurUtilise) defs.push({ label: "Sur capital utilise", desc: "Recalcule sur le capital reellement tire (principal moins les travaux non encore tires)." });
-      if (hasDiffere) defs.push({ label: "Apres differe", desc: "Mensualite d'amortissement une fois le differe termine." });
-      if (simKpis) defs.push({ label: "Simulation initiale", desc: "Valeur projetee par la simulation dont ce bien est issu (annee 1)." });
-      return (
-        <Tooltip>
-          <TooltipTrigger render={
-            <button
-              type="button"
-              className="mt-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-help"
-            />
-          }>
-            <span className="inline-flex items-center justify-center w-3 h-3 rounded-full border border-current text-[9px] leading-none">?</span>
-            Information
-          </TooltipTrigger>
-          <TooltipContent
-            side="top"
-            className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-2xl"
-          >
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2 font-mono text-[11px]">
-              {defs.map((d) => (
-                <div key={d.label} className="space-y-0.5">
-                  <div className="font-bold">{d.label}</div>
-                  <div className="text-muted-foreground leading-snug">{d.desc}</div>
-                </div>
-              ))}
-            </div>
-          </TooltipContent>
-        </Tooltip>
-      );
-    })()}
     </div>
   );
 }
