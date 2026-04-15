@@ -74,6 +74,9 @@ export function PropertySummary({
   // a chaque render. null = pas de sim ou chargement en cours. Affichee
   // uniquement dans les tooltips des cards (plus en ligne sur la card).
   const [simKpis, setSimKpis] = useState<SimKpis | null>(null);
+  // Toggle pour afficher les lignes etendues (Optimum + Simulation initiale)
+  // sur les cards. Replie par defaut pour un affichage plus compact.
+  const [showExtended, setShowExtended] = useState(false);
   useEffect(() => {
     let cancelled = false;
     setSimKpis(null);
@@ -281,8 +284,8 @@ export function PropertySummary({
     const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
-    const showMaxLine = maxValue != null && !eq(maxValue, theoValue);
-    const showSimLine = simValue != null;
+    const showMaxLine = showExtended && maxValue != null && !eq(maxValue, theoValue);
+    const showSimLine = showExtended && simValue != null;
     // L'asterisque indique que la valeur theorique applique le taux de vacance.
     // La legende est en-dessous du grid (voir bas du composant).
     const theoLabel = (hasDiffere ? "Theorique / Apres differe" : "Theorique")
@@ -405,13 +408,13 @@ export function PropertySummary({
                     <span className="font-medium">{fc(theo)}</span>
                   </p>
                 )}
-                {showMaxRev && (
+                {showExtended && showMaxRev && (
                   <p className="text-[10px] mt-0.5">
                     <span className="text-muted-foreground">Optimum : </span>
                     <span className="font-medium">{fc(max)}</span>
                   </p>
                 )}
-                {simKpis && (
+                {showExtended && simKpis && (
                   <p className="text-[10px] mt-0.5">
                     <span className="text-muted-foreground">Simulation initiale : </span>
                     <span className="font-medium">{fc(simKpis.revenuMensuel)}</span>
@@ -543,7 +546,7 @@ export function PropertySummary({
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement brut</p>
             <p className="text-lg font-bold">{formatPercent(rBrutTheo)}</p>
-            {showMax && (
+            {showExtended && showMax && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Optimum : </span>
                 <span className="font-medium">{formatPercent(rBrut)}</span>
@@ -555,7 +558,7 @@ export function PropertySummary({
                 <span className="font-medium">{formatPercent(rBrutUtilise)}</span>
               </p>
             )}
-            {simKpis && (
+            {showExtended && simKpis && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Simulation initiale : </span>
                 <span className="font-medium">{formatPercent(simKpis.rendementBrut)}</span>
@@ -595,7 +598,7 @@ export function PropertySummary({
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement net</p>
             <p className="text-lg font-bold">{formatPercent(rNetTheo)}</p>
-            {showMax && (
+            {showExtended && showMax && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Optimum : </span>
                 <span className="font-medium">{formatPercent(rNet)}</span>
@@ -607,7 +610,7 @@ export function PropertySummary({
                 <span className="font-medium">{formatPercent(rNetUtilise)}</span>
               </p>
             )}
-            {simKpis && (
+            {showExtended && simKpis && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Simulation initiale : </span>
                 <span className="font-medium">{formatPercent(simKpis.rendementNet)}</span>
@@ -623,6 +626,19 @@ export function PropertySummary({
       <p className="text-[10px] text-muted-foreground italic mt-1">
         * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
       </p>
+    )}
+
+    {/* Toggle pour etendre les cards avec Optimum + Simulation initiale */}
+    {(simKpis || revenuMensuelMaxEff !== revenuMensuelCF) && (
+      <button
+        type="button"
+        onClick={() => setShowExtended((v) => !v)}
+        className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-pointer"
+        aria-expanded={showExtended}
+      >
+        <span className={`inline-flex items-center justify-center w-3 h-3 text-[10px] leading-none transition-transform ${showExtended ? "rotate-90" : ""}`}>▸</span>
+        {showExtended ? "Masquer Optimum / Simulation initiale" : "Afficher Optimum / Simulation initiale"}
+      </button>
     )}
 
     {/* Bouton "Information" qui revele les definitions en grille 2 colonnes. */}
