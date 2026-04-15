@@ -577,13 +577,21 @@ function PropertyDetailContent() {
   const showEffectif = loan != null && travauxNonTires > 0;
 
   // ── Marge travaux avant CF negatif ──
-  // Principal P* qui fait basculer le CF annuel a 0 (post-differe, amortissement plein).
-  // CF_annuel(P) = loyerNet_annuel − charges_annuelles − assurance_annuelle − P × k × 12
-  // avec k = (r/12) / (1 − (1+r/12)^(−n×12))
-  // P* = (loyerNet − charges − assurance) / (k × 12)
-  // Marge = P* − montantEmprunteEffectif
+  // Principal P* qui fait basculer le CF annuel a 0 en regime **post-differe**
+  // (amortissement plein — c'est la phase qui dimensionne la capacite de
+  // remboursement reelle, le differe n'etant qu'une pause temporaire).
+  //
+  // La mensualite post-differe est lineaire en principal (le facteur de
+  // capitalisation pour differe total et le facteur d'annuite sont des
+  // constantes pour un loan donne), donc :
+  //   k_eff = mensualiteAmortissement(loanEffectif) / montantEmprunteEffectif
+  //   P* = (loyer_net − charges − assurance) / (k_eff × 12)
+  //   marge = P* − montantEmprunteEffectif
+  // On reutilise `mensualiteAmortissement` pour couvrir correctement
+  // differeInclus + differe partiel/total (capitalisation).
   const breakEvenMarge: number | null = (() => {
-    if (!loan) return null;
+    if (!loan || !loanEffectif) return null;
+    if (montantEmprunteEffectif <= 0 || mensualiteEffective <= 0) return null;
     const loyerMensuelAvecVac = lots.reduce((s, l) => {
       const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
       return s + (l.loyerMensuel ?? 0) * (1 - vac);
@@ -594,11 +602,9 @@ function PropertyDetailContent() {
       .filter((e) => !EXCLUDED.has(e.categorie))
       .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
     const disponibleAvantCredit = loyerAnnuel - chargesAnnuelles - loan.assuranceAnnuelle;
-    const rMonth = loan.tauxAnnuel / 12;
-    const n = loan.dureeAnnees * 12;
-    if (rMonth <= 0 || n <= 0) return null;
-    const k = rMonth / (1 - Math.pow(1 + rMonth, -n));
-    const pStar = disponibleAvantCredit / (k * 12);
+    const kEff = mensualiteEffective / montantEmprunteEffectif;
+    if (kEff <= 0) return null;
+    const pStar = disponibleAvantCredit / (kEff * 12);
     return pStar - montantEmprunteEffectif;
   })();
 
