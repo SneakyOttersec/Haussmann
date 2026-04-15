@@ -15,7 +15,8 @@ import { useLots } from "@/hooks/useLots";
 import { PROPERTY_TYPE_LABELS } from "@/types";
 import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervention } from "@/types";
 import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
-import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
+import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte, annualiserMontant } from "@/lib/utils";
+import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
@@ -575,6 +576,32 @@ function PropertyDetailContent() {
   const mensualiteDifferEffective = loanEffectif && dM > 0 ? mensualitePendantDiffere(loanEffectif) : 0;
   const showEffectif = loan != null && travauxNonTires > 0;
 
+  // ── Marge travaux avant CF negatif ──
+  // Principal P* qui fait basculer le CF annuel a 0 (post-differe, amortissement plein).
+  // CF_annuel(P) = loyerNet_annuel − charges_annuelles − assurance_annuelle − P × k × 12
+  // avec k = (r/12) / (1 − (1+r/12)^(−n×12))
+  // P* = (loyerNet − charges − assurance) / (k × 12)
+  // Marge = P* − montantEmprunteEffectif
+  const breakEvenMarge: number | null = (() => {
+    if (!loan) return null;
+    const loyerMensuelAvecVac = lots.reduce((s, l) => {
+      const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
+      return s + (l.loyerMensuel ?? 0) * (1 - vac);
+    }, 0);
+    const loyerAnnuel = loyerMensuelAvecVac * 12;
+    const EXCLUDED = new Set(["credit", "vacance", "frais_notaire", "travaux", "ameublement"]);
+    const chargesAnnuelles = expenses
+      .filter((e) => !EXCLUDED.has(e.categorie))
+      .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
+    const disponibleAvantCredit = loyerAnnuel - chargesAnnuelles - loan.assuranceAnnuelle;
+    const rMonth = loan.tauxAnnuel / 12;
+    const n = loan.dureeAnnees * 12;
+    if (rMonth <= 0 || n <= 0) return null;
+    const k = rMonth / (1 - Math.pow(1 + rMonth, -n));
+    const pStar = disponibleAvantCredit / (k * 12);
+    return pStar - montantEmprunteEffectif;
+  })();
+
   // Pre-acte = the property is still being prospected/negotiated. While in this
   // state, financial values are projections — we color each price green when the
   // user has validated it against a real contract/offer, orange otherwise. Once
@@ -920,6 +947,31 @@ function PropertyDetailContent() {
                             <span className="text-muted-foreground/60"> · {formatCurrency(travauxNonTires)} restant sur enveloppe travaux</span>
                           </p>
                         )}
+                        {breakEvenMarge != null && (() => {
+                          const marge = breakEvenMarge;
+                          const restantEnveloppe = travauxNonTires;
+                          if (marge <= 0) {
+                            return (
+                              <p className="text-[10px] mt-1 text-destructive">
+                                CF Negatif · depassement de <span className="tabular-nums font-semibold">{formatCurrency(Math.abs(marge))}</span> au-dela du seuil
+                              </p>
+                            );
+                          }
+                          if (restantEnveloppe > 0 && marge >= restantEnveloppe) {
+                            return (
+                              <p className="text-[10px] mt-1 text-green-600">
+                                Enveloppe restante consommable sans basculer en CF negatif · marge totale <span className="tabular-nums font-semibold">{formatCurrency(marge)}</span>
+                              </p>
+                            );
+                          }
+                          const ratioAmber = restantEnveloppe > 0 && marge / restantEnveloppe < 0.3;
+                          return (
+                            <p className={`text-[10px] mt-1 ${ratioAmber ? "text-amber-600" : "text-green-600"}`}>
+                              Marge avant CF negatif : <span className="tabular-nums font-semibold">{formatCurrency(marge)}</span>
+                              {restantEnveloppe > 0 && <span className="text-muted-foreground/60"> · sur {formatCurrency(restantEnveloppe)} restants</span>}
+                            </p>
+                          );
+                        })()}
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Taux nominal</p>
