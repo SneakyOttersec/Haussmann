@@ -22,6 +22,7 @@ interface SimKpis {
   cashFlowMensuel: number;
   rendementBrut: number;
   rendementNet: number;
+  tauxVacance: number; // 0..1, taux de vacance defini dans la simulation
 }
 
 function statusAtLeast(statut: PropertyStatus | undefined, min: PropertyStatus): boolean {
@@ -93,6 +94,7 @@ export function PropertySummary({
         cashFlowMensuel: results.cashFlowMensuelAvantImpot,
         rendementBrut: results.rendementBrut,
         rendementNet: results.rendementNet,
+        tauxVacance: inputs.tauxVacance ?? 0,
       });
     });
     return () => { cancelled = true; };
@@ -126,17 +128,26 @@ export function PropertySummary({
   const hasCurrentEntries = entriesCurrent.length > 0;
   // Revenu affiche dans la card = percu reel du mois (ou fallback incomes).
   const revenuMensuel = hasCurrentEntries ? loyerPercuCurrent : revenuFromIncomes;
-  // Revenu utilise pour le calcul cash flow = toujours theorique (pleine
-  // occupation des lots, sinon incomes). Rend le cashflow independant des
-  // aleas de collecte mensuelle.
-  const revenuMensuelCF = revenuMensuelTheorique && revenuMensuelTheorique > 0
-    ? revenuMensuelTheorique
-    : revenuFromIncomes;
   // Revenu a pleine occupation (SANS vacance). Quand egal au theorique,
-  // vacance = 0 et la ligne "Max" n'a pas de sens (masquee).
+  // vacance = 0 et la ligne "Optimum" n'a pas de sens (masquee).
   const revenuMensuelMaxEff = revenuMensuelMax && revenuMensuelMax > 0
     ? revenuMensuelMax
     : revenuFromIncomes;
+  // Hierarchie de priorite pour le taux de vacance applique au "Theorique" :
+  //   1. property.tauxVacanceGlobal (override utilisateur niveau bien) ← prevalence
+  //   2. simKpis?.tauxVacance (defini dans la simulation initiale)
+  //   3. fallback : taux moyen calcule depuis revenuMensuelTheorique vs Optimum
+  //      (hierarchie precedente : tauxVacance par lot)
+  const fallbackTauxVacance = revenuMensuelMaxEff > 0
+    ? Math.max(0, 1 - (revenuMensuelTheorique ?? revenuFromIncomes) / revenuMensuelMaxEff)
+    : 0;
+  const tauxVacanceApplique = property.tauxVacanceGlobal != null
+    ? property.tauxVacanceGlobal
+    : (simKpis?.tauxVacance ?? fallbackTauxVacance);
+  // Revenu CF = revenu pleine occupation × (1 − vacance applicable).
+  // Reflet de la hierarchie ci-dessus (et non plus la prop revenuMensuelTheorique
+  // qui n'avait pas connaissance de la simulation).
+  const revenuMensuelCF = revenuMensuelMaxEff * (1 - tauxVacanceApplique);
 
   // Occupation : base sur les lots (statut "occupe"). Sans lots, fallback null.
   const totalLots = lots?.length ?? 0;
@@ -270,7 +281,10 @@ export function PropertySummary({
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
     const showMaxLine = maxValue != null && !eq(maxValue, theoValue);
-    const theoLabel = hasDiffere ? "Theorique / Apres differe" : "Theorique";
+    // L'asterisque indique que la valeur theorique applique le taux de vacance.
+    // La legende est en-dessous du grid (voir bas du composant).
+    const theoLabel = (hasDiffere ? "Theorique / Apres differe" : "Theorique")
+      + (showMaxLine ? "*" : "");
     return (
       <CfTooltip rows={tooltipRows}>
         <Card className="border-dotted h-full">
@@ -293,7 +307,7 @@ export function PropertySummary({
             )}
             {showMaxLine && (
               <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Max : </span>
+                <span className="text-muted-foreground">Optimum : </span>
                 <span className={`font-medium ${cl(maxValue!)}`}>{fc(maxValue!)}</span>
               </p>
             )}
@@ -379,13 +393,13 @@ export function PropertySummary({
                 <p className="text-lg font-bold">{fc(revenuActuelAffiche)}</p>
                 {showTheo && (
                   <p className="text-[10px] mt-0.5">
-                    <span className="text-muted-foreground">Theorique : </span>
+                    <span className="text-muted-foreground">Theorique{showMaxRev ? "*" : ""} : </span>
                     <span className="font-medium">{fc(theo)}</span>
                   </p>
                 )}
                 {showMaxRev && (
                   <p className="text-[10px] mt-0.5">
-                    <span className="text-muted-foreground">Max : </span>
+                    <span className="text-muted-foreground">Optimum : </span>
                     <span className="font-medium">{fc(max)}</span>
                   </p>
                 )}
@@ -515,7 +529,7 @@ export function PropertySummary({
             <p className="text-lg font-bold">{formatPercent(rBrutTheo)}</p>
             {showMax && (
               <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Max : </span>
+                <span className="text-muted-foreground">Optimum : </span>
                 <span className="font-medium">{formatPercent(rBrut)}</span>
               </p>
             )}
@@ -561,7 +575,7 @@ export function PropertySummary({
             <p className="text-lg font-bold">{formatPercent(rNetTheo)}</p>
             {showMax && (
               <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Max : </span>
+                <span className="text-muted-foreground">Optimum : </span>
                 <span className="font-medium">{formatPercent(rNet)}</span>
               </p>
             )}
@@ -576,13 +590,20 @@ export function PropertySummary({
       </CfTooltip>
     </div>
 
+    {/* Legende sur l'asterisque (Theorique avec vacance) */}
+    {tauxVacanceApplique > 0.001 && (
+      <p className="text-[10px] text-muted-foreground italic mt-1">
+        * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
+      </p>
+    )}
+
     {/* Bouton "Information" qui revele les definitions en grille 2 colonnes. */}
     {(() => {
       const defs: { label: string; desc: string }[] = [
         { label: "Actuel", desc: "Loyer percu, charges payees et mensualite credit en cours ce mois-ci." },
         { label: "Theorique", desc: "Regime de croisiere : loyers a pleine occupation ajustes par la vacance, credit post-differe." },
       ];
-      if (showMax) defs.push({ label: "Max", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance)." });
+      if (showMax) defs.push({ label: "Optimum", desc: "Meilleur cas theorique, 100% d'occupation (sans vacance). Le Theorique applique la vacance configuree." });
       if (showSurUtilise) defs.push({ label: "Sur capital utilise", desc: "Recalcule sur le capital reellement tire (principal moins les travaux non encore tires)." });
       if (hasDiffere) defs.push({ label: "Apres differe", desc: "Mensualite d'amortissement une fois le differe termine." });
       if (simKpis) defs.push({ label: "Simulation initiale", desc: "Valeur projetee par la simulation dont ce bien est issu (annee 1)." });
