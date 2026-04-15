@@ -412,11 +412,10 @@ export function PropertySummary({
     })()}
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {(() => {
-        // Theorique = loyer avec vacance appliquee. Fallback sur les incomes
-        // si aucun lot configure, pour que la ligne reste visible.
-        const theo = revenuMensuelTheorique && revenuMensuelTheorique > 0
-          ? revenuMensuelTheorique
-          : revenuFromIncomes;
+        // Projete = revenuMensuelCF (pleine occupation × (1 − vacance)),
+        // avec la hierarchie tauxVacanceGlobal > simVacance > per-lot fallback
+        // (meme source que les autres cards — cf. calcul de revenuMensuelCF plus haut).
+        const theo = revenuMensuelCF;
         const max = revenuMensuelMaxEff;
         const eq = (a: number, b: number) => Math.round(a) === Math.round(b);
         // Avant la mise en location, on force le revenu actuel a 0 mais on
