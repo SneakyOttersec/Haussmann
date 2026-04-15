@@ -260,8 +260,11 @@ export function PropertySummary({
   const showUtilise = capitalUtiliseActuel != null
     && capitalUtiliseActuel > 0
     && Math.round(capitalUtiliseActuel) !== Math.round(coutTotal);
-  const rBrutUtilise = showUtilise ? rendementBrut(revenuAnnuel, capitalUtiliseActuel!) : 0;
-  const rNetUtilise = showUtilise ? rendementNet(revenuAnnuel, chargesAnnuelles, capitalUtiliseActuel!) : 0;
+  // Coherent avec la valeur principale : on applique la vacance (revenuAnnuelAvecVac),
+  // pas les incomes bruts. Seul le denominateur change (capital effectivement tire
+  // au lieu du cout total).
+  const rBrutUtilise = showUtilise ? rendementBrut(revenuAnnuelAvecVac, capitalUtiliseActuel!) : 0;
+  const rNetUtilise = showUtilise ? rendementNet(revenuAnnuelAvecVac, chargesAnnuelles, capitalUtiliseActuel!) : 0;
 
   // Depenses et CF "theorique" = post-differe (le regime de croisiere)
   const depTheorique = depensesMensuelles + creditPostDiffere;
