@@ -621,24 +621,24 @@ export function PropertySummary({
       </CfTooltip>
     </div>
 
-    {/* Legende sur l'asterisque (Theorique avec vacance) */}
-    {tauxVacanceApplique > 0.001 && (
-      <p className="text-[10px] text-muted-foreground italic mt-1">
-        * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
-      </p>
-    )}
-
     {/* Toggle pour etendre les cards avec Optimum + Simulation initiale */}
     {(simKpis || revenuMensuelMaxEff !== revenuMensuelCF) && (
       <button
         type="button"
         onClick={() => setShowExtended((v) => !v)}
-        className="mt-2 mr-3 inline-flex items-center gap-1 text-[10px] text-muted-foreground/70 hover:text-foreground transition-colors select-none cursor-pointer"
+        className="mt-2 inline-flex items-center gap-1 text-[10px] text-destructive/60 hover:text-destructive transition-colors select-none cursor-pointer"
         aria-expanded={showExtended}
       >
         <span className={`inline-flex items-center justify-center w-3 h-3 text-[10px] leading-none transition-transform ${showExtended ? "rotate-90" : ""}`}>▸</span>
         {showExtended ? "Masquer Optimum / Simulation initiale" : "Afficher Optimum / Simulation initiale"}
       </button>
+    )}
+
+    {/* Legende sur l'asterisque (Theorique avec vacance) */}
+    {tauxVacanceApplique > 0.001 && (
+      <p className="text-[10px] text-muted-foreground italic mt-1">
+        * Le revenu theorique prend en compte une vacance locative de {(tauxVacanceApplique * 100).toFixed(1)} %.
+      </p>
     )}
 
     {/* Bouton "Information" qui revele les definitions en grille 2 colonnes. */}
