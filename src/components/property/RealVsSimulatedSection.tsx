@@ -37,8 +37,8 @@ const RVS_CURVE_DEFINITIONS: { label: string; color: string; desc: string }[] = 
   { label: "Simulation Initiale", color: "#60a5fa", desc: "Cash flow projete par la simulation initiale (avec la vacance configuree), annee par annee. Parametres credit patches avec ceux actuels du bien." },
   { label: "Projection actuelle", color: "#14b8a6", desc: "Meme simulation mais patchee avec les donnees courantes du bien : loyers des lots, vacance globale, apport et charges annualisees. Reflete ce que donnerait la sim aujourd'hui avec les valeurs reelles." },
   { label: "Optimum", color: "#a855f7", desc: "Meme simulation mais sans vacance locative (100% d'occupation). Plafond theorique du cash flow." },
-  { label: "Sur capital consomme", color: "#f59e0b", desc: "Meme simulation mais avec le principal effectivement tire (montant emprunte − travaux non encore consommes). Cash flow theorique tant que l'enveloppe travaux n'est pas pleinement utilisee." },
   { label: "Reel", color: "#16a34a", desc: "Cash flow reel annualise pour chaque annee d'exploitation, base sur les loyers percus et les charges reelles. S'affiche uniquement a partir de la mise en location." },
+  { label: "Toggle \"Sur capital consomme\"", color: "#f59e0b", desc: "Mode de vue : quand active, Optimum et Projection actuelle sont recalculees sur le principal effectivement tire (montant emprunte − travaux non encore consommes), au lieu du principal total. Utile pour voir ou en est le CF tant que l'enveloppe travaux n'est pas pleinement consommee." },
 ];
 
 function RvsCurvesInfo() {
@@ -126,12 +126,10 @@ interface ChartPoint {
   simule: number;
   actuel: number | null;
   optimum: number | null;
-  consomme: number | null;
   reel: number | null;
   simBreakdown: SimBreakdown;
   actuelBreakdown: SimBreakdown | null;
   optBreakdown: SimBreakdown | null;
-  consBreakdown: SimBreakdown | null;
   realBreakdown: RealBreakdown | null;
 }
 
@@ -183,17 +181,17 @@ function TooltipTotal({ label, value }: { label: string; value: number }) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function BreakdownTooltip({ active, payload, label, showSimule, showActuel, showOptimum, showConsomme, showReel }: any) {
+function BreakdownTooltip({ active, payload, label, showSimule, showActuel, showOptimum, showReel, modeConsomme }: any) {
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
   if (!point) return null;
   const sim = showSimule ? point.simBreakdown : null;
   const act = showActuel ? point.actuelBreakdown : null;
   const opt = showOptimum ? point.optBreakdown : null;
-  const cons = showConsomme ? point.consBreakdown : null;
   const real = showReel ? point.realBreakdown : null;
   const ecart = real && sim ? real.cashFlow - sim.cashFlowAvantImpot : 0;
-  if (!sim && !act && !opt && !cons && !real) return null;
+  const consSuffix = modeConsomme ? " · sur capital consomme" : "";
+  if (!sim && !act && !opt && !real) return null;
 
   return (
     <div
@@ -212,7 +210,7 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
 
       {/* Simule */}
       {sim && (
-        <div style={{ marginBottom: act || opt || cons || real ? 8 : 0 }}>
+        <div style={{ marginBottom: act || opt || real ? 8 : 0 }}>
           <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
             Simulation Initiale (avant impot)
           </div>
@@ -229,9 +227,9 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
 
       {/* Projection actuelle */}
       {act && (
-        <div style={{ marginBottom: opt || cons || real ? 8 : 0 }}>
+        <div style={{ marginBottom: opt || real ? 8 : 0 }}>
           <div style={{ color: "#14b8a6", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            Projection actuelle (donnees du bien)
+            Projection actuelle{consSuffix}
           </div>
           <TooltipRow label="Loyer net" value={act.loyerNet} color="#16a34a" />
           <TooltipRow label="− Charges" value={-act.charges} color="#fb923c" />
@@ -264,9 +262,9 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
 
       {/* Optimum */}
       {opt && (
-        <div style={{ marginBottom: cons || real ? 8 : 0 }}>
+        <div style={{ marginBottom: real ? 8 : 0 }}>
           <div style={{ color: "#a855f7", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            Optimum (pleine occupation)
+            Optimum (pleine occupation){consSuffix}
           </div>
           <TooltipRow label="Loyer net" value={opt.loyerNet} color="#16a34a" />
           <TooltipRow label="− Charges" value={-opt.charges} color="#fb923c" />
@@ -291,41 +289,6 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
               <span style={{ color: opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
                 {opt.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
                 {fmtEur(opt.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Sur capital consomme */}
-      {cons && (
-        <div style={{ marginBottom: real ? 8 : 0 }}>
-          <div style={{ color: "#f59e0b", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            Simule sur capital consomme
-          </div>
-          <TooltipRow label="Loyer net" value={cons.loyerNet} color="#16a34a" />
-          <TooltipRow label="− Charges" value={-cons.charges} color="#fb923c" />
-          <TooltipRow
-            label={cons.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
-            value={-cons.mensualitesCredit}
-            color={cons.isDiffere ? "#f59e0b" : "#60a5fa"}
-          />
-          <TooltipTotal label="= Cash flow" value={cons.cashFlowAvantImpot} />
-          {sim && (
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 16,
-                marginTop: 4,
-                fontSize: 10,
-                color: "#737373",
-              }}
-            >
-              <span>vs Simule :</span>
-              <span style={{ color: cons.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
-                {cons.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
-                {fmtEur(cons.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
               </span>
             </div>
           )}
@@ -990,14 +953,18 @@ interface SimSnapshot {
 export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
   const [projectionActuel, setProjectionActuel] = useState<YearProjection[] | null>(null);
+  const [projectionActuelConsomme, setProjectionActuelConsomme] = useState<YearProjection[] | null>(null);
   const [projectionOptimum, setProjectionOptimum] = useState<YearProjection[] | null>(null);
-  const [projectionConsomme, setProjectionConsomme] = useState<YearProjection[] | null>(null);
+  const [projectionOptimumConsomme, setProjectionOptimumConsomme] = useState<YearProjection[] | null>(null);
   const [snapshot, setSnapshot] = useState<SimSnapshot | null>(null);
   const [showSimule, setShowSimule] = useState(true);
   const [showActuel, setShowActuel] = useState(true);
   const [showReel, setShowReel] = useState(true);
   const [showOptimum, setShowOptimum] = useState(true);
-  const [showConsomme, setShowConsomme] = useState(true);
+  // Mode "Sur capital consomme" : recalcule Optimum + Projection actuelle sur
+  // le principal effectivement tire (montantEmprunteConsomme) au lieu du
+  // principal total du pret. Visible seulement si un delta existe.
+  const [modeConsomme, setModeConsomme] = useState(false);
   // Counter bumped to force-reload the simulation from localStorage.
   // Incremented by a "Recharger" button so the user can pull fresh data
   // after editing the simulation in the simulator.
@@ -1080,15 +1047,14 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       const inputsOpt: CalculatorInputs = { ...inputs, tauxVacance: 0 };
       const resultsOpt = calculerRentabilite(inputsOpt);
       setProjectionOptimum(resultsOpt.projection);
-      // ── Sur capital consomme : meme simulation mais avec le principal
-      // effectivement tire (principal − travaux non encore consommes).
-      // Affichee tant que le capital consomme est inferieur au principal total.
-      if (montantEmprunteConsomme != null && Math.round(montantEmprunteConsomme) !== Math.round(inputs.montantEmprunte)) {
-        const inputsCons: CalculatorInputs = { ...inputs, montantEmprunte: montantEmprunteConsomme };
-        const resultsCons = calculerRentabilite(inputsCons);
-        setProjectionConsomme(resultsCons.projection);
+      // Variante "sur capital consomme" : meme Optimum mais avec principal tire.
+      const hasConsomme = montantEmprunteConsomme != null
+        && Math.round(montantEmprunteConsomme) !== Math.round(inputs.montantEmprunte);
+      if (hasConsomme) {
+        const inputsOptCons: CalculatorInputs = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
+        setProjectionOptimumConsomme(calculerRentabilite(inputsOptCons).projection);
       } else {
-        setProjectionConsomme(null);
+        setProjectionOptimumConsomme(null);
       }
       // ── Projection actuelle : patche la simulation avec les donnees
       // courantes du bien (loyer des lots, vacance globale, apport, charges
@@ -1130,6 +1096,13 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       }
       const resultsActuel = calculerRentabilite(inputsActuel);
       setProjectionActuel(resultsActuel.projection);
+      // Variante "sur capital consomme" : meme inputsActuel mais principal tire.
+      if (hasConsomme) {
+        const inputsActuelCons: CalculatorInputs = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
+        setProjectionActuelConsomme(calculerRentabilite(inputsActuelCons).projection);
+      } else {
+        setProjectionActuelConsomme(null);
+      }
       const loyerMensuelTotal = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)
         || inputs.loyerMensuel
         || 0;
@@ -1235,32 +1208,43 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
   const realLookup = new Map(realByYear.map((r) => [r.yearIdx, r]));
   const latestReal = realByYear.length > 0 ? realByYear[realByYear.length - 1] : null;
 
-  // L'optimum diverge du simule uniquement si la simulation a un tauxVacance > 0.
-  // On detecte cela en comparant le loyer net de A1 entre les deux projections.
-  const hasOptimumDelta = projectionOptimum != null
-    && projectionOptimum.length > 0
-    && projection.length > 0
-    && Math.round(projectionOptimum[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot);
+  // L'optimum diverge du simule si la sim a un tauxVacance > 0. En mode
+  // consomme, le principal change egalement → courbe toujours utile.
 
-  const hasConsommeDelta = projectionConsomme != null
-    && projectionConsomme.length > 0
-    && projection.length > 0;
+  // Mode "Sur capital consomme" disponible tant que le capital consomme
+  // differe du principal total (i.e. travaux non encore tires).
+  const hasConsommeMode = projectionOptimumConsomme != null && projectionActuelConsomme != null;
+
+  // Quand le mode "consomme" est actif on pioche dans les projections
+  // variantes ; sinon dans les projections sur capital total.
+  const projectionOptimumActive = modeConsomme && hasConsommeMode && projectionOptimumConsomme
+    ? projectionOptimumConsomme
+    : projectionOptimum;
+  const projectionActuelActive = modeConsomme && hasConsommeMode && projectionActuelConsomme
+    ? projectionActuelConsomme
+    : projectionActuel;
+
+  const hasOptimumDelta = projectionOptimumActive != null
+    && projectionOptimumActive.length > 0
+    && projection.length > 0
+    && (modeConsomme || Math.round(projectionOptimumActive[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot));
 
   // La projection actuelle ne diverge de la sim que si au moins une donnee
   // live (loyer des lots, vacance globale, apport, charges) est differente
   // des inputs sauvegardes. On compare A1 cashFlow pour detecter l'ecart.
-  const hasActuelDelta = projectionActuel != null
-    && projectionActuel.length > 0
+  // En mode consomme, la courbe diverge forcement (capital different) → on
+  // la montre toujours.
+  const hasActuelDelta = projectionActuelActive != null
+    && projectionActuelActive.length > 0
     && projection.length > 0
-    && Math.round(projectionActuel[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot);
+    && (modeConsomme || Math.round(projectionActuelActive[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot));
 
 
   const data: ChartPoint[] = [];
   for (let i = 0; i < years; i++) {
     const p = projection[i];
-    const pAct = projectionActuel?.[i];
-    const pOpt = projectionOptimum?.[i];
-    const pCons = projectionConsomme?.[i];
+    const pAct = projectionActuelActive?.[i];
+    const pOpt = projectionOptimumActive?.[i];
     // Show real data for every year we have tracking data — not just one point.
     const realYear = operating ? realLookup.get(i) ?? null : null;
     data.push({
@@ -1268,7 +1252,6 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       simule: Math.round(p.cashFlowAvantImpot),
       actuel: hasActuelDelta && pAct ? Math.round(pAct.cashFlowAvantImpot) : null,
       optimum: hasOptimumDelta && pOpt ? Math.round(pOpt.cashFlowAvantImpot) : null,
-      consomme: hasConsommeDelta && pCons ? Math.round(pCons.cashFlowAvantImpot) : null,
       reel: realYear ? Math.round(realYear.annualCF) : null,
       simBreakdown: {
         loyerNet: Math.round(p.loyerNet),
@@ -1287,7 +1270,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             mensualitesCredit: Math.round(pAct.mensualitesCredit),
             cashFlowAvantImpot: Math.round(pAct.cashFlowAvantImpot),
             isDiffere: i < years - 1 && pAct.mensualitesCredit > 0 &&
-              pAct.mensualitesCredit < projectionActuel![years - 1].mensualitesCredit * 0.9,
+              pAct.mensualitesCredit < projectionActuelActive![years - 1].mensualitesCredit * 0.9,
           }
         : null,
       optBreakdown: hasOptimumDelta && pOpt
@@ -1297,17 +1280,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             mensualitesCredit: Math.round(pOpt.mensualitesCredit),
             cashFlowAvantImpot: Math.round(pOpt.cashFlowAvantImpot),
             isDiffere: i < years - 1 && pOpt.mensualitesCredit > 0 &&
-              pOpt.mensualitesCredit < projectionOptimum![years - 1].mensualitesCredit * 0.9,
-          }
-        : null,
-      consBreakdown: hasConsommeDelta && pCons
-        ? {
-            loyerNet: Math.round(pCons.loyerNet),
-            charges: Math.round(pCons.charges),
-            mensualitesCredit: Math.round(pCons.mensualitesCredit),
-            cashFlowAvantImpot: Math.round(pCons.cashFlowAvantImpot),
-            isDiffere: i < years - 1 && pCons.mensualitesCredit > 0 &&
-              pCons.mensualitesCredit < projectionConsomme![years - 1].mensualitesCredit * 0.9,
+              pOpt.mensualitesCredit < projectionOptimumActive![years - 1].mensualitesCredit * 0.9,
           }
         : null,
       realBreakdown: realYear
@@ -1335,6 +1308,43 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 flex-wrap">
         <CardTitle className="text-base">Cash flow annuel</CardTitle>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Mode principal (radio) — applique a Optimum + Projection actuelle */}
+          {hasConsommeMode && (
+            <div
+              role="radiogroup"
+              aria-label="Principal utilise pour Optimum et Projection actuelle"
+              className="inline-flex items-center text-[10px] rounded-full border border-[#f59e0b]/40 bg-[#f59e0b]/5 p-0.5 mr-1"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={!modeConsomme}
+                onClick={() => setModeConsomme(false)}
+                className={`px-2.5 py-0.5 rounded-full transition-colors ${
+                  !modeConsomme
+                    ? "bg-[#f59e0b]/20 text-[#f59e0b] font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Optimum et Projection actuelle calcules sur le principal total du pret"
+              >
+                Capital total
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={modeConsomme}
+                onClick={() => setModeConsomme(true)}
+                className={`px-2.5 py-0.5 rounded-full transition-colors ${
+                  modeConsomme
+                    ? "bg-[#f59e0b]/20 text-[#f59e0b] font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+                title="Optimum et Projection actuelle recalcules sur le capital effectivement tire (principal − travaux non consommes)"
+              >
+                Capital consomme
+              </button>
+            </div>
+          )}
           {/* Toggles : afficher / masquer chaque courbe */}
           <button
             type="button"
@@ -1380,22 +1390,6 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             >
               <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showOptimum ? "#a855f7" : "transparent", border: "1px solid #a855f7" }} />
               Optimum
-            </button>
-          )}
-          {hasConsommeDelta && (
-            <button
-              type="button"
-              onClick={() => setShowConsomme((v) => !v)}
-              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                showConsomme
-                  ? "border-[#f59e0b]/50 bg-[#f59e0b]/10 text-[#f59e0b] font-medium"
-                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-              }`}
-              title={showConsomme ? "Masquer la courbe Sur capital consomme" : "Afficher la courbe Simule sur capital consomme"}
-              aria-pressed={showConsomme}
-            >
-              <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showConsomme ? "#f59e0b" : "transparent", border: "1px solid #f59e0b" }} />
-              Sur capital consomme
             </button>
           )}
           {(() => {
@@ -1504,7 +1498,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
               />
             )}
             <Tooltip
-              content={(props: object) => <BreakdownTooltip {...props} showSimule={showSimule} showActuel={showActuel} showOptimum={showOptimum} showConsomme={showConsomme} showReel={showReel} />}
+              content={(props: object) => <BreakdownTooltip {...props} showSimule={showSimule} showActuel={showActuel} showOptimum={showOptimum} showReel={showReel} modeConsomme={modeConsomme && hasConsommeMode} />}
               wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
               position={{ y: -100 }}
             />
@@ -1513,13 +1507,30 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
               <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simulation Initiale (avant impot)" />
             )}
             {hasActuelDelta && showActuel && (
-              <Line yAxisId="simule" type="monotone" dataKey="actuel" stroke="#14b8a6" strokeWidth={2} strokeDasharray="6 2" dot={{ r: 2 }} name="Projection actuelle" connectNulls={false} />
+              <Line
+                yAxisId="simule"
+                type="monotone"
+                dataKey="actuel"
+                stroke="#14b8a6"
+                strokeWidth={2}
+                strokeDasharray="6 2"
+                dot={{ r: 2 }}
+                name={modeConsomme && hasConsommeMode ? "Projection actuelle (sur capital consomme)" : "Projection actuelle"}
+                connectNulls={false}
+              />
             )}
             {hasOptimumDelta && showOptimum && (
-              <Line yAxisId="simule" type="monotone" dataKey="optimum" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 1.5 }} name="Optimum (sans vacance)" connectNulls={false} />
-            )}
-            {hasConsommeDelta && showConsomme && (
-              <Line yAxisId="simule" type="monotone" dataKey="consomme" stroke="#f59e0b" strokeWidth={1.5} strokeDasharray="2 3" dot={{ r: 1.5 }} name="Simule sur capital consomme" connectNulls={false} />
+              <Line
+                yAxisId="simule"
+                type="monotone"
+                dataKey="optimum"
+                stroke="#a855f7"
+                strokeWidth={1.5}
+                strokeDasharray="4 3"
+                dot={{ r: 1.5 }}
+                name={modeConsomme && hasConsommeMode ? "Optimum (sur capital consomme)" : "Optimum (sans vacance)"}
+                connectNulls={false}
+              />
             )}
             {operating && showReel && (
               <Line yAxisId="reel" type="monotone" dataKey="reel" stroke="#16a34a" strokeWidth={2.5} dot={{ r: 4, fill: "#16a34a" }} name="Reel (avant impot)" connectNulls={false} />
