@@ -6,8 +6,22 @@ import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
 import Link from "next/link";
-import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate } from "@/lib/utils";
+import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate, annualiserMontant } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
+import { getCurrentMontant } from "@/lib/expenseRevisions";
+
+// Categories already reflected elsewhere in the simulation — we exclude them
+// from the "Projection actuelle" annual charges to avoid double counting:
+// - credit : handled by the loan inputs
+// - vacance : handled by tauxVacance
+// - frais_notaire / travaux / ameublement : included in acquisition cost
+const EXCLUDED_EXPENSE_CATEGORIES = new Set([
+  "credit",
+  "vacance",
+  "frais_notaire",
+  "travaux",
+  "ameublement",
+]);
 
 /** Real cash flow only makes sense once the property is generating rent (location or beyond). */
 function isOperating(statut?: PropertyStatus): boolean {
@@ -1092,12 +1106,18 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       if (typeof property.apport === "number") {
         inputsActuel.apportPersonnel = property.apport;
       }
-      // Annualise les charges reelles si on a au moins un mois de donnees.
-      const monthlyFlow = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
-      if (monthlyFlow.length > 0) {
-        const recent = monthlyFlow.slice(-12);
-        const factor = 12 / recent.length;
-        const annualCharges = recent.reduce((s, m) => s + m.depenses, 0) * factor;
+      // Charges annuelles : somme des depenses declarees (fixes + variables
+      // + ponctuelles) annualisees via leur frequence. On utilise le montant
+      // effectif courant (revisions appliquees) plutot que les 12 derniers
+      // mois reels — ca reflete les charges a l'instant T, independamment de
+      // l'historique de paiement.
+      // Les ponctuelles ont frequence "ponctuel" -> annualiserMontant renvoie
+      // 0, ce qui est correct : un one-shot deja paye n'a pas a etre projete
+      // sur 30 ans.
+      const annualCharges = (expenses ?? [])
+        .filter((e) => !EXCLUDED_EXPENSE_CATEGORIES.has(e.categorie))
+        .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
+      if (annualCharges > 0 || (expenses ?? []).length > 0) {
         inputsActuel.chargesCopro = 0;
         inputsActuel.taxeFonciere = 0;
         inputsActuel.assurancePNO = 0;
@@ -1156,9 +1176,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     loan,
     montantEmprunteConsomme,
     lots,
-    incomes,
     expenses,
-    rentEntries,
   ]);
 
   /**
