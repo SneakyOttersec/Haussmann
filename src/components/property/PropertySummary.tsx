@@ -446,8 +446,8 @@ export function PropertySummary({
           ...lotRows,
           ...incomeRows,
           { separator: true, label: "", value: "" },
-          { label: "Percu ce mois", value: fc(revenuMensuel), bold: true },
-          ...(loyerAttenduCurrent > 0 && !eq(loyerAttenduCurrent, revenuMensuel)
+          { label: "Percu ce mois", value: fc(revenuActuelAffiche), bold: true },
+          ...(enLocation && loyerAttenduCurrent > 0 && !eq(loyerAttenduCurrent, revenuActuelAffiche)
             ? [{ label: "Attendu ce mois", value: fc(loyerAttenduCurrent) }]
             : []),
           ...(theo > 0 ? [{ label: "Projete (avec vacance)", value: fc(theo) }] : []),
