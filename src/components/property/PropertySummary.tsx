@@ -585,16 +585,16 @@ export function PropertySummary({
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement brut</p>
             <p className="text-lg font-bold">{formatPercent(rBrutTheo)}</p>
-            {showExtended && showMax && (
-              <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Optimum : </span>
-                <span className="font-medium">{formatPercent(rBrut)}</span>
-              </p>
-            )}
             {showUtilise && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rBrutUtilise)}</span>
+              </p>
+            )}
+            {showExtended && showMax && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Optimum : </span>
+                <span className="font-medium">{formatPercent(rBrut)}</span>
               </p>
             )}
             {showExtended && simKpis && (
@@ -637,16 +637,16 @@ export function PropertySummary({
           <CardContent className="p-3 flex flex-col h-full">
             <p className="text-xs text-muted-foreground">Rendement net</p>
             <p className="text-lg font-bold">{formatPercent(rNetTheo)}</p>
-            {showExtended && showMax && (
-              <p className="text-[10px] mt-0.5">
-                <span className="text-muted-foreground">Optimum : </span>
-                <span className="font-medium">{formatPercent(rNet)}</span>
-              </p>
-            )}
             {showUtilise && (
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rNetUtilise)}</span>
+              </p>
+            )}
+            {showExtended && showMax && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Optimum : </span>
+                <span className="font-medium">{formatPercent(rNet)}</span>
               </p>
             )}
             {showExtended && simKpis && (
