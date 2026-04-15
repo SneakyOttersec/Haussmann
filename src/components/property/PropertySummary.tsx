@@ -267,12 +267,13 @@ export function PropertySummary({
    *  When the loan has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
-  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, color, tooltipRows }: {
+  const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, simValue, color, tooltipRows }: {
     label: string;
     theoValue: number;
     actuelValue: number;
     surUtiliseValue?: number;
     maxValue?: number;
+    simValue?: number;
     color?: (v: number) => string;
     tooltipRows: { label: string; value: string; bold?: boolean; color?: string; separator?: boolean }[];
   }) => {
@@ -281,6 +282,7 @@ export function PropertySummary({
     const showTheo = !eq(theoValue, actuelValue);
     const showSurUtil = surUtiliseValue != null && !eq(surUtiliseValue, theoValue) && !eq(surUtiliseValue, actuelValue);
     const showMaxLine = maxValue != null && !eq(maxValue, theoValue);
+    const showSimLine = simValue != null;
     // L'asterisque indique que la valeur theorique applique le taux de vacance.
     // La legende est en-dessous du grid (voir bas du composant).
     const theoLabel = (hasDiffere ? "Theorique / Apres differe" : "Theorique")
@@ -309,6 +311,12 @@ export function PropertySummary({
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Optimum : </span>
                 <span className={`font-medium ${cl(maxValue!)}`}>{fc(maxValue!)}</span>
+              </p>
+            )}
+            {showSimLine && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className={`font-medium ${cl(simValue!)}`}>{fc(simValue!)}</span>
               </p>
             )}
           </CardContent>
@@ -403,6 +411,12 @@ export function PropertySummary({
                     <span className="font-medium">{fc(max)}</span>
                   </p>
                 )}
+                {simKpis && (
+                  <p className="text-[10px] mt-0.5">
+                    <span className="text-muted-foreground">Simulation initiale : </span>
+                    <span className="font-medium">{fc(simKpis.revenuMensuel)}</span>
+                  </p>
+                )}
                 {enLocation && impayesCurrent > 0 && (
                   <p className="text-[10px] mt-auto pt-1 text-destructive font-medium">
                     Impayes {fc(impayesCurrent)}
@@ -419,6 +433,7 @@ export function PropertySummary({
         theoValue={depTheorique}
         actuelValue={depActuel}
         surUtiliseValue={showSurUtilise ? depSurUtilise : undefined}
+        simValue={simKpis?.depensesMensuellesTotal}
         tooltipRows={[
           { label: "Charges (hors credit)", value: fc(depensesActuel) },
           { label: hasDiffere ? "Credit (ce mois)" : "Credit", value: fc(creditActuel) },
@@ -455,6 +470,7 @@ export function PropertySummary({
         actuelValue={cfActuel}
         surUtiliseValue={showSurUtilise ? cfSurUtilise : undefined}
         maxValue={showMax ? cfMax : undefined}
+        simValue={simKpis?.cashFlowMensuel}
         color={(v) => v >= 0 ? "text-green-600" : "text-destructive"}
         tooltipRows={[
           { label: "Revenus (percu)", value: fc(revenuActuelAffiche), color: "text-green-600" },
@@ -539,6 +555,12 @@ export function PropertySummary({
                 <span className="font-medium">{formatPercent(rBrutUtilise)}</span>
               </p>
             )}
+            {simKpis && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className="font-medium">{formatPercent(simKpis.rendementBrut)}</span>
+              </p>
+            )}
           </CardContent>
         </Card>
       </CfTooltip>
@@ -583,6 +605,12 @@ export function PropertySummary({
               <p className="text-[10px] mt-0.5">
                 <span className="text-muted-foreground">Sur capital utilise : </span>
                 <span className="font-medium">{formatPercent(rNetUtilise)}</span>
+              </p>
+            )}
+            {simKpis && (
+              <p className="text-[10px] mt-0.5">
+                <span className="text-muted-foreground">Simulation initiale : </span>
+                <span className="font-medium">{formatPercent(simKpis.rendementNet)}</span>
               </p>
             )}
           </CardContent>
