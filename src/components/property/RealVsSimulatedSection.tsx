@@ -514,6 +514,24 @@ function SimSnapshotBlock({
                 getVal("cashFlowMensuelA1") >= 0 ? "text-green-600" : "text-destructive",
               )}
             />
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Cash flow A3</dt>
+              <dd className={`font-medium tabular-nums ${snapshot.cashFlowMensuelA3 >= 0 ? "text-green-600" : "text-destructive"}`}>
+                {formatCurrency(snapshot.cashFlowMensuelA3)}/m
+              </dd>
+            </div>
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Cash flow A8</dt>
+              <dd className={`font-medium tabular-nums ${snapshot.cashFlowMensuelA8 >= 0 ? "text-green-600" : "text-destructive"}`}>
+                {formatCurrency(snapshot.cashFlowMensuelA8)}/m
+              </dd>
+            </div>
+            <div className="flex justify-between items-center gap-2">
+              <dt className="text-muted-foreground">Cash flow A15</dt>
+              <dd className={`font-medium tabular-nums ${snapshot.cashFlowMensuelA15 >= 0 ? "text-green-600" : "text-destructive"}`}>
+                {formatCurrency(snapshot.cashFlowMensuelA15)}/m
+              </dd>
+            </div>
             <EditableField label="Cout total" {...editableProps("coutTotal", (v) => formatCurrency(v))} />
             <div className="flex justify-between items-center gap-2">
               <dt className="text-muted-foreground">Apport / Emprunt</dt>
@@ -895,6 +913,9 @@ interface SimSnapshot {
   rendementNet: number;
   rendementNetNet: number;
   cashFlowMensuelA1: number;
+  cashFlowMensuelA3: number;
+  cashFlowMensuelA8: number;
+  cashFlowMensuelA15: number;
   cashFlowApresImpotMensuel: number;
   impotAnnuel: number;
   taeg: number;
@@ -1040,6 +1061,9 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         rendementNet: results.rendementNet,
         rendementNetNet: results.rendementNetNet,
         cashFlowMensuelA1: results.cashFlowMensuelAvantImpot,
+        cashFlowMensuelA3: (results.projection[2]?.cashFlowAvantImpot ?? 0) / 12,
+        cashFlowMensuelA8: (results.projection[7]?.cashFlowAvantImpot ?? 0) / 12,
+        cashFlowMensuelA15: (results.projection[14]?.cashFlowAvantImpot ?? 0) / 12,
         cashFlowApresImpotMensuel: results.cashFlowMensuelApresImpot,
         impotAnnuel: results.impotAnnuel,
         taeg: results.taeg,
