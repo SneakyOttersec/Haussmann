@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import type { Property, Income, Expense, LoanDetails, RentMonthEntry, YearProjection, CalculatorInputs, PropertyStatus } from "@/types";
+import type { Property, Income, Expense, LoanDetails, Lot, RentMonthEntry, YearProjection, CalculatorInputs, PropertyStatus } from "@/types";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
@@ -21,6 +21,7 @@ import {
 
 const RVS_CURVE_DEFINITIONS: { label: string; color: string; desc: string }[] = [
   { label: "Simulation Initiale", color: "#60a5fa", desc: "Cash flow projete par la simulation initiale (avec la vacance configuree), annee par annee. Parametres credit patches avec ceux actuels du bien." },
+  { label: "Projection actuelle", color: "#14b8a6", desc: "Meme simulation mais patchee avec les donnees courantes du bien : loyers des lots, vacance globale, apport et charges annualisees. Reflete ce que donnerait la sim aujourd'hui avec les valeurs reelles." },
   { label: "Optimum", color: "#a855f7", desc: "Meme simulation mais sans vacance locative (100% d'occupation). Plafond theorique du cash flow." },
   { label: "Sur capital consomme", color: "#f59e0b", desc: "Meme simulation mais avec le principal effectivement tire (montant emprunte − travaux non encore consommes). Cash flow theorique tant que l'enveloppe travaux n'est pas pleinement utilisee." },
   { label: "Reel", color: "#16a34a", desc: "Cash flow reel annualise pour chaque annee d'exploitation, base sur les loyers percus et les charges reelles. S'affiche uniquement a partir de la mise en location." },
@@ -42,7 +43,7 @@ function RvsCurvesInfo() {
         side="top"
         className="z-[100] bg-background text-foreground border border-dotted border-muted-foreground/30 shadow-lg p-3 w-[90vw] max-w-3xl"
       >
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-2 font-mono text-[11px]">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-2 font-mono text-[11px]">
           {RVS_CURVE_DEFINITIONS.map((d) => (
             <div key={d.label} className="space-y-0.5">
               <div className="font-bold flex items-center gap-1.5">
@@ -70,6 +71,9 @@ interface Props {
    *  Quand fourni et different du montant emprunte total, une courbe
    *  "Simule sur capital consomme" est ajoutee au graph. */
   montantEmprunteConsomme?: number;
+  /** Lots du bien (live) — utilises pour calculer la "Projection actuelle"
+   *  qui patche la simulation avec les donnees courantes du bien. */
+  lots?: Lot[];
 }
 
 const fmtEur = (v: number) =>
@@ -106,10 +110,12 @@ interface RealYearData {
 interface ChartPoint {
   annee: string;
   simule: number;
+  actuel: number | null;
   optimum: number | null;
   consomme: number | null;
   reel: number | null;
   simBreakdown: SimBreakdown;
+  actuelBreakdown: SimBreakdown | null;
   optBreakdown: SimBreakdown | null;
   consBreakdown: SimBreakdown | null;
   realBreakdown: RealBreakdown | null;
@@ -163,16 +169,17 @@ function TooltipTotal({ label, value }: { label: string; value: number }) {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function BreakdownTooltip({ active, payload, label, showSimule, showOptimum, showConsomme, showReel }: any) {
+function BreakdownTooltip({ active, payload, label, showSimule, showActuel, showOptimum, showConsomme, showReel }: any) {
   if (!active || !payload?.length) return null;
   const point = payload[0]?.payload as ChartPoint | undefined;
   if (!point) return null;
   const sim = showSimule ? point.simBreakdown : null;
+  const act = showActuel ? point.actuelBreakdown : null;
   const opt = showOptimum ? point.optBreakdown : null;
   const cons = showConsomme ? point.consBreakdown : null;
   const real = showReel ? point.realBreakdown : null;
   const ecart = real && sim ? real.cashFlow - sim.cashFlowAvantImpot : 0;
-  if (!sim && !opt && !cons && !real) return null;
+  if (!sim && !act && !opt && !cons && !real) return null;
 
   return (
     <div
@@ -191,7 +198,7 @@ function BreakdownTooltip({ active, payload, label, showSimule, showOptimum, sho
 
       {/* Simule */}
       {sim && (
-        <div style={{ marginBottom: opt || cons || real ? 8 : 0 }}>
+        <div style={{ marginBottom: act || opt || cons || real ? 8 : 0 }}>
           <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
             Simulation Initiale (avant impot)
           </div>
@@ -203,6 +210,41 @@ function BreakdownTooltip({ active, payload, label, showSimule, showOptimum, sho
             color={sim.isDiffere ? "#f59e0b" : "#60a5fa"}
           />
           <TooltipTotal label="= Cash flow" value={sim.cashFlowAvantImpot} />
+        </div>
+      )}
+
+      {/* Projection actuelle */}
+      {act && (
+        <div style={{ marginBottom: opt || cons || real ? 8 : 0 }}>
+          <div style={{ color: "#14b8a6", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
+            Projection actuelle (donnees du bien)
+          </div>
+          <TooltipRow label="Loyer net" value={act.loyerNet} color="#16a34a" />
+          <TooltipRow label="− Charges" value={-act.charges} color="#fb923c" />
+          <TooltipRow
+            label={act.isDiffere ? "− Credit (differe: interets seuls)" : "− Mensualites credit"}
+            value={-act.mensualitesCredit}
+            color={act.isDiffere ? "#f59e0b" : "#60a5fa"}
+          />
+          <TooltipTotal label="= Cash flow" value={act.cashFlowAvantImpot} />
+          {sim && (
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 16,
+                marginTop: 4,
+                fontSize: 10,
+                color: "#737373",
+              }}
+            >
+              <span>vs Simule :</span>
+              <span style={{ color: act.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "#16a34a" : "#dc2626", fontWeight: 600 }}>
+                {act.cashFlowAvantImpot - sim.cashFlowAvantImpot >= 0 ? "+" : ""}
+                {fmtEur(act.cashFlowAvantImpot - sim.cashFlowAvantImpot)}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -931,12 +973,14 @@ interface SimSnapshot {
   regimeFiscal: string;
 }
 
-export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme }: Props) {
+export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots }: Props) {
   const [projection, setProjection] = useState<YearProjection[] | null>(null);
+  const [projectionActuel, setProjectionActuel] = useState<YearProjection[] | null>(null);
   const [projectionOptimum, setProjectionOptimum] = useState<YearProjection[] | null>(null);
   const [projectionConsomme, setProjectionConsomme] = useState<YearProjection[] | null>(null);
   const [snapshot, setSnapshot] = useState<SimSnapshot | null>(null);
   const [showSimule, setShowSimule] = useState(true);
+  const [showActuel, setShowActuel] = useState(true);
   const [showReel, setShowReel] = useState(true);
   const [showOptimum, setShowOptimum] = useState(true);
   const [showConsomme, setShowConsomme] = useState(true);
@@ -1032,6 +1076,40 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       } else {
         setProjectionConsomme(null);
       }
+      // ── Projection actuelle : patche la simulation avec les donnees
+      // courantes du bien (loyer des lots, vacance globale, apport, charges
+      // annualisees des 12 derniers mois). Si l'utilisateur modifie un lot ou
+      // une depense sans re-sauver la sim, cette courbe le reflete.
+      const inputsActuel: CalculatorInputs = { ...inputs };
+      const lotsLoyerMensuel = (lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0);
+      if (lotsLoyerMensuel > 0) {
+        inputsActuel.loyerMensuel = lotsLoyerMensuel;
+        inputsActuel.lots = [];
+      }
+      if (typeof property.tauxVacanceGlobal === "number") {
+        inputsActuel.tauxVacance = property.tauxVacanceGlobal;
+      }
+      if (typeof property.apport === "number") {
+        inputsActuel.apportPersonnel = property.apport;
+      }
+      // Annualise les charges reelles si on a au moins un mois de donnees.
+      const monthlyFlow = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
+      if (monthlyFlow.length > 0) {
+        const recent = monthlyFlow.slice(-12);
+        const factor = 12 / recent.length;
+        const annualCharges = recent.reduce((s, m) => s + m.depenses, 0) * factor;
+        inputsActuel.chargesCopro = 0;
+        inputsActuel.taxeFonciere = 0;
+        inputsActuel.assurancePNO = 0;
+        inputsActuel.comptabilite = 0;
+        inputsActuel.cfeCrl = 0;
+        inputsActuel.entretien = 0;
+        inputsActuel.gli = 0;
+        inputsActuel.gestionLocativePct = 0;
+        inputsActuel.autresChargesAnnuelles = annualCharges;
+      }
+      const resultsActuel = calculerRentabilite(inputsActuel);
+      setProjectionActuel(resultsActuel.projection);
       const loyerMensuelTotal = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)
         || inputs.loyerMensuel
         || 0;
@@ -1072,7 +1150,16 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         emprunt: inputs.montantEmprunte,
       });
     });
-  }, [property.simulationId, reloadKey, loan, property.simulationSnapshotOverrides, montantEmprunteConsomme]);
+  }, [
+    property,
+    reloadKey,
+    loan,
+    montantEmprunteConsomme,
+    lots,
+    incomes,
+    expenses,
+    rentEntries,
+  ]);
 
   /**
    * Real cash flow built from the SAME source of truth as the rest of the app:
@@ -1141,10 +1228,19 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     && projectionConsomme.length > 0
     && projection.length > 0;
 
+  // La projection actuelle ne diverge de la sim que si au moins une donnee
+  // live (loyer des lots, vacance globale, apport, charges) est differente
+  // des inputs sauvegardes. On compare A1 cashFlow pour detecter l'ecart.
+  const hasActuelDelta = projectionActuel != null
+    && projectionActuel.length > 0
+    && projection.length > 0
+    && Math.round(projectionActuel[0].cashFlowAvantImpot) !== Math.round(projection[0].cashFlowAvantImpot);
+
 
   const data: ChartPoint[] = [];
   for (let i = 0; i < years; i++) {
     const p = projection[i];
+    const pAct = projectionActuel?.[i];
     const pOpt = projectionOptimum?.[i];
     const pCons = projectionConsomme?.[i];
     // Show real data for every year we have tracking data — not just one point.
@@ -1152,6 +1248,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     data.push({
       annee: `A${i + 1}`,
       simule: Math.round(p.cashFlowAvantImpot),
+      actuel: hasActuelDelta && pAct ? Math.round(pAct.cashFlowAvantImpot) : null,
       optimum: hasOptimumDelta && pOpt ? Math.round(pOpt.cashFlowAvantImpot) : null,
       consomme: hasConsommeDelta && pCons ? Math.round(pCons.cashFlowAvantImpot) : null,
       reel: realYear ? Math.round(realYear.annualCF) : null,
@@ -1165,6 +1262,16 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
         isDiffere: i < years - 1 && p.mensualitesCredit > 0 &&
           p.mensualitesCredit < projection[years - 1].mensualitesCredit * 0.9,
       },
+      actuelBreakdown: hasActuelDelta && pAct
+        ? {
+            loyerNet: Math.round(pAct.loyerNet),
+            charges: Math.round(pAct.charges),
+            mensualitesCredit: Math.round(pAct.mensualitesCredit),
+            cashFlowAvantImpot: Math.round(pAct.cashFlowAvantImpot),
+            isDiffere: i < years - 1 && pAct.mensualitesCredit > 0 &&
+              pAct.mensualitesCredit < projectionActuel![years - 1].mensualitesCredit * 0.9,
+          }
+        : null,
       optBreakdown: hasOptimumDelta && pOpt
         ? {
             loyerNet: Math.round(pOpt.loyerNet),
@@ -1225,6 +1332,22 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
             <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showSimule ? "#60a5fa" : "transparent", border: "1px solid #60a5fa" }} />
             Simule
           </button>
+          {hasActuelDelta && (
+            <button
+              type="button"
+              onClick={() => setShowActuel((v) => !v)}
+              className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                showActuel
+                  ? "border-[#14b8a6]/50 bg-[#14b8a6]/10 text-[#14b8a6] font-medium"
+                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+              }`}
+              title={showActuel ? "Masquer la courbe Projection actuelle" : "Afficher la courbe Projection actuelle (donnees live du bien)"}
+              aria-pressed={showActuel}
+            >
+              <span className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle" style={{ backgroundColor: showActuel ? "#14b8a6" : "transparent", border: "1px solid #14b8a6" }} />
+              Projection actuelle
+            </button>
+          )}
           {hasOptimumDelta && (
             <button
               type="button"
@@ -1363,13 +1486,16 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
               />
             )}
             <Tooltip
-              content={(props: object) => <BreakdownTooltip {...props} showSimule={showSimule} showOptimum={showOptimum} showConsomme={showConsomme} showReel={showReel} />}
+              content={(props: object) => <BreakdownTooltip {...props} showSimule={showSimule} showActuel={showActuel} showOptimum={showOptimum} showConsomme={showConsomme} showReel={showReel} />}
               wrapperStyle={{ zIndex: 9999, pointerEvents: "none" }}
               position={{ y: -100 }}
             />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             {showSimule && (
               <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simulation Initiale (avant impot)" />
+            )}
+            {hasActuelDelta && showActuel && (
+              <Line yAxisId="simule" type="monotone" dataKey="actuel" stroke="#14b8a6" strokeWidth={2} strokeDasharray="6 2" dot={{ r: 2 }} name="Projection actuelle" connectNulls={false} />
             )}
             {hasOptimumDelta && showOptimum && (
               <Line yAxisId="simule" type="monotone" dataKey="optimum" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 3" dot={{ r: 1.5 }} name="Optimum (sans vacance)" connectNulls={false} />
