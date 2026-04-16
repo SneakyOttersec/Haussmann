@@ -512,6 +512,8 @@ function PropertyDetailContent() {
   // source de verite partagee avec le graph pour la marge travaux / CF negatif.
   // Place ici (avant l'early return) pour respecter les rules of hooks.
   const [actuelSnapshot, setActuelSnapshot] = useState<{ loyerNetAnnuel: number; chargesAnnuelles: number } | null>(null);
+  const [exportPdfOpen, setExportPdfOpen] = useState(false);
+  const [exportPdfMode, setExportPdfMode] = useState<"demande_pret" | "suivi_interne" | "refinancement">("demande_pret");
 
   if (!data || !id) return null;
 
@@ -767,7 +769,14 @@ function PropertyDetailContent() {
             )}
             {/* Separateur visuel — masque sur mobile pour ne pas flotter en fin de ligne */}
             <span className="hidden md:inline-block w-px h-5 bg-muted-foreground/20 mx-1" aria-hidden />
-            {/* Actions : modifier / supprimer */}
+            {/* Actions : export / modifier / supprimer */}
+            <button
+              onClick={() => setExportPdfOpen(true)}
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-teal-600/40 text-teal-700 hover:bg-teal-50 hover:border-teal-600/70 transition-colors"
+              title="Exporter la fiche du bien en PDF"
+            >
+              Export PDF
+            </button>
             <Link
               href={`/biens/modifier?id=${id}`}
               className="px-2.5 py-1 text-xs rounded-md border border-dotted border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/60 transition-colors"
@@ -783,6 +792,74 @@ function PropertyDetailContent() {
           </div>
         </div>
       </div>
+
+      {/* Export PDF mode picker */}
+      {exportPdfOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setExportPdfOpen(false)}>
+          <div className="absolute inset-0 bg-black/30" />
+          <div
+            className="relative border border-teal-600/30 rounded-lg p-6 bg-background shadow-lg space-y-4 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-sm">Exporter la fiche en PDF</h3>
+            <p className="text-sm text-muted-foreground">
+              Choisissez le type de dossier. Le template, le ton et les sections mises en avant varient selon l&apos;usage.
+            </p>
+            <div className="space-y-2" role="radiogroup" aria-label="Type de dossier">
+              {([
+                { key: "demande_pret", label: "Demande de Prêt", desc: "Dossier pour soumettre à une banque un nouveau financement — focus sur projections, DSCR, LTV." },
+                { key: "suivi_interne", label: "Suivi Interne", desc: "Vue d'ensemble neutre pour archivage ou suivi personnel — tous les détails, pas de mise en valeur." },
+                { key: "refinancement", label: "Refinancement", desc: "Dossier pour renégocier un crédit existant — focus sur CRD, performance à date, conditions actuelles." },
+              ] as const).map((opt) => (
+                <label
+                  key={opt.key}
+                  className={`flex items-start gap-2 p-3 rounded-md border cursor-pointer transition-colors ${
+                    exportPdfMode === opt.key
+                      ? "border-teal-600/50 bg-teal-50"
+                      : "border-dotted border-muted-foreground/30 hover:border-muted-foreground/50"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pdf-mode"
+                    value={opt.key}
+                    checked={exportPdfMode === opt.key}
+                    onChange={() => setExportPdfMode(opt.key)}
+                    className="mt-0.5"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setExportPdfOpen(false)}>Annuler</Button>
+              <Button
+                className="flex-1 bg-teal-700 hover:bg-teal-800"
+                onClick={async () => {
+                  setExportPdfOpen(false);
+                  const { exportPropertyReport } = await import("@/lib/propertyReport");
+                  await exportPropertyReport({
+                    property,
+                    lots,
+                    expenses,
+                    incomes,
+                    loan,
+                    interventions,
+                    montantEmprunteEffectif,
+                    breakEvenMarge,
+                    mode: exportPdfMode,
+                  });
+                }}
+              >
+                Générer le PDF
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation popup */}
       {deleteOpen && (
@@ -1128,7 +1205,7 @@ function PropertyDetailContent() {
 
       {/* Flux mensuels — only for post-acte properties */}
       {isPostActe(property.statut) && (
-        <section>
+        <section data-pdf-chart="fluxMensuels" data-pdf-chart-label="Flux mensuels depuis l'acquisition">
           <Card className="border-dotted">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
@@ -1142,7 +1219,7 @@ function PropertyDetailContent() {
 
       {/* Cash flow annuel (Reel vs Simule) */}
       {property.simulationId && (
-        <section>
+        <section data-pdf-chart="cashFlowAnnuel" data-pdf-chart-label="Cash flow annuel">
           <RealVsSimulatedSection
             property={property}
             incomes={incomes}
@@ -1158,7 +1235,7 @@ function PropertyDetailContent() {
       )}
 
       {/* Rendement mensuel */}
-      <section>
+      <section data-pdf-chart="rendementMensuel" data-pdf-chart-label="Rendement mensuel">
         <Card className="border-dotted">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Rendement mensuel</CardTitle>

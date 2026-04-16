@@ -102,6 +102,8 @@ export interface AllocationCredit {
   autre: number;
 }
 
+export type DpeGrade = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "VIERGE";
+
 export interface Property {
   id: string;
   nom: string;
@@ -117,6 +119,14 @@ export interface Property {
   montantMobilier: number;
   surfaceM2?: number;
   notes?: string;
+  /** Ville / commune du bien. Utilisee pour les exports et la localisation. */
+  ville?: string;
+  /** Annee de construction du bien (ex: 1920). */
+  anneeConstruction?: number;
+  /** Diagnostic de Performance Energetique. "VIERGE" pour un bien non encore
+   *  diagnostique (ex: pre-acte). Depuis 2023, un bien G est interdit a la
+   *  location, d'ou l'importance de le tracer. */
+  dpe?: DpeGrade;
   /** Apport personnel explicite. Si absent, derive de coutTotal - emprunt. */
   apport?: number;
   statut?: PropertyStatus;

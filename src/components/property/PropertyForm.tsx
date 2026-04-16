@@ -43,6 +43,9 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
     montantMobilier: initialData?.montantMobilier ?? 0,
     surfaceM2: initialData?.surfaceM2,
     notes: initialData?.notes ?? "",
+    ville: initialData?.ville ?? "",
+    anneeConstruction: initialData?.anneeConstruction,
+    dpe: initialData?.dpe,
   });
 
   // Optional loan state — only when showFinancement
@@ -247,6 +250,49 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
             value={form.surfaceM2 ?? ""}
             onChange={(e) => update("surfaceM2", e.target.value ? Number(e.target.value) : undefined)}
           />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="ville">Ville</Label>
+          <Input
+            id="ville"
+            value={form.ville ?? ""}
+            onChange={(e) => update("ville", e.target.value)}
+            placeholder="ex: Thiers (63)"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="anneeConstruction">Annee de construction</Label>
+          <Input
+            id="anneeConstruction"
+            type="number"
+            min={1700}
+            max={new Date().getFullYear()}
+            value={form.anneeConstruction ?? ""}
+            onChange={(e) => update("anneeConstruction", e.target.value ? Number(e.target.value) : undefined)}
+            placeholder="ex: 1920"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="dpe">DPE</Label>
+          <select
+            id="dpe"
+            value={form.dpe ?? ""}
+            onChange={(e) => update("dpe", (e.target.value || undefined) as typeof form.dpe)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+          >
+            <option value="">—</option>
+            <option value="A">A</option>
+            <option value="B">B</option>
+            <option value="C">C</option>
+            <option value="D">D</option>
+            <option value="E">E</option>
+            <option value="F">F</option>
+            <option value="G">G</option>
+            <option value="VIERGE">Vierge / non realise</option>
+          </select>
         </div>
       </div>
 
