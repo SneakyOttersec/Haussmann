@@ -329,11 +329,11 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
 
   const allocations: { key: keyof AllocationCredit; label: string; value: number }[] = [
     { key: "bien", label: "Bien immobilier", value: defaultAlloc.bien },
-    { key: "travaux", label: "Travaux", value: defaultAlloc.travaux },
     { key: "notaire", label: "Frais de notaire", value: defaultAlloc.notaire },
     { key: "agence", label: "Frais d'agence", value: defaultAlloc.agence },
     { key: "dossier", label: "Frais de dossier", value: defaultAlloc.dossier ?? 0 },
     { key: "garantie", label: "Frais de garantie", value: defaultAlloc.garantie ?? 0 },
+    { key: "travaux", label: "Travaux", value: defaultAlloc.travaux },
     { key: "mobilier", label: "Mobilier", value: defaultAlloc.mobilier ?? 0 },
     { key: "autre", label: "Autre", value: defaultAlloc.autre },
   ];
@@ -367,6 +367,11 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             .filter((a) => a.value > 0 || a.key === "dossier" || a.key === "garantie")
             .map((a) => (
             <div key={a.key}>
+              {a.key === "travaux" && (
+                <div className="flex items-center gap-2 pt-2 mt-1 border-t border-dotted border-muted-foreground/15">
+                  <span className="text-[9px] uppercase tracking-wider text-muted-foreground/60">Travaux et mobilier</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">{a.label}</span>
                 <span className="font-medium tabular-nums">{formatCurrency(a.value)}</span>
@@ -450,11 +455,11 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
           <form onSubmit={handleSave} className="space-y-4">
             {([
               { key: "bien", label: "Bien immobilier" },
-              { key: "travaux", label: "Travaux" },
               { key: "notaire", label: "Frais de notaire" },
               { key: "agence", label: "Frais d'agence" },
               { key: "dossier", label: "Frais de dossier" },
               { key: "garantie", label: "Frais de garantie" },
+              { key: "travaux", label: "Travaux" },
               { key: "mobilier", label: "Mobilier" },
               { key: "autre", label: "Autre" },
             ] as const).map((field) => (
