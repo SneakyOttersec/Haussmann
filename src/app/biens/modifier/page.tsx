@@ -3,21 +3,21 @@
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useProperties } from "@/hooks/useProperties";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useBiens } from "@/hooks/useBiens";
 import { PropertyForm } from "@/components/property/PropertyForm";
 import { Button } from "@/components/ui/button";
 
 function ModifierBienContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { data, setData } = useAppData();
-  const { getProperty, updateProperty, deleteProperty } = useProperties(data, setData);
+  const { data, setData } = useDonnees();
+  const { obtenirBien, mettreAJourBien, supprimerBien } = useBiens(data, setData);
   const router = useRouter();
 
   if (!data || !id) return null;
 
-  const property = getProperty(id);
+  const property = obtenirBien(id);
   if (!property) {
     return (
       <div className="text-center py-12">
@@ -40,7 +40,7 @@ function ModifierBienContent() {
           initialData={property}
           submitLabel="Enregistrer"
           onSubmit={(formData) => {
-            updateProperty(id, formData);
+            mettreAJourBien(id, formData);
             router.push(`/biens?id=${id}`);
           }}
         />
@@ -55,7 +55,7 @@ function ModifierBienContent() {
           size="sm"
           onClick={() => {
             if (confirm("Supprimer ce bien et toutes ses donnees ?")) {
-              deleteProperty(id);
+              supprimerBien(id);
               router.push("/");
             }
           }}

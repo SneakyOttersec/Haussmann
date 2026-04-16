@@ -1,15 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useProperties } from "@/hooks/useProperties";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useBiens } from "@/hooks/useBiens";
 import { PropertyForm } from "@/components/property/PropertyForm";
 import { mensualiteAmortissement } from "@/lib/calculations/loan";
 import Link from "next/link";
 
 export default function NouveauBien() {
-  const { data, setData } = useAppData();
-  const { addProperty } = useProperties(data, setData);
+  const { data, setData } = useDonnees();
+  const { ajouterBien } = useBiens(data, setData);
   const router = useRouter();
 
   if (!data) return null;
@@ -25,7 +25,7 @@ export default function NouveauBien() {
           showFinancement
           onSubmit={(formData, loanData) => {
             const today = new Date().toISOString().slice(0, 10);
-            const id = addProperty({
+            const id = ajouterBien({
               ...formData,
               statut: "prospection",
               statusDates: { prospection: today },

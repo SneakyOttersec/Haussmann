@@ -4,15 +4,15 @@ import { useCallback } from "react";
 import type { DonneesApp, Bien } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
-export function useProperties(
+export function useBiens(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void
 ) {
   const allProperties = data?.properties ?? [];
   const properties = allProperties.filter((p) => !p.deletedAt);
-  const deletedProperties = allProperties.filter((p) => p.deletedAt);
+  const biensSupprimes = allProperties.filter((p) => p.deletedAt);
 
-  const addProperty = useCallback(
+  const ajouterBien = useCallback(
     (property: Omit<Bien, "id" | "createdAt" | "updatedAt">) => {
       const newProperty: Bien = {
         ...property,
@@ -29,7 +29,7 @@ export function useProperties(
     [setData]
   );
 
-  const updateProperty = useCallback(
+  const mettreAJourBien = useCallback(
     (id: string, updates: Partial<Omit<Bien, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
@@ -42,7 +42,7 @@ export function useProperties(
   );
 
   /** Soft-delete: marks the property as deleted without removing data */
-  const deleteProperty = useCallback(
+  const supprimerBien = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -55,7 +55,7 @@ export function useProperties(
   );
 
   /** Restore a soft-deleted property */
-  const restoreProperty = useCallback(
+  const restaurerBien = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -70,7 +70,7 @@ export function useProperties(
   );
 
   /** Permanently delete: removes property and all related entities */
-  const permanentlyDeleteProperty = useCallback(
+  const supprimerDefinitivementBien = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -87,19 +87,19 @@ export function useProperties(
     [setData]
   );
 
-  const getProperty = useCallback(
+  const obtenirBien = useCallback(
     (id: string) => properties.find((p) => p.id === id),
     [properties]
   );
 
   return {
     properties,
-    deletedProperties,
-    addProperty,
-    updateProperty,
-    deleteProperty,
-    restoreProperty,
-    permanentlyDeleteProperty,
-    getProperty,
+    biensSupprimes,
+    ajouterBien,
+    mettreAJourBien,
+    supprimerBien,
+    restaurerBien,
+    supprimerDefinitivementBien,
+    obtenirBien,
   };
 }

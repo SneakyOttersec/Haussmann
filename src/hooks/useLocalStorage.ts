@@ -5,7 +5,7 @@ import type { DonneesApp } from "@/types";
 import { loadDataWithBlobs, saveDataDebounced, flushSave } from "@/lib/storage";
 
 // Module-level cache: avoid re-reading the entire dataset (incl. IndexedDB blobs)
-// from storage on every page navigation. The first useAppData() does the async load;
+// from storage on every page navigation. The first useDonnees() does the async load;
 // every subsequent mount synchronously reuses the cached snapshot.
 let cachedData: DonneesApp | null = null;
 let loadPromise: Promise<DonneesApp> | null = null;
@@ -21,7 +21,7 @@ function ensureLoaded(): Promise<DonneesApp> {
   return loadPromise;
 }
 
-export function useAppData() {
+export function useDonnees() {
   const [data, setDataState] = useState<DonneesApp | null>(cachedData);
 
   useEffect(() => {

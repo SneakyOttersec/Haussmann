@@ -15,7 +15,7 @@ export function useContacts(
     [all, propertyId]
   );
 
-  const addContact = useCallback(
+  const ajouterContact = useCallback(
     (item: Omit<Contact, "id" | "createdAt" | "updatedAt">) => {
       setData((prev) => ({
         ...prev,
@@ -25,7 +25,7 @@ export function useContacts(
     [setData]
   );
 
-  const updateContact = useCallback(
+  const mettreAJourContact = useCallback(
     (id: string, updates: Partial<Contact>) => {
       setData((prev) => ({
         ...prev,
@@ -35,12 +35,12 @@ export function useContacts(
     [setData]
   );
 
-  const deleteContact = useCallback(
+  const supprimerContact = useCallback(
     (id: string) => {
       setData((prev) => ({ ...prev, contacts: (prev.contacts ?? []).filter((c) => c.id !== id) }));
     },
     [setData]
   );
 
-  return { contacts, addContact, updateContact, deleteContact };
+  return { contacts, ajouterContact, mettreAJourContact, supprimerContact };
 }

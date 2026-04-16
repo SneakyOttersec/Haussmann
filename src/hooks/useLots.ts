@@ -24,7 +24,7 @@ export function useLots(
     [all, propertyId]
   );
 
-  const addLot = useCallback(
+  const ajouterLot = useCallback(
     (item: Omit<Lot, "id">) => {
       setData((prev) => ({
         ...prev,
@@ -34,7 +34,7 @@ export function useLots(
     [setData]
   );
 
-  const updateLot = useCallback(
+  const mettreAJourLot = useCallback(
     (id: string, updates: Partial<Lot>) => {
       setData((prev) => ({
         ...prev,
@@ -44,12 +44,12 @@ export function useLots(
     [setData]
   );
 
-  const deleteLot = useCallback(
+  const supprimerLot = useCallback(
     (id: string) => {
       setData((prev) => ({ ...prev, lots: (prev.lots ?? []).filter((l) => l.id !== id) }));
     },
     [setData]
   );
 
-  return { lots, addLot, updateLot, deleteLot };
+  return { lots, ajouterLot, mettreAJourLot, supprimerLot };
 }

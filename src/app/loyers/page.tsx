@@ -3,11 +3,11 @@
 import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useRentTracking } from "@/hooks/useRentTracking";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useSuiviLoyers } from "@/hooks/useSuiviLoyers";
 import { useChargePayments } from "@/hooks/useChargePayments";
 import { useLots } from "@/hooks/useLots";
-import { useExpenses } from "@/hooks/useExpenses";
+import { useDepenses } from "@/hooks/useDepenses";
 import { RentTrackingGrid } from "@/components/property/RentTrackingGrid";
 import { ChargeTrackingGrid } from "@/components/property/ChargeTrackingGrid";
 import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
@@ -169,10 +169,10 @@ function PropertyRentCard({
 /* ── Main content ── */
 
 function LoyersContent() {
-  const { data, setData } = useAppData();
+  const { data, setData } = useDonnees();
   const { lots: allLots } = useLots(data, setData);
-  const { expenses: allExpenses } = useExpenses(data, setData);
-  const { entries: allRentEntries, upsertEntry: upsertRent, deleteEntry: deleteRent } = useRentTracking(data, setData);
+  const { expenses: allExpenses } = useDepenses(data, setData);
+  const { entries: allRentEntries, upsertEntry: upsertRent, deleteEntry: deleteRent } = useSuiviLoyers(data, setData);
   const { entries: allChargeEntries, upsertEntry: upsertCharge, deleteEntry: deleteCharge } = useChargePayments(data, setData);
   const searchParams = useSearchParams();
   const propertyIdFromUrl = searchParams.get("propertyId");

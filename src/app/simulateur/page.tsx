@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { useAppData } from "@/hooks/useLocalStorage";
+import { useDonnees } from "@/hooks/useLocalStorage";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
 import { loadSimulations, saveSimulation, deleteSimulation, exportSimulations, importSimulations, hydrateSimulation, restoreSnapshot } from "@/lib/simulations";
@@ -119,7 +119,7 @@ function SimulateurContent() {
   const searchParams = useSearchParams();
   const bienId = searchParams.get("bienId");
   const simId = searchParams.get("simId");
-  const { data, setData } = useAppData();
+  const { data, setData } = useDonnees();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);

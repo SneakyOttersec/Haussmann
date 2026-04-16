@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAppData } from "@/hooks/useLocalStorage";
+import { useDonnees } from "@/hooks/useLocalStorage";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { importData, saveData } from "@/lib/storage";
 import { signIn, saveToGDrive, loadFromGDrive, isSignedIn, pickDriveFolder } from "@/lib/gdrive";
 
 export default function Parametres() {
-  const { data, setData } = useAppData();
+  const { data, setData } = useDonnees();
 
   const [driveStatus, setDriveStatus] = useState<'idle' | 'saving' | 'loading' | 'success' | 'error'>('idle');
   const [driveMessage, setDriveMessage] = useState('');

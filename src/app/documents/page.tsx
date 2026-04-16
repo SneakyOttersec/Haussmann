@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useAppData } from "@/hooks/useLocalStorage";
+import { useDonnees } from "@/hooks/useLocalStorage";
 import { Input } from "@/components/ui/input";
 import type { DonneesApp } from "@/types";
 import { listAllDocuments, formatFileSize, type DocumentListEntry } from "@/lib/doc-extract";
@@ -53,7 +53,7 @@ function deleteDocByKey(key: string, setData: (fn: (prev: DonneesApp) => Donnees
 }
 
 export default function DocumentsPage() {
-  const { data, setData } = useAppData();
+  const { data, setData } = useDonnees();
 
   const documents = useMemo(() => (data ? listAllDocuments(data) : []), [data]);
   const documentsTotalSize = useMemo(

@@ -21,7 +21,7 @@ function deriveLotStatus(lotEntries: SuiviMensuelLoyer[]): LotStatut | null {
  * Hook for managing rent tracking entries.
  * Entries are keyed by (propertyId, lotId, yearMonth) — upsert semantics.
  */
-export function useRentTracking(
+export function useSuiviLoyers(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string,

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useProperties } from "@/hooks/useProperties";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useBiens } from "@/hooks/useBiens";
 import { PropertyCard } from "@/components/dashboard/PropertyCard";
 import { PortfolioSummary } from "@/components/dashboard/PortfolioSummary";
 import { Button } from "@/components/ui/button";
@@ -19,10 +19,10 @@ const PropertyMap = dynamic(
 );
 
 export default function Dashboard() {
-  const { data, setData } = useAppData();
-  // useProperties returns the soft-delete-filtered list, so deleted cards
+  const { data, setData } = useDonnees();
+  // useBiens returns the soft-delete-filtered list, so deleted cards
   // disappear from the dashboard immediately after the user confirms a delete.
-  const { properties, deleteProperty } = useProperties(data, setData);
+  const { properties, supprimerBien } = useBiens(data, setData);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
@@ -40,7 +40,7 @@ export default function Dashboard() {
 
   const handleDeleteConfirm = () => {
     if (deleteTarget && deleteConfirm === deleteTarget.nom) {
-      deleteProperty(deleteTarget.id);
+      supprimerBien(deleteTarget.id);
       setDeleteTarget(null);
       setDeleteConfirm("");
     }

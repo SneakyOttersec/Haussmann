@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { useAppData } from "@/hooks/useLocalStorage";
+import { useDonnees } from "@/hooks/useLocalStorage";
 import type { DonneesApp, Bien, StatutBien } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { toast } from "sonner";
@@ -216,7 +216,7 @@ function filterActiveProperties(data: DonneesApp): DonneesApp {
 }
 
 export default function Finances() {
-  const { data } = useAppData();
+  const { data } = useDonnees();
   const [bilanYear, setBilanYear] = useState(new Date().getFullYear());
   const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null); // null = all
   const [projectionYears, setProjectionYears] = useState(10);

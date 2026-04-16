@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useAppData } from "@/hooks/useLocalStorage";
+import { useDonnees } from "@/hooks/useLocalStorage";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import type { SimulationSauvegardee, EntreesCalculateur } from "@/types";
 import {
@@ -98,7 +98,7 @@ const getSimsSnapshot = (): SimulationSauvegardee[] => {
 const subscribeNoop = () => () => {};
 
 export default function ScenariosPage() {
-  const { data } = useAppData();
+  const { data } = useDonnees();
   // SSR-safe localStorage read without setState in effect.
   const simulations = useSyncExternalStore(subscribeNoop, getSimsSnapshot, () => EMPTY_SIMS);
   // Default to first sim, but let manual selection override it.

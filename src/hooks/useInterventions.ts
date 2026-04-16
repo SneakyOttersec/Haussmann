@@ -15,7 +15,7 @@ export function useInterventions(
     [all, propertyId]
   );
 
-  const addIntervention = useCallback(
+  const ajouterIntervention = useCallback(
     (item: Omit<Intervention, "id" | "createdAt" | "updatedAt">) => {
       setData((prev) => ({
         ...prev,
@@ -25,7 +25,7 @@ export function useInterventions(
     [setData]
   );
 
-  const updateIntervention = useCallback(
+  const mettreAJourIntervention = useCallback(
     (id: string, updates: Partial<Intervention>) => {
       setData((prev) => ({
         ...prev,
@@ -35,12 +35,12 @@ export function useInterventions(
     [setData]
   );
 
-  const deleteIntervention = useCallback(
+  const supprimerIntervention = useCallback(
     (id: string) => {
       setData((prev) => ({ ...prev, interventions: (prev.interventions ?? []).filter((i) => i.id !== id) }));
     },
     [setData]
   );
 
-  return { interventions, addIntervention, updateIntervention, deleteIntervention };
+  return { interventions, ajouterIntervention, mettreAJourIntervention, supprimerIntervention };
 }

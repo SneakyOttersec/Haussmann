@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useProperties } from "@/hooks/useProperties";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useBiens } from "@/hooks/useBiens";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function Corbeille() {
-  const { data, setData } = useAppData();
-  const { deletedProperties, restoreProperty, permanentlyDeleteProperty } = useProperties(data, setData);
+  const { data, setData } = useDonnees();
+  const { biensSupprimes, restaurerBien, supprimerDefinitivementBien } = useBiens(data, setData);
 
   // Two-step confirmation for permanent deletion: the user must type the property name.
   const [purgeTarget, setPurgeTarget] = useState<{ id: string; nom: string } | null>(null);
@@ -19,7 +19,7 @@ export default function Corbeille() {
 
   const confirmPurge = () => {
     if (purgeTarget && purgeConfirm === purgeTarget.nom) {
-      permanentlyDeleteProperty(purgeTarget.id);
+      supprimerDefinitivementBien(purgeTarget.id);
       setPurgeTarget(null);
       setPurgeConfirm("");
     }
@@ -36,7 +36,7 @@ export default function Corbeille() {
         </p>
       </div>
 
-      {deletedProperties.length === 0 ? (
+      {biensSupprimes.length === 0 ? (
         <div className="border border-dashed border-muted-foreground/30 rounded-md p-8 text-center">
           <p className="text-sm text-muted-foreground">La corbeille est vide.</p>
           <Link href="/" className="text-primary text-sm hover:underline mt-2 inline-block">
@@ -46,10 +46,10 @@ export default function Corbeille() {
       ) : (
         <section className="border border-dotted rounded-lg p-5 space-y-4">
           <h2 className="text-xs font-bold uppercase tracking-wider">
-            {deletedProperties.length} bien{deletedProperties.length > 1 ? "s" : ""}
+            {biensSupprimes.length} bien{biensSupprimes.length > 1 ? "s" : ""}
           </h2>
           <div className="space-y-2">
-            {deletedProperties.map((p) => (
+            {biensSupprimes.map((p) => (
               <div
                 key={p.id}
                 className="flex items-center justify-between py-2 border-b border-dotted last:border-0"
@@ -61,7 +61,7 @@ export default function Corbeille() {
                   </span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => restoreProperty(p.id)}>
+                  <Button variant="outline" size="sm" onClick={() => restaurerBien(p.id)}>
                     Restaurer
                   </Button>
                   <Button

@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 import type { DonneesApp, Pret } from "@/types";
 import { generateId } from "@/lib/utils";
 
-export function useLoans(
+export function usePrets(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
@@ -18,7 +18,7 @@ export function useLoans(
 
   const loan = propertyId ? loans[0] ?? null : null;
 
-  const setLoan = useCallback(
+  const setPret = useCallback(
     (loanData: Omit<Pret, "id">) => {
       setData((prev) => {
         const existing = prev.loans.find((l) => l.propertyId === loanData.propertyId);
@@ -39,7 +39,7 @@ export function useLoans(
     [setData]
   );
 
-  const deleteLoan = useCallback(
+  const supprimerPret = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -49,5 +49,5 @@ export function useLoans(
     [setData]
   );
 
-  return { loans, loan, setLoan, deleteLoan };
+  return { loans, loan, setPret, supprimerPret };
 }

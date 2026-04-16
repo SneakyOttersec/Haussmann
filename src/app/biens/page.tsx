@@ -3,11 +3,11 @@
 import { Suspense, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAppData } from "@/hooks/useLocalStorage";
-import { useProperties } from "@/hooks/useProperties";
-import { useExpenses } from "@/hooks/useExpenses";
-import { useIncomes } from "@/hooks/useIncomes";
-import { useLoans } from "@/hooks/useLoans";
+import { useDonnees } from "@/hooks/useLocalStorage";
+import { useBiens } from "@/hooks/useBiens";
+import { useDepenses } from "@/hooks/useDepenses";
+import { useRevenus } from "@/hooks/useRevenus";
+import { usePrets } from "@/hooks/usePrets";
 import { useInterventions } from "@/hooks/useInterventions";
 import { useContacts } from "@/hooks/useContacts";
 import { useDocuments } from "@/hooks/useDocuments";
@@ -28,7 +28,7 @@ import { IncomeForm } from "@/components/property/IncomeForm";
 import { LoanForm } from "@/components/property/LoanForm";
 import { LoanAmortizationTable } from "@/components/property/LoanAmortizationTable";
 import dynamic from "next/dynamic";
-import { useRentTracking } from "@/hooks/useRentTracking";
+import { useSuiviLoyers } from "@/hooks/useSuiviLoyers";
 
 // recharts (~8.5 MB) is only used by these two — lazy-load to keep /biens cold-load light.
 const CashFlowChart = dynamic(
@@ -504,17 +504,17 @@ function isPostActe(statut?: StatutBien): boolean {
 function PropertyDetailContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
-  const { data, setData } = useAppData();
+  const { data, setData } = useDonnees();
   const router = useRouter();
-  const { getProperty, updateProperty, deleteProperty } = useProperties(data, setData);
-  const { expenses, addExpense, updateExpense, deleteExpense } = useExpenses(data, setData, id ?? undefined);
-  const { incomes, addIncome, updateIncome, deleteIncome } = useIncomes(data, setData, id ?? undefined);
-  const { loan, setLoan, deleteLoan } = useLoans(data, setData, id ?? undefined);
-  const { interventions, addIntervention, updateIntervention, deleteIntervention } = useInterventions(data, setData, id ?? undefined);
-  const { contacts, addContact, updateContact, deleteContact } = useContacts(data, setData, id ?? undefined);
-  const { documents, addDocument, deleteDocument } = useDocuments(data, setData, id ?? undefined);
-  const { lots, addLot, updateLot, deleteLot } = useLots(data, setData, id ?? undefined);
-  const { entries: rentEntries } = useRentTracking(data, setData, id ?? undefined);
+  const { obtenirBien, mettreAJourBien, supprimerBien } = useBiens(data, setData);
+  const { expenses, ajouterDepense, mettreAJourDepense, supprimerDepense } = useDepenses(data, setData, id ?? undefined);
+  const { incomes, ajouterRevenu, mettreAJourRevenu, supprimerRevenu } = useRevenus(data, setData, id ?? undefined);
+  const { loan, setPret, supprimerPret } = usePrets(data, setData, id ?? undefined);
+  const { interventions, ajouterIntervention, mettreAJourIntervention, supprimerIntervention } = useInterventions(data, setData, id ?? undefined);
+  const { contacts, ajouterContact, mettreAJourContact, supprimerContact } = useContacts(data, setData, id ?? undefined);
+  const { documents, ajouterDocument, supprimerDocument } = useDocuments(data, setData, id ?? undefined);
+  const { lots, ajouterLot, mettreAJourLot, supprimerLot } = useLots(data, setData, id ?? undefined);
+  const { entries: rentEntries } = useSuiviLoyers(data, setData, id ?? undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   // Tracks whether we've already auto-synced lots for the current "travaux" session.
@@ -529,7 +529,7 @@ function PropertyDetailContent() {
 
   if (!data || !id) return null;
 
-  const property = getProperty(id);
+  const property = obtenirBien(id);
   if (!property) {
     return (
       <div className="text-center py-12">
@@ -552,7 +552,7 @@ function PropertyDetailContent() {
       if (desyncedLots.length > 0) {
         queueMicrotask(() => {
           for (const lot of desyncedLots) {
-            updateLot(lot.id, { statut: "travaux" });
+            mettreAJourLot(lot.id, { statut: "travaux" });
           }
         });
       }
@@ -620,8 +620,8 @@ function PropertyDetailContent() {
   const priceClass = (validated: boolean): string =>
     isPreActe ? (validated ? "text-green-600" : "text-amber-600") : "";
 
-  const handleSetLoan = (loanData: Parameters<typeof setLoan>[0]) => {
-    setLoan(loanData);
+  const handleSetLoan = (loanData: Parameters<typeof setPret>[0]) => {
+    setPret(loanData);
     // The auto-created "credit" expense holds the post-defer monthly payment.
     // The Cash Flow chart and fiscal bilan compute the real per-month cost
     // from the loan helpers, so they correctly handle the defer phase.
@@ -630,9 +630,9 @@ function PropertyDetailContent() {
     const montantTotal = Math.round((mensualite + assuranceMensuelle) * 100) / 100;
     const creditExpense = expenses.find((e) => e.categorie === "credit");
     if (creditExpense) {
-      updateExpense(creditExpense.id, { montant: montantTotal, dateDebut: loanData.dateDebut });
+      mettreAJourDepense(creditExpense.id, { montant: montantTotal, dateDebut: loanData.dateDebut });
     } else {
-      addExpense({
+      ajouterDepense({
         propertyId: id,
         categorie: "credit",
         label: "Mensualite credit",
@@ -645,17 +645,17 @@ function PropertyDetailContent() {
   };
 
   const handleDeleteLoan = (loanId: string) => {
-    deleteLoan(loanId);
+    supprimerPret(loanId);
     const creditExpense = expenses.find((e) => e.categorie === "credit");
     if (creditExpense) {
-      deleteExpense(creditExpense.id);
+      supprimerDepense(creditExpense.id);
     }
   };
 
   // Lot → Revenu sync: each lot creates/updates a matching income entry
-  const handleAddLot = (lotData: Parameters<typeof addLot>[0]) => {
-    addLot(lotData);
-    addIncome({
+  const handleAddLot = (lotData: Parameters<typeof ajouterLot>[0]) => {
+    ajouterLot(lotData);
+    ajouterRevenu({
       propertyId: id,
       categorie: "loyer",
       label: lotData.nom || "Loyer",
@@ -666,8 +666,8 @@ function PropertyDetailContent() {
     });
   };
 
-  const handleUpdateLot = (lotId: string, updates: Parameters<typeof updateLot>[1]) => {
-    updateLot(lotId, updates);
+  const handleUpdateLot = (lotId: string, updates: Parameters<typeof mettreAJourLot>[1]) => {
+    mettreAJourLot(lotId, updates);
     const lot = lots.find((l) => l.id === lotId);
     if (!lot) return;
     const matchingIncome = incomes.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
@@ -678,31 +678,31 @@ function PropertyDetailContent() {
         incUpdates.label = updates.nom;
         incUpdates.notes = `Lot: ${updates.nom}`;
       }
-      if (Object.keys(incUpdates).length > 0) updateIncome(matchingIncome.id, incUpdates);
+      if (Object.keys(incUpdates).length > 0) mettreAJourRevenu(matchingIncome.id, incUpdates);
     }
   };
 
   const handleDeleteLot = (lotId: string) => {
     const lot = lots.find((l) => l.id === lotId);
-    deleteLot(lotId);
+    supprimerLot(lotId);
     if (lot) {
       const matchingIncome = incomes.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
-      if (matchingIncome) deleteIncome(matchingIncome.id);
+      if (matchingIncome) supprimerRevenu(matchingIncome.id);
     }
   };
 
   // Intervention → Document sync: when a PJ is attached, mirror it in Documents
-  const handleUpdateIntervention = (intId: string, updates: Parameters<typeof updateIntervention>[1]) => {
-    updateIntervention(intId, updates);
+  const handleUpdateIntervention = (intId: string, updates: Parameters<typeof mettreAJourIntervention>[1]) => {
+    mettreAJourIntervention(intId, updates);
     if (updates.pieceJointe) {
       const intervention = interventions.find((i) => i.id === intId);
       const label = intervention?.description ?? "Intervention";
       const typeLabel = (intervention?.interventionType ?? "intervention") === "travaux" ? "Travaux" : "Intervention";
       // Remove old linked doc if replacing
       const oldDoc = documents.find((d) => d.linkedInterventionId === intId);
-      if (oldDoc) deleteDocument(oldDoc.id);
+      if (oldDoc) supprimerDocument(oldDoc.id);
       // Add new linked doc
-      addDocument({
+      ajouterDocument({
         propertyId: id,
         nom: `[${typeLabel}] ${label} — ${updates.pieceJointe.nom}`,
         categorie: "devis",
@@ -716,21 +716,21 @@ function PropertyDetailContent() {
     if (updates.pieceJointe === undefined) {
       // PJ removed — remove linked doc
       const linkedDoc = documents.find((d) => d.linkedInterventionId === intId);
-      if (linkedDoc) deleteDocument(linkedDoc.id);
+      if (linkedDoc) supprimerDocument(linkedDoc.id);
     }
   };
 
   const handleDeleteDocument = (docId: string) => {
     const doc = documents.find((d) => d.id === docId);
     if (doc?.linkedInterventionId) {
-      updateIntervention(doc.linkedInterventionId, { pieceJointe: undefined });
+      mettreAJourIntervention(doc.linkedInterventionId, { pieceJointe: undefined });
     }
-    deleteDocument(docId);
+    supprimerDocument(docId);
   };
 
   const handleDelete = () => {
     if (deleteConfirmText === property.nom) {
-      deleteProperty(id);
+      supprimerBien(id);
       router.push("/");
     }
   };
@@ -919,34 +919,34 @@ function PropertyDetailContent() {
           const today = new Date().toISOString().slice(0, 10);
           const prevDates = property.statusDates ?? {};
           const nextDates = prevDates[s] ? prevDates : { ...prevDates, [s]: today };
-          updateProperty(id, { statut: s, statusDates: nextDates });
+          mettreAJourBien(id, { statut: s, statusDates: nextDates });
           // When the property enters "travaux", automatically set every lot
           // to statut "travaux" — no rent is expected during renovation.
           if (s === "travaux") {
             for (const lot of lots) {
-              if (lot.statut !== "travaux") updateLot(lot.id, { statut: "travaux" });
+              if (lot.statut !== "travaux") mettreAJourLot(lot.id, { statut: "travaux" });
             }
           }
         }}
         onDateChange={(s, date) => {
           const prevDates = property.statusDates ?? {};
-          updateProperty(id, { statusDates: { ...prevDates, [s]: date } });
+          mettreAJourBien(id, { statusDates: { ...prevDates, [s]: date } });
           // Also sync lots when the user interacts with the travaux date —
           // covers the case where the status was already "travaux" and the
           // user is just setting / adjusting dates.
           if (s === "travaux" && property.statut === "travaux") {
             for (const lot of lots) {
-              if (lot.statut !== "travaux") updateLot(lot.id, { statut: "travaux" });
+              if (lot.statut !== "travaux") mettreAJourLot(lot.id, { statut: "travaux" });
             }
           }
         }}
         onDocChange={(s, doc) => {
           const prevDocs = property.statusDocs ?? {};
           if (doc) {
-            updateProperty(id, { statusDocs: { ...prevDocs, [s]: doc } });
+            mettreAJourBien(id, { statusDocs: { ...prevDocs, [s]: doc } });
           } else {
             const { [s]: _, ...rest } = prevDocs;
-            updateProperty(id, { statusDocs: rest });
+            mettreAJourBien(id, { statusDocs: rest });
           }
         }}
       />
@@ -981,7 +981,7 @@ function PropertyDetailContent() {
             <h2>Credit</h2>
             {isPreActe && loan && (
               <button
-                onClick={() => setLoan({ ...loan, offerValidated: !creditValide })}
+                onClick={() => setPret({ ...loan, offerValidated: !creditValide })}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] transition-colors ${
                   creditValide
                     ? "bg-green-500/15 text-green-700 font-medium"
@@ -1155,19 +1155,19 @@ function PropertyDetailContent() {
               <ApportSection
                 property={property}
                 loan={loan}
-                onUpdateApport={(v) => updateProperty(id, { apport: v })}
-                onUpdateEmprunt={(v) => setLoan({ ...loan, montantEmprunte: v })}
+                onUpdateApport={(v) => mettreAJourBien(id, { apport: v })}
+                onUpdateEmprunt={(v) => setPret({ ...loan, montantEmprunte: v })}
               />
               {/* Allocation du credit */}
               <AllocationSection
                 loan={loan}
                 property={property}
                 interventions={interventions}
-                onSave={(alloc) => updateProperty(id, { allocationCredit: alloc })}
-                onUpdateLoan={(updates) => setLoan({ ...loan, ...updates })}
+                onSave={(alloc) => mettreAJourBien(id, { allocationCredit: alloc })}
+                onUpdateLoan={(updates) => setPret({ ...loan, ...updates })}
               />
               {/* Banque + Documents credit */}
-              <LoanExtras loan={loan} onUpdate={(updates) => setLoan({ ...loan, ...updates })} />
+              <LoanExtras loan={loan} onUpdate={(updates) => setPret({ ...loan, ...updates })} />
               <button
                 onClick={() => handleDeleteLoan(loan.id)}
                 className="text-xs text-destructive hover:underline mt-3"
@@ -1189,10 +1189,10 @@ function PropertyDetailContent() {
         <Card className="border-dotted">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base">Depenses</CardTitle>
-            <ExpenseForm propertyId={id} onSubmit={addExpense} />
+            <ExpenseForm propertyId={id} onSubmit={ajouterDepense} />
           </CardHeader>
           <CardContent>
-            <ExpenseList expenses={expenses} onDelete={deleteExpense} onUpdate={updateExpense} colorByValidation={isPreActe} />
+            <ExpenseList expenses={expenses} onDelete={supprimerDepense} onUpdate={mettreAJourDepense} colorByValidation={isPreActe} />
             <p className="text-[11px] text-amber-700 italic mt-3">
               ⚠ Donnees non utilisees dans les graphiques, seules les charges dans &quot;Loyer et charges&quot; le sont.
             </p>
@@ -1210,7 +1210,7 @@ function PropertyDetailContent() {
           propertyId={id}
           propertyStatut={property.statut}
           tauxVacanceGlobal={property.tauxVacanceGlobal}
-          onUpdateTauxVacanceGlobal={(v) => updateProperty(id, { tauxVacanceGlobal: v })}
+          onUpdateTauxVacanceGlobal={(v) => mettreAJourBien(id, { tauxVacanceGlobal: v })}
         />
       </section>
 
@@ -1238,7 +1238,7 @@ function PropertyDetailContent() {
             expenses={expenses}
             rentEntries={rentEntries}
             loan={loan}
-            onUpdateProperty={(updates) => updateProperty(id, updates)}
+            onUpdateProperty={(updates) => mettreAJourBien(id, updates)}
             montantEmprunteConsomme={loan ? montantEmprunteEffectif : undefined}
             lots={lots}
             onActuelSnapshot={setActuelSnapshot}
@@ -1271,9 +1271,9 @@ function PropertyDetailContent() {
       <section>
         <InterventionSection
           interventions={interventions}
-          onAdd={addIntervention}
+          onAdd={ajouterIntervention}
           onUpdate={handleUpdateIntervention}
-          onDelete={deleteIntervention}
+          onDelete={supprimerIntervention}
           propertyId={id}
           filterType="travaux"
           lots={lots}
@@ -1284,19 +1284,19 @@ function PropertyDetailContent() {
 
       {/* Interventions */}
       <section>
-        <InterventionSection interventions={interventions} onAdd={addIntervention} onUpdate={handleUpdateIntervention} onDelete={deleteIntervention} propertyId={id} filterType="intervention" lots={lots} />
+        <InterventionSection interventions={interventions} onAdd={ajouterIntervention} onUpdate={handleUpdateIntervention} onDelete={supprimerIntervention} propertyId={id} filterType="intervention" lots={lots} />
       </section>
 
       {/* Contacts */}
       <section>
-        <ContactSection contacts={contacts} onAdd={addContact} onUpdate={updateContact} onDelete={deleteContact} propertyId={id} />
+        <ContactSection contacts={contacts} onAdd={ajouterContact} onUpdate={mettreAJourContact} onDelete={supprimerContact} propertyId={id} />
       </section>
 
       {/* Documents */}
       <section>
         <DocumentSection
           documents={documents}
-          onAdd={addDocument}
+          onAdd={ajouterDocument}
           onDelete={handleDeleteDocument}
           propertyId={id}
           linkedDocs={(() => {

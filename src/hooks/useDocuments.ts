@@ -15,7 +15,7 @@ export function useDocuments(
     [all, propertyId]
   );
 
-  const addDocument = useCallback(
+  const ajouterDocument = useCallback(
     (item: Omit<DocumentBien, "id">) => {
       setData((prev) => ({
         ...prev,
@@ -25,12 +25,12 @@ export function useDocuments(
     [setData]
   );
 
-  const deleteDocument = useCallback(
+  const supprimerDocument = useCallback(
     (id: string) => {
       setData((prev) => ({ ...prev, documents: (prev.documents ?? []).filter((d) => d.id !== id) }));
     },
     [setData]
   );
 
-  return { documents, addDocument, deleteDocument };
+  return { documents, ajouterDocument, supprimerDocument };
 }

@@ -235,11 +235,11 @@ export function SimulationCard({ inputs, onUpdate }: CalculatorFormProps) {
 function LotsEditor({ lots, onChange }: { lots: LotLoyer[]; onChange: (lots: LotLoyer[]) => void }) {
   const total = lots.reduce((sum, l) => sum + (l.loyerMensuel || 0), 0);
 
-  const updateLot = (id: string, field: keyof LotLoyer, value: string | number) => {
+  const mettreAJourLot = (id: string, field: keyof LotLoyer, value: string | number) => {
     onChange(lots.map((l) => l.id === id ? { ...l, [field]: value } : l));
   };
 
-  const addLot = () => {
+  const ajouterLot = () => {
     onChange([...lots, { id: crypto.randomUUID(), nom: `Lot ${lots.length + 1}`, loyerMensuel: 0 }]);
   };
 
@@ -256,7 +256,7 @@ function LotsEditor({ lots, onChange }: { lots: LotLoyer[]; onChange: (lots: Lot
             <input
               type="text"
               value={lot.nom}
-              onChange={(e) => updateLot(lot.id, "nom", e.target.value)}
+              onChange={(e) => mettreAJourLot(lot.id, "nom", e.target.value)}
               placeholder="Nom du lot"
               className="flex h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
@@ -266,7 +266,7 @@ function LotsEditor({ lots, onChange }: { lots: LotLoyer[]; onChange: (lots: Lot
               type="number"
               min={0}
               value={lot.loyerMensuel || ""}
-              onChange={(e) => updateLot(lot.id, "loyerMensuel", Number(e.target.value))}
+              onChange={(e) => mettreAJourLot(lot.id, "loyerMensuel", Number(e.target.value))}
               placeholder="EUR/m"
               className="flex h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-right outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
@@ -283,7 +283,7 @@ function LotsEditor({ lots, onChange }: { lots: LotLoyer[]; onChange: (lots: Lot
       <div className="flex items-center justify-between pt-1">
         <button
           type="button"
-          onClick={addLot}
+          onClick={ajouterLot}
           className="text-[11px] text-primary hover:underline"
         >
           + Ajouter un lot
@@ -303,11 +303,11 @@ function MobilierEditor({ lots, enveloppe, onChange }: { lots: LotMobilier[]; en
   const reste = enveloppe - total;
   const overBudget = reste < 0;
 
-  const updateLot = (id: string, field: keyof LotMobilier, value: string | number) => {
+  const mettreAJourLot = (id: string, field: keyof LotMobilier, value: string | number) => {
     onChange(lots.map((l) => l.id === id ? { ...l, [field]: value } : l));
   };
 
-  const addLot = () => {
+  const ajouterLot = () => {
     onChange([...lots, { id: crypto.randomUUID(), nom: `Mobilier lot ${lots.length + 1}`, montant: 0 }]);
   };
 
@@ -323,7 +323,7 @@ function MobilierEditor({ lots, enveloppe, onChange }: { lots: LotMobilier[]; en
             <input
               type="text"
               value={lot.nom}
-              onChange={(e) => updateLot(lot.id, "nom", e.target.value)}
+              onChange={(e) => mettreAJourLot(lot.id, "nom", e.target.value)}
               placeholder="Description"
               className="flex h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
@@ -333,7 +333,7 @@ function MobilierEditor({ lots, enveloppe, onChange }: { lots: LotMobilier[]; en
               type="number"
               min={0}
               value={lot.montant || ""}
-              onChange={(e) => updateLot(lot.id, "montant", Number(e.target.value))}
+              onChange={(e) => mettreAJourLot(lot.id, "montant", Number(e.target.value))}
               placeholder="EUR"
               className="flex h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-right outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             />
@@ -348,7 +348,7 @@ function MobilierEditor({ lots, enveloppe, onChange }: { lots: LotMobilier[]; en
         </div>
       ))}
       <div className="flex items-center justify-between pt-1">
-        <button type="button" onClick={addLot} className="text-[11px] text-primary hover:underline">
+        <button type="button" onClick={ajouterLot} className="text-[11px] text-primary hover:underline">
           + Ajouter du mobilier
         </button>
         {lots.length > 0 && (
@@ -383,11 +383,11 @@ function TravauxEditor({ lots, enveloppe, onChange }: { lots: LotTravaux[]; enve
   const reste = enveloppe - total;
   const overBudget = reste < 0;
 
-  const updateLot = (id: string, field: keyof LotTravaux, value: string | number) => {
+  const mettreAJourLot = (id: string, field: keyof LotTravaux, value: string | number) => {
     onChange(lots.map((l) => l.id === id ? { ...l, [field]: value } : l));
   };
 
-  const addLot = (cat?: typeof TRAVAUX_CATEGORIES[number]) => {
+  const ajouterLot = (cat?: typeof TRAVAUX_CATEGORIES[number]) => {
     onChange([...lots, {
       id: crypto.randomUUID(),
       nom: cat?.label ?? `Travaux ${lots.length + 1}`,
@@ -407,13 +407,13 @@ function TravauxEditor({ lots, enveloppe, onChange }: { lots: LotTravaux[]; enve
       {lots.map((lot) => (
         <div key={lot.id} className="flex items-end gap-1.5">
           <div className="flex-1">
-            <input type="text" value={lot.nom} onChange={(e) => updateLot(lot.id, "nom", e.target.value)} placeholder="Type de travaux" className={smallInput} />
+            <input type="text" value={lot.nom} onChange={(e) => mettreAJourLot(lot.id, "nom", e.target.value)} placeholder="Type de travaux" className={smallInput} />
           </div>
           <div className="w-20">
-            <input type="number" min={0} value={lot.montant === 0 ? "0" : lot.montant || ""} onChange={(e) => updateLot(lot.id, "montant", Number(e.target.value))} placeholder="EUR" className={`${smallInput} text-right`} />
+            <input type="number" min={0} value={lot.montant === 0 ? "0" : lot.montant || ""} onChange={(e) => mettreAJourLot(lot.id, "montant", Number(e.target.value))} placeholder="EUR" className={`${smallInput} text-right`} />
           </div>
           <div className="w-14">
-            <input type="number" min={1} max={50} value={lot.dureeAmortissement} onChange={(e) => updateLot(lot.id, "dureeAmortissement", Number(e.target.value))} className={`${smallInput} text-right`} />
+            <input type="number" min={1} max={50} value={lot.dureeAmortissement} onChange={(e) => mettreAJourLot(lot.id, "dureeAmortissement", Number(e.target.value))} className={`${smallInput} text-right`} />
           </div>
           <span className="text-[10px] text-muted-foreground w-6 shrink-0 pb-1">ans</span>
           <button type="button" onClick={() => removeLot(lot.id)} className="h-7 px-1 text-xs text-destructive hover:bg-destructive/10 rounded-md">×</button>
@@ -421,9 +421,9 @@ function TravauxEditor({ lots, enveloppe, onChange }: { lots: LotTravaux[]; enve
       ))}
       <div className="flex items-center justify-between pt-1 flex-wrap gap-1">
         <div className="flex gap-1 flex-wrap">
-          <button type="button" onClick={() => addLot()} className="text-[11px] text-primary hover:underline">+ Ajouter</button>
+          <button type="button" onClick={() => ajouterLot()} className="text-[11px] text-primary hover:underline">+ Ajouter</button>
           {[TRAVAUX_CATEGORIES[0], TRAVAUX_CATEGORIES[1]].map((cat) => (
-            <button key={cat.value} type="button" onClick={() => addLot(cat)} className="text-[10px] text-muted-foreground hover:text-primary border border-dashed rounded px-1.5 py-0.5">
+            <button key={cat.value} type="button" onClick={() => ajouterLot(cat)} className="text-[10px] text-muted-foreground hover:text-primary border border-dashed rounded px-1.5 py-0.5">
               {cat.label}
             </button>
           ))}

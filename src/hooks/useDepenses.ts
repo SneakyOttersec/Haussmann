@@ -4,7 +4,7 @@ import { useCallback, useMemo } from "react";
 import type { DonneesApp, Depense } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
-export function useExpenses(
+export function useDepenses(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
@@ -16,7 +16,7 @@ export function useExpenses(
     [allExpenses, propertyId]
   );
 
-  const addExpense = useCallback(
+  const ajouterDepense = useCallback(
     (expense: Omit<Depense, "id" | "createdAt" | "updatedAt">) => {
       const newExpense: Depense = {
         ...expense,
@@ -33,7 +33,7 @@ export function useExpenses(
     [setData]
   );
 
-  const updateExpense = useCallback(
+  const mettreAJourDepense = useCallback(
     (id: string, updates: Partial<Omit<Depense, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
@@ -45,7 +45,7 @@ export function useExpenses(
     [setData]
   );
 
-  const deleteExpense = useCallback(
+  const supprimerDepense = useCallback(
     (id: string) => {
       setData((prev) => ({
         ...prev,
@@ -55,5 +55,5 @@ export function useExpenses(
     [setData]
   );
 
-  return { expenses, addExpense, updateExpense, deleteExpense };
+  return { expenses, ajouterDepense, mettreAJourDepense, supprimerDepense };
 }

@@ -50,7 +50,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
 
   // Optional loan state — only when showFinancement
   const [withLoan, setWithLoan] = useState(false);
-  const [loan, setLoan] = useState({
+  const [loan, setPret] = useState({
     apport: 0,
     montantEmprunte: 0,
     type: "amortissable" as TypePret,
@@ -70,7 +70,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
     + form.fraisDossier + form.fraisCourtage + form.montantTravaux + form.montantMobilier;
 
   const handleApportChange = (v: number) => {
-    setLoan((prev) => ({ ...prev, apport: v, montantEmprunte: Math.max(0, Math.round(coutTotal - v)) }));
+    setPret((prev) => ({ ...prev, apport: v, montantEmprunte: Math.max(0, Math.round(coutTotal - v)) }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -318,7 +318,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 onChange={(e) => {
                   setWithLoan(e.target.checked);
                   if (e.target.checked && loan.montantEmprunte === 0) {
-                    setLoan((prev) => ({ ...prev, montantEmprunte: Math.round(coutTotal) }));
+                    setPret((prev) => ({ ...prev, montantEmprunte: Math.round(coutTotal) }));
                   }
                 }}
                 className="accent-primary"
@@ -337,7 +337,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 </span>
                 <button
                   type="button"
-                  onClick={() => setLoan((prev) => ({ ...prev, montantEmprunte: Math.max(0, Math.round(coutTotal - prev.apport)) }))}
+                  onClick={() => setPret((prev) => ({ ...prev, montantEmprunte: Math.max(0, Math.round(coutTotal - prev.apport)) }))}
                   className="text-[10px] text-primary hover:underline"
                 >
                   Recalculer emprunt
@@ -351,7 +351,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 </div>
                 <div className="space-y-2">
                   <Label>Montant emprunte (EUR)</Label>
-                  <Input type="number" min={0} value={loan.montantEmprunte || ""} onChange={(e) => setLoan((prev) => ({ ...prev, montantEmprunte: Number(e.target.value) }))} />
+                  <Input type="number" min={0} value={loan.montantEmprunte || ""} onChange={(e) => setPret((prev) => ({ ...prev, montantEmprunte: Number(e.target.value) }))} />
                 </div>
               </div>
 
@@ -371,7 +371,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type de pret</Label>
-                  <Select value={loan.type} onValueChange={(v) => setLoan((prev) => ({ ...prev, type: v as TypePret }))}>
+                  <Select value={loan.type} onValueChange={(v) => setPret((prev) => ({ ...prev, type: v as TypePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="amortissable">Amortissable</SelectItem>
@@ -381,18 +381,18 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 </div>
                 <div className="space-y-2">
                   <Label>Taux nominal (%)</Label>
-                  <Input type="number" min={0} step="0.01" value={loan.tauxAnnuel ? (loan.tauxAnnuel * 100).toFixed(2) : ""} onChange={(e) => setLoan((prev) => ({ ...prev, tauxAnnuel: Number(e.target.value) / 100 }))} />
+                  <Input type="number" min={0} step="0.01" value={loan.tauxAnnuel ? (loan.tauxAnnuel * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, tauxAnnuel: Number(e.target.value) / 100 }))} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Duree (annees)</Label>
-                  <Input type="number" min={1} max={30} value={loan.dureeAnnees || ""} onChange={(e) => setLoan((prev) => ({ ...prev, dureeAnnees: Number(e.target.value) }))} />
+                  <Input type="number" min={1} max={30} value={loan.dureeAnnees || ""} onChange={(e) => setPret((prev) => ({ ...prev, dureeAnnees: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-2">
                   <Label>Differe (mois)</Label>
-                  <Input type="number" min={0} max={60} value={loan.differeMois || ""} onChange={(e) => setLoan((prev) => ({ ...prev, differeMois: Number(e.target.value) || 0 }))} />
+                  <Input type="number" min={0} max={60} value={loan.differeMois || ""} onChange={(e) => setPret((prev) => ({ ...prev, differeMois: Number(e.target.value) || 0 }))} />
                 </div>
               </div>
 
@@ -400,7 +400,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Type de differe</Label>
-                    <Select value={loan.differeType} onValueChange={(v) => setLoan((prev) => ({ ...prev, differeType: v as TypeDiffere }))}>
+                    <Select value={loan.differeType} onValueChange={(v) => setPret((prev) => ({ ...prev, differeType: v as TypeDiffere }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="min-w-[260px]">
                         <SelectItem value="partiel">Partiel (interets seulement)</SelectItem>
@@ -410,7 +410,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                   </div>
                   <div className="space-y-2">
                     <Label>Differe</Label>
-                    <Select value={loan.differeInclus ? "inclus" : "en_plus"} onValueChange={(v) => setLoan((prev) => ({ ...prev, differeInclus: v === "inclus" }))}>
+                    <Select value={loan.differeInclus ? "inclus" : "en_plus"} onValueChange={(v) => setPret((prev) => ({ ...prev, differeInclus: v === "inclus" }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="min-w-[260px]">
                         <SelectItem value="inclus">Inclus dans la duree</SelectItem>
@@ -424,7 +424,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Assurance pret</Label>
-                  <Select value={loan.assuranceMode} onValueChange={(v) => setLoan((prev) => ({ ...prev, assuranceMode: v as ModeAssurancePret }))}>
+                  <Select value={loan.assuranceMode} onValueChange={(v) => setPret((prev) => ({ ...prev, assuranceMode: v as ModeAssurancePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="eur">EUR/an</SelectItem>
@@ -435,12 +435,12 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 {loan.assuranceMode === "eur" ? (
                   <div className="space-y-2">
                     <Label>Assurance (EUR/an)</Label>
-                    <Input type="number" min={0} value={loan.assuranceAnnuelle || ""} onChange={(e) => setLoan((prev) => ({ ...prev, assuranceAnnuelle: Number(e.target.value) }))} />
+                    <Input type="number" min={0} value={loan.assuranceAnnuelle || ""} onChange={(e) => setPret((prev) => ({ ...prev, assuranceAnnuelle: Number(e.target.value) }))} />
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <Label>Taux assurance (%)</Label>
-                    <Input type="number" min={0} step="0.01" value={loan.assurancePct ? (loan.assurancePct * 100).toFixed(2) : ""} onChange={(e) => setLoan((prev) => ({ ...prev, assurancePct: Number(e.target.value) / 100 }))} />
+                    <Input type="number" min={0} step="0.01" value={loan.assurancePct ? (loan.assurancePct * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, assurancePct: Number(e.target.value) / 100 }))} />
                   </div>
                 )}
               </div>
