@@ -99,6 +99,10 @@ export interface AllocationCredit {
   agence: number;
   dossier: number;
   garantie: number;
+  /** Mobilier (pour une location meublee). Ajoute en 2026 — avant cette date
+   *  il etait regroupe avec "autre". Les allocations existantes sans ce
+   *  champ sont backfilled depuis property.montantMobilier. */
+  mobilier?: number;
   autre: number;
 }
 

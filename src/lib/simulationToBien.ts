@@ -20,6 +20,9 @@ export function simulationToBien(
   const fraisDossier = inputs.fraisDossier || 0;
   const fraisCourtage = inputs.fraisCourtage || 0;
   const fraisGarantie = inputs.fraisGarantie || 0;
+  const montantMobilier = inputs.montantMobilierTotal || 0;
+  // "Autre" regroupe ce qui n'a pas de bucket dedie (courtage uniquement
+  // depuis l'ajout du bucket "mobilier" dedie).
   const autreAlloc = fraisCourtage;
 
   const property: Property = {
@@ -34,7 +37,7 @@ export function simulationToBien(
     fraisDossier,
     fraisCourtage,
     montantTravaux: inputs.montantTravaux,
-    montantMobilier: inputs.montantMobilierTotal || 0,
+    montantMobilier,
     surfaceM2: inputs.surfaceM2 || undefined,
     simulationId,
     // A property born from a simulation is still being prospected — not yet
@@ -45,7 +48,7 @@ export function simulationToBien(
     statusDates: { prospection: today },
     allocationCredit: inputs.montantEmprunte > 0 ? (() => {
       // L'apport couvre une partie du prix du bien — le credit finance le reste
-      const autresCouts = inputs.montantTravaux + fraisNotaire + fraisAgence + fraisDossier + fraisGarantie + autreAlloc;
+      const autresCouts = inputs.montantTravaux + fraisNotaire + fraisAgence + fraisDossier + fraisGarantie + montantMobilier + autreAlloc;
       const bienFinance = Math.max(0, inputs.montantEmprunte - autresCouts);
       return {
         bien: bienFinance,
@@ -54,6 +57,7 @@ export function simulationToBien(
         agence: fraisAgence,
         dossier: fraisDossier,
         garantie: fraisGarantie,
+        mobilier: montantMobilier,
         autre: autreAlloc,
       };
     })() : undefined,

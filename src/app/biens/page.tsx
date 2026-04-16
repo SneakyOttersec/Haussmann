@@ -178,13 +178,17 @@ function LoanExtras({ loan, onUpdate }: {
  * (enveloppe travaux).
  */
 function computeAllocationCredit(property: Property, loan: LoanDetails): AllocationCredit {
-  // Backfill dossier/garantie on older allocations that predate those buckets.
+  // Backfill dossier/garantie/mobilier on older allocations that predate those buckets.
   if (property.allocationCredit) {
-    const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie">;
+    const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie" | "mobilier">;
+    // Mobilier absent de l'allocation mais present sur la propriete : on le
+    // backfill automatiquement pour que le cout total soit coherent.
+    const mobilier = a.mobilier ?? property.montantMobilier ?? 0;
     return {
       ...a,
       dossier: a.dossier ?? 0,
       garantie: a.garantie ?? 0,
+      mobilier,
     };
   }
   // Default = full project cost split across buckets; user can then
@@ -196,7 +200,8 @@ function computeAllocationCredit(property: Property, loan: LoanDetails): Allocat
     agence: property.fraisAgence,
     dossier: property.fraisDossier ?? 0,
     garantie: 0,
-    autre: (property.fraisCourtage ?? 0) + (property.montantMobilier ?? 0),
+    mobilier: property.montantMobilier ?? 0,
+    autre: property.fraisCourtage ?? 0,
   };
 }
 
@@ -329,6 +334,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
     { key: "agence", label: "Frais d'agence", value: defaultAlloc.agence },
     { key: "dossier", label: "Frais de dossier", value: defaultAlloc.dossier ?? 0 },
     { key: "garantie", label: "Frais de garantie", value: defaultAlloc.garantie ?? 0 },
+    { key: "mobilier", label: "Mobilier", value: defaultAlloc.mobilier ?? 0 },
     { key: "autre", label: "Autre", value: defaultAlloc.autre },
   ];
   const totalAlloue = allocations.reduce((s, a) => s + a.value, 0);
@@ -449,6 +455,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
               { key: "agence", label: "Frais d'agence" },
               { key: "dossier", label: "Frais de dossier" },
               { key: "garantie", label: "Frais de garantie" },
+              { key: "mobilier", label: "Mobilier" },
               { key: "autre", label: "Autre" },
             ] as const).map((field) => (
               <div key={field.key} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
@@ -465,8 +472,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             <div className="pt-2 border-t border-dashed border-muted-foreground/15 text-sm">
               <div className="flex items-center justify-between">
                 <span className="font-bold">Total alloue</span>
-                <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + edit.autre !== financementTotal ? "text-destructive" : "text-green-600"}`}>
-                  {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + edit.autre)} / {formatCurrency(financementTotal)}
+                <span className={`font-bold tabular-nums ${edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + (edit.mobilier ?? 0) + edit.autre !== financementTotal ? "text-destructive" : "text-green-600"}`}>
+                  {formatCurrency(edit.bien + edit.travaux + edit.notaire + edit.agence + (edit.dossier ?? 0) + (edit.garantie ?? 0) + (edit.mobilier ?? 0) + edit.autre)} / {formatCurrency(financementTotal)}
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground/80 mt-0.5 text-right">
