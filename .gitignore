@@ -47,3 +47,5 @@ test-results/
 
 # analysis
 analyse_montlucon_03.md
+*.pdf
+haussmann-*.zip

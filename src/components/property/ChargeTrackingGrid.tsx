@@ -2,8 +2,8 @@
 
 import { useMemo, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import type { Expense, ChargePaymentEntry, ChargePaymentStatus } from "@/types";
-import { EXPENSE_CATEGORY_LABELS, CHARGE_PAYMENT_STATUS_LABELS } from "@/types";
+import type { Depense, PaiementCharge, StatutPaiementCharge } from "@/types";
+import { CATEGORIE_DEPENSE_LABELS, STATUT_PAIEMENT_CHARGE_LABELS } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { Input } from "@/components/ui/input";
@@ -11,15 +11,15 @@ import { Button } from "@/components/ui/button";
 
 interface Props {
   propertyId: string;
-  expenses: Expense[];
-  /** Property acquisition date — extends year range */
+  expenses: Depense[];
+  /** Bien acquisition date — extends year range */
   dateSaisie?: string;
-  entries: ChargePaymentEntry[];
+  entries: PaiementCharge[];
   onUpsert: (
     propertyId: string,
     expenseId: string,
     periode: string,
-    updates: Partial<Omit<ChargePaymentEntry, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
+    updates: Partial<Omit<PaiementCharge, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
   ) => void;
   onDelete: (id: string) => void;
 }
@@ -27,7 +27,7 @@ interface Props {
 const MONTH_LABELS = ["Jan", "Fev", "Mar", "Avr", "Mai", "Juin", "Juil", "Aout", "Sep", "Oct", "Nov", "Dec"];
 const QUARTER_LABELS = ["Q1", "Q2", "Q3", "Q4"];
 
-function statusColor(status: ChargePaymentStatus): { bg: string; border: string; text: string } {
+function statusColor(status: StatutPaiementCharge): { bg: string; border: string; text: string } {
   switch (status) {
     case "paye":
       return { bg: "bg-green-600/15", border: "border-green-600/40", text: "text-green-700" };
@@ -70,7 +70,7 @@ interface CellEditorProps {
   expenseId: string;
   periode: string;
   montantAttendu: number;
-  entry: ChargePaymentEntry | undefined;
+  entry: PaiementCharge | undefined;
   anchorRect: DOMRect;
   onUpsert: Props["onUpsert"];
   onDelete: Props["onDelete"];
@@ -80,7 +80,7 @@ interface CellEditorProps {
 function CellEditor({
   propertyId, expenseId, periode, montantAttendu, entry, anchorRect, onUpsert, onDelete, onClose,
 }: CellEditorProps) {
-  const [statut, setStatut] = useState<ChargePaymentStatus>(entry?.statut ?? "paye");
+  const [statut, setStatut] = useState<StatutPaiementCharge>(entry?.statut ?? "paye");
   const [montantPaye, setMontantPaye] = useState(String(entry?.montantPaye ?? montantAttendu));
   const [notes, setNotes] = useState(entry?.notes ?? "");
 
@@ -124,7 +124,7 @@ function CellEditor({
         <div>
           <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Statut</label>
           <div className="flex gap-1 mt-1">
-            {(["paye", "partiel", "en_attente"] as ChargePaymentStatus[]).map((s) => {
+            {(["paye", "partiel", "en_attente"] as StatutPaiementCharge[]).map((s) => {
               const c = statusColor(s);
               const active = statut === s;
               return (
@@ -136,7 +136,7 @@ function CellEditor({
                     active ? `${c.bg} ${c.border} ${c.text} font-semibold` : "border-dotted border-muted-foreground/30 text-muted-foreground"
                   }`}
                 >
-                  {CHARGE_PAYMENT_STATUS_LABELS[s]}
+                  {STATUT_PAIEMENT_CHARGE_LABELS[s]}
                 </button>
               );
             })}
@@ -183,7 +183,7 @@ function Cell({
   expenseId: string;
   periode: string;
   montantAttendu: number;
-  entry: ChargePaymentEntry | undefined;
+  entry: PaiementCharge | undefined;
   onUpsert: Props["onUpsert"];
   onDelete: Props["onDelete"];
   colSpan?: number;
@@ -205,7 +205,7 @@ function Cell({
   const colors = entry ? statusColor(entry.statut) : null;
   const display = entry
     ? entry.statut === "en_attente"
-      ? CHARGE_PAYMENT_STATUS_LABELS.en_attente
+      ? STATUT_PAIEMENT_CHARGE_LABELS.en_attente
       : formatCurrency(entry.montantPaye)
     : "—";
 
@@ -421,7 +421,7 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
                   <tr key={exp.id}>
                     <td className="py-2 pl-3 pr-2 text-xs font-medium border-r border-dashed border-muted-foreground/10 sticky left-0 bg-background z-10">
                       <div className="truncate max-w-[160px]">{exp.label}</div>
-                      <div className="text-[9px] text-muted-foreground">{EXPENSE_CATEGORY_LABELS[exp.categorie]} · {formatCurrency(montant)}/mois</div>
+                      <div className="text-[9px] text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[exp.categorie]} · {formatCurrency(montant)}/mois</div>
                     </td>
                     {periods.map((p) => {
                       const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
@@ -447,7 +447,7 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
                   <tr key={exp.id}>
                     <td className="py-2 pl-3 pr-2 text-xs font-medium border-r border-dashed border-muted-foreground/10 sticky left-0 bg-background z-10">
                       <div className="truncate max-w-[160px]">{exp.label}</div>
-                      <div className="text-[9px] text-muted-foreground">{EXPENSE_CATEGORY_LABELS[exp.categorie]} · {formatCurrency(montant)}/trim.</div>
+                      <div className="text-[9px] text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[exp.categorie]} · {formatCurrency(montant)}/trim.</div>
                     </td>
                     {QUARTER_LABELS.map((q, qi) => {
                       const p = `${selectedYear}-${q}`;
@@ -477,7 +477,7 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
                   <tr key={exp.id}>
                     <td className="py-2 pl-3 pr-2 text-xs font-medium border-r border-dashed border-muted-foreground/10 sticky left-0 bg-background z-10">
                       <div className="truncate max-w-[160px]">{exp.label}</div>
-                      <div className="text-[9px] text-muted-foreground">{EXPENSE_CATEGORY_LABELS[exp.categorie]} · {formatCurrency(montant)}/an</div>
+                      <div className="text-[9px] text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[exp.categorie]} · {formatCurrency(montant)}/an</div>
                     </td>
                     <Cell
                       propertyId={propertyId}
@@ -501,12 +501,12 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-        {(["paye", "partiel", "en_attente"] as ChargePaymentStatus[]).map((s) => {
+        {(["paye", "partiel", "en_attente"] as StatutPaiementCharge[]).map((s) => {
           const c = statusColor(s);
           return (
             <div key={s} className="flex items-center gap-1.5">
               <span className={`inline-block w-3 h-3 rounded-sm ${c.bg} ${c.border} border`} />
-              <span>{CHARGE_PAYMENT_STATUS_LABELS[s]}</span>
+              <span>{STATUT_PAIEMENT_CHARGE_LABELS[s]}</span>
             </div>
           );
         })}

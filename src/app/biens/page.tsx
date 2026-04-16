@@ -12,9 +12,9 @@ import { useInterventions } from "@/hooks/useInterventions";
 import { useContacts } from "@/hooks/useContacts";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useLots } from "@/hooks/useLots";
-import { PROPERTY_TYPE_LABELS } from "@/types";
-import type { PropertyStatus, Property, LoanDetails, AllocationCredit, Intervention } from "@/types";
-import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
+import { TYPE_BIEN_LABELS } from "@/types";
+import type { StatutBien, Bien, Pret, AllocationCredit, Intervention } from "@/types";
+import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
 import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
@@ -69,11 +69,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import type { LoanPJ } from "@/types";
+import type { PieceJointePret } from "@/types";
 
 function LoanExtras({ loan, onUpdate }: {
-  loan: LoanDetails;
-  onUpdate: (updates: Partial<LoanDetails>) => void;
+  loan: Pret;
+  onUpdate: (updates: Partial<Pret>) => void;
 }) {
   const [editBanque, setEditBanque] = useState(false);
   const [banqueDraft, setBanqueDraft] = useState(loan.banque || "");
@@ -85,7 +85,7 @@ function LoanExtras({ loan, onUpdate }: {
     if (!file || !checkFileSize(file)) return;
     const reader = new FileReader();
     reader.onload = () => {
-      const newDoc: LoanPJ = {
+      const newDoc: PieceJointePret = {
         nom: file.name,
         data: reader.result as string,
         type: file.type,
@@ -102,7 +102,7 @@ function LoanExtras({ loan, onUpdate }: {
     onUpdate({ documents: docs.filter((_, i) => i !== idx) });
   };
 
-  const downloadDoc = (doc: LoanPJ) => {
+  const downloadDoc = (doc: PieceJointePret) => {
     const a = document.createElement("a");
     a.href = doc.data;
     a.download = doc.nom;
@@ -177,7 +177,7 @@ function LoanExtras({ loan, onUpdate }: {
  * AllocationSection (display) and the InterventionSection call site
  * (enveloppe travaux).
  */
-function computeAllocationCredit(property: Property, loan: LoanDetails): AllocationCredit {
+function computeAllocationCredit(property: Bien, loan: Pret): AllocationCredit {
   // Backfill dossier/garantie/mobilier on older allocations that predate those buckets.
   if (property.allocationCredit) {
     const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie" | "mobilier">;
@@ -206,8 +206,8 @@ function computeAllocationCredit(property: Property, loan: LoanDetails): Allocat
 }
 
 function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
-  property: Property;
-  loan: LoanDetails;
+  property: Bien;
+  loan: Pret;
   onUpdateApport: (v: number | undefined) => void;
   onUpdateEmprunt: (v: number) => void;
 }) {
@@ -304,11 +304,11 @@ function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
 }
 
 function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan }: {
-  loan: LoanDetails;
-  property: Property;
+  loan: Pret;
+  property: Bien;
   interventions: Intervention[];
   onSave: (alloc: AllocationCredit) => void;
-  onUpdateLoan: (updates: Partial<LoanDetails>) => void;
+  onUpdateLoan: (updates: Partial<Pret>) => void;
 }) {
   const defaultAlloc = computeAllocationCredit(property, loan);
   const [editOpen, setEditOpen] = useState(false);
@@ -493,11 +493,11 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
   );
 }
 
-/** Property is past the "acte" phase — financial data is meaningful */
-function isPostActe(statut?: PropertyStatus): boolean {
+/** Bien is past the "acte" phase — financial data is meaningful */
+function isPostActe(statut?: StatutBien): boolean {
   if (!statut) return true; // backward compat
-  const idx = PROPERTY_STATUS_ORDER.indexOf(statut);
-  const acteIdx = PROPERTY_STATUS_ORDER.indexOf("acte");
+  const idx = STATUT_BIEN_ORDER.indexOf(statut);
+  const acteIdx = STATUT_BIEN_ORDER.indexOf("acte");
   return idx >= acteIdx;
 }
 
@@ -559,7 +559,7 @@ function PropertyDetailContent() {
       travauxSyncedRef.current = true;
     }
   } else {
-    // Property left travaux — reset the flag so re-entering triggers a new sync.
+    // Bien left travaux — reset the flag so re-entering triggers a new sync.
     travauxSyncedRef.current = false;
   }
 
@@ -652,7 +652,7 @@ function PropertyDetailContent() {
     }
   };
 
-  // Lot → Income sync: each lot creates/updates a matching income entry
+  // Lot → Revenu sync: each lot creates/updates a matching income entry
   const handleAddLot = (lotData: Parameters<typeof addLot>[0]) => {
     addLot(lotData);
     addIncome({
@@ -746,7 +746,7 @@ function PropertyDetailContent() {
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="break-words">{property.nom}</h1>
-              <Badge variant="secondary">{PROPERTY_TYPE_LABELS[property.type]}</Badge>
+              <Badge variant="secondary">{TYPE_BIEN_LABELS[property.type]}</Badge>
             </div>
             <p className="text-muted-foreground mt-1 break-words">{property.adresse}</p>
             <p className="text-sm text-muted-foreground">
@@ -915,7 +915,7 @@ function PropertyDetailContent() {
         statut={property.statut ?? "exploitation"}
         statusDates={property.statusDates}
         statusDocs={property.statusDocs}
-        onChange={(s: PropertyStatus) => {
+        onChange={(s: StatutBien) => {
           const today = new Date().toISOString().slice(0, 10);
           const prevDates = property.statusDates ?? {};
           const nextDates = prevDates[s] ? prevDates : { ...prevDates, [s]: today };
@@ -1307,7 +1307,7 @@ function PropertyDetailContent() {
                 if (!doc || !doc.data) continue;
                 ld.push({
                   key: `phase:${phase}`,
-                  sourceLabel: `Phase ${PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase}`,
+                  sourceLabel: `Phase ${STATUT_BIEN_LABELS[phase as keyof typeof STATUT_BIEN_LABELS] ?? phase}`,
                   fileName: doc.nom,
                   fileSize: doc.taille,
                   date: property.statusDates?.[phase as keyof typeof property.statusDates] ?? "",

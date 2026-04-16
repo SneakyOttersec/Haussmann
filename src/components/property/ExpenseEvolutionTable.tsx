@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import type { Expense } from "@/types";
-import { EXPENSE_CATEGORY_LABELS } from "@/types";
+import type { Depense } from "@/types";
+import { CATEGORIE_DEPENSE_LABELS } from "@/types";
 import { formatCurrency, annualiserMontant } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
 
 interface Props {
-  expenses: Expense[];
+  expenses: Depense[];
   years: number[];
 }
 
@@ -68,7 +68,7 @@ export function ExpenseEvolutionTable({ expenses, years }: Props) {
               <td className="py-1.5 pl-3 pr-4 sticky left-0 bg-background">
                 <div className="font-medium truncate max-w-[160px]">{expense.label}</div>
                 <div className="text-[9px] text-muted-foreground">
-                  {EXPENSE_CATEGORY_LABELS[expense.categorie]}
+                  {CATEGORIE_DEPENSE_LABELS[expense.categorie]}
                 </div>
               </td>
               {values.map((v, idx) => {

@@ -1,9 +1,9 @@
 import type jsPDF from "jspdf";
 import type {
-  Property, Lot, Expense, Income, LoanDetails, Intervention,
+  Bien, Lot, Depense, Revenu, Pret, Intervention,
 } from "@/types";
 import {
-  EXPENSE_CATEGORY_LABELS, PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS,
+  CATEGORIE_DEPENSE_LABELS, TYPE_BIEN_LABELS, STATUT_BIEN_LABELS,
 } from "@/types";
 import {
   mensualiteAmortissement, crdAtYearEnd, totalMensualitesAnnee,
@@ -36,7 +36,7 @@ const C = {
   white:    [255, 255, 255] as [number, number, number],
 } as const;
 
-// Expense categories already accounted for elsewhere in the model — excluded
+// Depense categories already accounted for elsewhere in the model — excluded
 // from the "charges d'exploitation" to avoid double counting.
 const EXCLUDED_EXPENSE_CATS = new Set(["credit", "vacance", "frais_notaire", "travaux", "ameublement"]);
 
@@ -181,7 +181,7 @@ function pageFooter(doc: jsPDF, date: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 // LOAN / AMORT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-function buildAmortRows(loan: LoanDetails): Array<[string, string, string, string, string]> {
+function buildAmortRows(loan: Pret): Array<[string, string, string, string, string]> {
   const totalMois = loanDureeTotaleMois(loan);
   const totalAnnees = Math.ceil(totalMois / 12);
   const rows: Array<[string, string, string, string, string]> = [];
@@ -203,7 +203,7 @@ function parseNum(s: string): number {
   return parseFloat(s.replace(/[^\d.,\-]/g, "").replace(",", ".")) || 0;
 }
 
-function computeAnnualCharges(expenses: Expense[]): number {
+function computeAnnualCharges(expenses: Depense[]): number {
   return expenses
     .filter((e) => !EXCLUDED_EXPENSE_CATS.has(e.categorie))
     .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
@@ -243,11 +243,11 @@ const MODE_CONFIG: Record<ReportMode, {
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 export async function exportPropertyReport(params: {
-  property: Property;
+  property: Bien;
   lots: Lot[];
-  expenses: Expense[];
-  incomes: Income[];
-  loan: LoanDetails | null;
+  expenses: Depense[];
+  incomes: Revenu[];
+  loan: Pret | null;
   interventions: Intervention[];
   montantEmprunteEffectif: number;
   breakEvenMarge: number | null;
@@ -339,7 +339,7 @@ export async function exportPropertyReport(params: {
   const charW = (CW - 8) / 2;
   let yL = y, yR = y;
   yL = subsectionTitle(doc, yL, "Caractéristiques", charL);
-  yL = kvRow(doc, yL, "Type", PROPERTY_TYPE_LABELS[property.type] ?? property.type, { x: charL, w: charW });
+  yL = kvRow(doc, yL, "Type", TYPE_BIEN_LABELS[property.type] ?? property.type, { x: charL, w: charW });
   if (property.ville) yL = kvRow(doc, yL, "Ville", property.ville, { x: charL, w: charW });
   if (property.surfaceM2) yL = kvRow(doc, yL, "Surface", `${property.surfaceM2} m²`, { x: charL, w: charW });
   if (property.surfaceM2 && property.prixAchat) yL = kvRow(doc, yL, "Prix au m²", eur(Math.round(property.prixAchat / property.surfaceM2)) + "/m²", { x: charL, w: charW });
@@ -361,7 +361,7 @@ export async function exportPropertyReport(params: {
       : regimeFiscal;
     yL = kvRow(doc, yL, "Régime fiscal", regimeLabel, { x: charL, w: charW });
   }
-  yL = kvRow(doc, yL, "Statut", property.statut ? PROPERTY_STATUS_LABELS[property.statut] : "—", { x: charL, w: charW });
+  yL = kvRow(doc, yL, "Statut", property.statut ? STATUT_BIEN_LABELS[property.statut] : "—", { x: charL, w: charW });
 
   // Jalons : uniquement pour suivi_interne / refinancement. Pour une demande
   // de prêt, le bien n'est pas encore acquis — afficher "Détenu depuis X ans"
@@ -510,7 +510,7 @@ export async function exportPropertyReport(params: {
   }
   const sortedCat = Array.from(byCat.entries()).sort((a, b) => b[1] - a[1]);
   for (const [cat, v] of sortedCat) {
-    const label = EXPENSE_CATEGORY_LABELS[cat as keyof typeof EXPENSE_CATEGORY_LABELS] ?? cat;
+    const label = CATEGORIE_DEPENSE_LABELS[cat as keyof typeof CATEGORIE_DEPENSE_LABELS] ?? cat;
     y = kvRow(doc, y, label, eur(v));
   }
   hLine(doc, y - 3.5);
@@ -579,7 +579,7 @@ export async function exportPropertyReport(params: {
       y += 4;
       y = footnote(doc, y, "Hypothèse : amortissement calculé sur le capital effectivement tiré à ce jour, sans tirage ultérieur de l'enveloppe travaux.", M, CW);
       y += 2;
-      const loanEff: LoanDetails = { ...loan, montantEmprunte: montantEmprunteEffectif };
+      const loanEff: Pret = { ...loan, montantEmprunte: montantEmprunteEffectif };
       autoTable(doc, {
         startY: y,
         head: [["Année", "Mensualités", "Intérêts", "Capital remboursé", "CRD fin d'année"]],
@@ -631,7 +631,7 @@ export async function exportPropertyReport(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 // COVER PAGE
 // ─────────────────────────────────────────────────────────────────────────────
-function renderCover(doc: jsPDF, property: Property, cfg: typeof MODE_CONFIG[ReportMode], today: string) {
+function renderCover(doc: jsPDF, property: Bien, cfg: typeof MODE_CONFIG[ReportMode], today: string) {
   // Full-width navy band top (60mm)
   setColor(doc, C.navy, "fill");
   doc.rect(0, 0, PW, 60, "F");
@@ -704,12 +704,12 @@ function renderCover(doc: jsPDF, property: Property, cfg: typeof MODE_CONFIG[Rep
   doc.text("[ photo du bien ]", PW / 2, coverY + photoH / 2 + 2, { align: "center" });
   coverY += photoH + 12;
 
-  // Property type + surface (statut volontairement omis — non pertinent sur la couverture)
+  // Bien type + surface (statut volontairement omis — non pertinent sur la couverture)
   setColor(doc, C.navy, "text");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   const chipParts: string[] = [];
-  chipParts.push(PROPERTY_TYPE_LABELS[property.type] ?? property.type);
+  chipParts.push(TYPE_BIEN_LABELS[property.type] ?? property.type);
   if (property.surfaceM2) chipParts.push(`${property.surfaceM2} m²`);
   doc.text(chipParts.join("  ·  "), PW / 2, coverY, { align: "center" });
   coverY += 8;

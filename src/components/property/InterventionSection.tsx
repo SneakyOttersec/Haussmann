@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { Intervention, InterventionStatut, InterventionType, Lot } from "@/types";
+import type { Intervention, InterventionStatut, TypeIntervention, Lot } from "@/types";
 import { INTERVENTION_STATUT_LABELS } from "@/types";
 import { formatCurrency, checkFileSize } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +17,7 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Intervention>) => void;
   onDelete: (id: string) => void;
   propertyId: string;
-  filterType: InterventionType;
+  filterType: TypeIntervention;
   lots?: Lot[];
   /** Only meaningful for filterType === "travaux": the loan's travaux envelope. */
   enveloppeCredit?: number;
@@ -235,7 +235,7 @@ function InterventionRow({ intervention: i, onUpdate, onDelete, lots, showNotes,
   );
 }
 
-const SECTION_LABELS: Record<InterventionType, { title: string; addLabel: string; addPlaceholder: string; emptyLabel: string }> = {
+const SECTION_LABELS: Record<TypeIntervention, { title: string; addLabel: string; addPlaceholder: string; emptyLabel: string }> = {
   travaux: {
     title: "Travaux",
     addLabel: "+ Travaux",

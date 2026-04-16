@@ -11,7 +11,7 @@ const notFutureDate = z.string().refine(
   'La date ne peut pas etre dans le futur',
 );
 
-// --- Property ---
+// --- Bien ---
 
 export const propertySchema = z.object({
   nom: z.string().min(1, 'Nom requis').max(100, 'Max 100 caracteres'),
@@ -29,7 +29,7 @@ export const propertySchema = z.object({
   notes: z.string().max(2000, 'Max 2000 caracteres').optional(),
 });
 
-// --- Expense ---
+// --- Depense ---
 
 export const expenseSchema = z.object({
   categorie: z.string().min(1),
@@ -43,7 +43,7 @@ export const expenseSchema = z.object({
   { message: 'Date fin doit etre apres date debut', path: ['dateFin'] },
 );
 
-// --- Income ---
+// --- Revenu ---
 
 export const incomeSchema = z.object({
   categorie: z.string().min(1),

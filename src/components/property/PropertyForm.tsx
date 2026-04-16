@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Property, PropertyType, LoanDetails, LoanType, DifferType, AssurancePretMode } from "@/types";
-import { PROPERTY_TYPE_LABELS } from "@/types";
+import type { Bien, TypeBien, Pret, TypePret, TypeDiffere, ModeAssurancePret } from "@/types";
+import { TYPE_BIEN_LABELS } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { calculerMensualiteAmortissable } from "@/lib/calculations/loan";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/select";
 import { propertySchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
-type PropertyFormData = Omit<Property, "id" | "createdAt" | "updatedAt">;
-export type LoanFormData = Omit<LoanDetails, "id">;
+type PropertyFormData = Omit<Bien, "id" | "createdAt" | "updatedAt">;
+export type LoanFormData = Omit<Pret, "id">;
 
 interface PropertyFormProps {
   initialData?: Partial<PropertyFormData>;
@@ -53,14 +53,14 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
   const [loan, setLoan] = useState({
     apport: 0,
     montantEmprunte: 0,
-    type: "amortissable" as LoanType,
+    type: "amortissable" as TypePret,
     tauxAnnuel: 0.035,
     dureeAnnees: 20,
-    assuranceMode: "eur" as AssurancePretMode,
+    assuranceMode: "eur" as ModeAssurancePret,
     assuranceAnnuelle: 0,
     assurancePct: 0.0034,
     differeMois: 0,
-    differeType: "partiel" as DifferType,
+    differeType: "partiel" as TypeDiffere,
     differeInclus: true,
   });
 
@@ -126,12 +126,12 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
         </div>
         <div className="space-y-2">
           <Label htmlFor="type">Type</Label>
-          <Select value={form.type} onValueChange={(v) => update("type", v as PropertyType)}>
+          <Select value={form.type} onValueChange={(v) => update("type", v as TypeBien)}>
             <SelectTrigger id="type">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => (
+              {Object.entries(TYPE_BIEN_LABELS).map(([value, label]) => (
                 <SelectItem key={value} value={value}>{label}</SelectItem>
               ))}
             </SelectContent>
@@ -371,7 +371,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type de pret</Label>
-                  <Select value={loan.type} onValueChange={(v) => setLoan((prev) => ({ ...prev, type: v as LoanType }))}>
+                  <Select value={loan.type} onValueChange={(v) => setLoan((prev) => ({ ...prev, type: v as TypePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="amortissable">Amortissable</SelectItem>
@@ -400,7 +400,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Type de differe</Label>
-                    <Select value={loan.differeType} onValueChange={(v) => setLoan((prev) => ({ ...prev, differeType: v as DifferType }))}>
+                    <Select value={loan.differeType} onValueChange={(v) => setLoan((prev) => ({ ...prev, differeType: v as TypeDiffere }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="min-w-[260px]">
                         <SelectItem value="partiel">Partiel (interets seulement)</SelectItem>
@@ -424,7 +424,7 @@ export function PropertyForm({ initialData, onSubmit, submitLabel = "Creer le bi
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Assurance pret</Label>
-                  <Select value={loan.assuranceMode} onValueChange={(v) => setLoan((prev) => ({ ...prev, assuranceMode: v as AssurancePretMode }))}>
+                  <Select value={loan.assuranceMode} onValueChange={(v) => setLoan((prev) => ({ ...prev, assuranceMode: v as ModeAssurancePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="eur">EUR/an</SelectItem>

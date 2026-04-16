@@ -2,8 +2,8 @@
 
 import { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import type { Lot, RentMonthEntry, RentMonthStatus, PartielRaison } from "@/types";
-import { RENT_MONTH_STATUS_LABELS } from "@/types";
+import type { Lot, SuiviMensuelLoyer, StatutSuiviMensuelLoyer, PartielRaison } from "@/types";
+import { STATUT_SUIVI_MENSUEL_LOYER_LABELS } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,14 @@ import { Button } from "@/components/ui/button";
 interface Props {
   propertyId: string;
   lots: Lot[];
-  entries: RentMonthEntry[];
+  entries: SuiviMensuelLoyer[];
   /** Date d'acquisition / exploitation (YYYY-MM-DD). Cells before this month are locked. */
   dateExploitation?: string;
   onUpsert: (
     propertyId: string,
     lotId: string,
     yearMonth: string,
-    updates: Partial<Omit<RentMonthEntry, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
+    updates: Partial<Omit<SuiviMensuelLoyer, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
   ) => void;
   onDelete: (id: string) => void;
 }
@@ -71,7 +71,7 @@ function editableRange(dateExploitation?: string): { minYM: string; maxYM: strin
   return { minYM: toYM(twelveMonthsAgo), maxYM };
 }
 
-function statusColor(status: RentMonthStatus): { bg: string; border: string; text: string } {
+function statusColor(status: StatutSuiviMensuelLoyer): { bg: string; border: string; text: string } {
   switch (status) {
     case "paye":
       return { bg: "bg-green-600/15", border: "border-green-600/40", text: "text-green-700" };
@@ -91,7 +91,7 @@ interface CellEditorProps {
   lotId: string;
   yearMonth: string;
   loyerAttendu: number;
-  entry: RentMonthEntry | undefined;
+  entry: SuiviMensuelLoyer | undefined;
   anchorRect: DOMRect;
   onUpsert: Props["onUpsert"];
   onDelete: Props["onDelete"];
@@ -109,7 +109,7 @@ function CellEditor({
   onDelete,
   onClose,
 }: CellEditorProps) {
-  const [statut, setStatut] = useState<RentMonthStatus>(entry?.statut ?? "paye");
+  const [statut, setStatut] = useState<StatutSuiviMensuelLoyer>(entry?.statut ?? "paye");
   const [partielRaison, setPartielRaison] = useState<PartielRaison>(entry?.partielRaison ?? "impaye");
   const [loyerPercu, setLoyerPercu] = useState<string>(
     String(entry?.loyerPercu ?? loyerAttendu),
@@ -171,7 +171,7 @@ function CellEditor({
       <div>
         <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Statut</label>
         <div className="grid grid-cols-2 gap-1 mt-1">
-          {(["paye", "partiel", "impaye", "vacant", "travaux"] as RentMonthStatus[]).map((s) => {
+          {(["paye", "partiel", "impaye", "vacant", "travaux"] as StatutSuiviMensuelLoyer[]).map((s) => {
             const c = statusColor(s);
             const active = statut === s;
             return (
@@ -183,7 +183,7 @@ function CellEditor({
                   active ? `${c.bg} ${c.border} ${c.text} font-semibold` : "border-dotted border-muted-foreground/30 text-muted-foreground"
                 }`}
               >
-                {RENT_MONTH_STATUS_LABELS[s]}
+                {STATUT_SUIVI_MENSUEL_LOYER_LABELS[s]}
               </button>
             );
           })}
@@ -272,7 +272,7 @@ interface CellProps {
   propertyId: string;
   lot: Lot;
   yearMonth: string;
-  entry: RentMonthEntry | undefined;
+  entry: SuiviMensuelLoyer | undefined;
   isLocked: boolean;
   onUpsert: Props["onUpsert"];
   onDelete: Props["onDelete"];
@@ -306,7 +306,7 @@ function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete 
   const display = entry
     ? entry.statut === "paye" || entry.statut === "partiel"
       ? formatCurrency(entry.loyerPercu)
-      : RENT_MONTH_STATUS_LABELS[entry.statut]
+      : STATUT_SUIVI_MENSUEL_LOYER_LABELS[entry.statut]
     : "—";
 
   const handleClick = () => {
@@ -526,12 +526,12 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3 text-[10px] text-muted-foreground">
-        {(["paye", "partiel", "impaye", "vacant", "travaux"] as RentMonthStatus[]).map((s) => {
+        {(["paye", "partiel", "impaye", "vacant", "travaux"] as StatutSuiviMensuelLoyer[]).map((s) => {
           const c = statusColor(s);
           return (
             <div key={s} className="flex items-center gap-1.5">
               <span className={`inline-block w-3 h-3 rounded-sm ${c.bg} ${c.border} border`} />
-              <span>{RENT_MONTH_STATUS_LABELS[s]}</span>
+              <span>{STATUT_SUIVI_MENSUEL_LOYER_LABELS[s]}</span>
             </div>
           );
         })}

@@ -1,6 +1,6 @@
 import type jsPDF from "jspdf";
-import type { AppData } from "@/types";
-import { PROPERTY_TYPE_LABELS } from "@/types";
+import type { DonneesApp } from "@/types";
+import { TYPE_BIEN_LABELS } from "@/types";
 import { computeBilanFiscal } from "@/lib/calculations/fiscal-bilan";
 import { getPropertyAcquisitionDate } from "@/lib/utils";
 
@@ -106,7 +106,7 @@ function pageFooter(doc: jsPDF, page: number, total: number, nomSCI: string) {
 
 // ── Missing data detection ──
 
-function detectMissingData(data: AppData, bilan: ReturnType<typeof computeBilanFiscal>): string[] {
+function detectMissingData(data: DonneesApp, bilan: ReturnType<typeof computeBilanFiscal>): string[] {
   const missing: string[] = [];
   if (!data.settings.siren) missing.push("SIREN");
   if (!data.settings.adresseSiege) missing.push("Adresse du siege");
@@ -139,7 +139,7 @@ function applyWatermark(doc: jsPDF) {
 
 // ── Main generator ──
 
-export async function generateLiasse2072(data: AppData, annee: number): Promise<void> {
+export async function generateLiasse2072(data: DonneesApp, annee: number): Promise<void> {
   const { settings } = data;
   const bilan = computeBilanFiscal(data, annee);
   const properties = data.properties.filter(p => !p.deletedAt);
@@ -184,7 +184,7 @@ export async function generateLiasse2072(data: AppData, annee: number): Promise<
     y = tableRow(doc, y, [
       { value: p.nom, x: M, w: 60, bold: true },
       { value: (p.adresse || "").slice(0, 35), x: M + 60, w: 55 },
-      { value: PROPERTY_TYPE_LABELS[p.type] || p.type, x: M + 115, w: 30 },
+      { value: TYPE_BIEN_LABELS[p.type] || p.type, x: M + 115, w: 30 },
       { value: getPropertyAcquisitionDate(p).slice(0, 10), x: M + 145, w: 29, align: "right" },
     ]);
   }

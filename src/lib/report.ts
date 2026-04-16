@@ -1,5 +1,5 @@
 import type jsPDF from "jspdf";
-import type { CalculatorInputs, CalculatorResults } from "@/types";
+import type { EntreesCalculateur, ResultatsCalculateur } from "@/types";
 import { AMORT_DUREES } from "@/types";
 
 const M = 18;
@@ -103,7 +103,7 @@ function footer(doc: jsPDF, page: number, total: number) {
 
 // ─────────────────────────────────────────────
 
-export async function generateReport(inputs: CalculatorInputs, results: CalculatorResults): Promise<void> {
+export async function generateReport(inputs: EntreesCalculateur, results: ResultatsCalculateur): Promise<void> {
 
   const { default: JsPDF } = await import("jspdf");
   const doc = new JsPDF({ unit: "mm", format: "a4" });

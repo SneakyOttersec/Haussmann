@@ -1,10 +1,10 @@
 /**
  * Shared document extraction logic — used by both Google Drive sync and local ZIP export.
- * Walks AppData and collects all base64 documents with organized folder paths and descriptive filenames.
+ * Walks DonneesApp and collects all base64 documents with organized folder paths and descriptive filenames.
  */
 
-import type { AppData } from '@/types';
-import { PROPERTY_STATUS_LABELS, DOCUMENT_CATEGORY_LABELS } from '@/types';
+import type { DonneesApp } from '@/types';
+import { STATUT_BIEN_LABELS, CATEGORIE_DOCUMENT_LABELS } from '@/types';
 
 export interface ExtractedDoc {
   /** Folder path relative to root, e.g. "Documents/Immeuble Thiers - Phases" */
@@ -44,21 +44,21 @@ function buildFileName(parts: { date?: string; label: string; propertyName: stri
   return sanitizeName(name) + ext;
 }
 
-/** Extract all documents from AppData with organized paths and descriptive names */
-export function extractAllDocuments(data: AppData, rootFolder: string): ExtractedDoc[] {
+/** Extract all documents from DonneesApp with organized paths and descriptive names */
+export function extractAllDocuments(data: DonneesApp, rootFolder: string): ExtractedDoc[] {
   const docs: ExtractedDoc[] = [];
   const docsFolder = 'Documents';
   const propName = (propId: string) => sanitizeName(
     data.properties.find(p => p.id === propId)?.nom ?? propId,
   );
 
-  // 1. Property statusDocs (phases)
+  // 1. Bien statusDocs (phases)
   for (const p of data.properties) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
       if (!doc || !isDataUri(doc.data)) continue;
-      const phaseLabel = PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase;
-      const phaseDate = p.statusDates?.[phase as keyof typeof PROPERTY_STATUS_LABELS];
+      const phaseLabel = STATUT_BIEN_LABELS[phase as keyof typeof STATUT_BIEN_LABELS] ?? phase;
+      const phaseDate = p.statusDates?.[phase as keyof typeof STATUT_BIEN_LABELS];
       docs.push({
         folderPath: `${rootFolder}/${docsFolder}/${sanitizeName(p.nom)} - Phases`,
         fileName: buildFileName({ date: phaseDate, label: phaseLabel, propertyName: p.nom, originalName: doc.nom }),
@@ -71,7 +71,7 @@ export function extractAllDocuments(data: AppData, rootFolder: string): Extracte
   for (const doc of (data.documents ?? [])) {
     if (!isDataUri(doc.data)) continue;
     const pName = propName(doc.propertyId);
-    const catLabel = DOCUMENT_CATEGORY_LABELS[doc.categorie] ?? doc.categorie;
+    const catLabel = CATEGORIE_DOCUMENT_LABELS[doc.categorie] ?? doc.categorie;
     docs.push({
       folderPath: `${rootFolder}/${docsFolder}/${sanitizeName(pName)} - Documents`,
       fileName: buildFileName({ date: doc.ajouteLe, label: catLabel, propertyName: pName, originalName: doc.nom }),
@@ -142,7 +142,7 @@ export interface DocumentListEntry {
 }
 
 /**
- * Walks AppData and returns one entry per uploaded file across the 4 sources
+ * Walks DonneesApp and returns one entry per uploaded file across the 4 sources
  * (property phases, generic documents, loan PJs, intervention PJs).
  * Metadata is enough for a settings-page listing — we keep dataUri so the
  * caller can build a download link without re-walking the tree.
@@ -152,17 +152,17 @@ function hasDocData(s: unknown): s is string {
   return typeof s === 'string' && s.length > 0;
 }
 
-export function listAllDocuments(data: AppData): DocumentListEntry[] {
+export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
   const entries: DocumentListEntry[] = [];
   const propName = (id: string) => data.properties.find((p) => p.id === id)?.nom ?? id;
 
-  // 1. Property statusDocs (phases)
+  // 1. Bien statusDocs (phases)
   for (const p of data.properties) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
       if (!doc || !hasDocData(doc.data)) continue;
-      const phaseLabel = PROPERTY_STATUS_LABELS[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? phase;
-      const phaseDate = p.statusDates?.[phase as keyof typeof PROPERTY_STATUS_LABELS] ?? '';
+      const phaseLabel = STATUT_BIEN_LABELS[phase as keyof typeof STATUT_BIEN_LABELS] ?? phase;
+      const phaseDate = p.statusDates?.[phase as keyof typeof STATUT_BIEN_LABELS] ?? '';
       entries.push({
         key: `phase:${p.id}:${phase}`,
         source: 'phase',
@@ -181,7 +181,7 @@ export function listAllDocuments(data: AppData): DocumentListEntry[] {
   // 2. PropertyDocuments
   for (const doc of (data.documents ?? [])) {
     if (!hasDocData(doc.data)) continue;
-    const catLabel = DOCUMENT_CATEGORY_LABELS[doc.categorie] ?? doc.categorie;
+    const catLabel = CATEGORIE_DOCUMENT_LABELS[doc.categorie] ?? doc.categorie;
     entries.push({
       key: `doc:${doc.id}`,
       source: 'document',

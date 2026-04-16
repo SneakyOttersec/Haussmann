@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { computeSensitivity } from '../sensitivity';
-import type { CalculatorInputs } from '@/types';
+import type { EntreesCalculateur } from '@/types';
 import { DEFAULT_CALCULATOR_INPUTS } from '../../constants';
 
 describe('computeSensitivity', () => {
-  const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS };
+  const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS };
 
   it('retourne des resultats pour chaque parametre', () => {
     const results = computeSensitivity(inputs);

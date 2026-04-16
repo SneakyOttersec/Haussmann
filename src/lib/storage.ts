@@ -1,10 +1,10 @@
-import type { AppData } from '@/types';
+import type { DonneesApp } from '@/types';
 import { putBlob, getBlob } from './blobstore';
 import { extractAllDocuments, dataUriToBytes } from './doc-extract';
 
 const STORAGE_KEY = 'sci-immobilier-data';
 
-function getDefaultData(): AppData {
+function getDefaultData(): DonneesApp {
   return {
     properties: [],
     expenses: [],
@@ -27,7 +27,7 @@ function getDefaultData(): AppData {
   };
 }
 
-function migrateData(data: AppData): AppData {
+function migrateData(data: DonneesApp): DonneesApp {
   data.properties = (data.properties ?? []).map((p) => {
     const migrated = { ...p };
     if (migrated.fraisAgence == null) migrated.fraisAgence = 0;
@@ -76,11 +76,11 @@ function isDataUri(s: unknown): s is string {
   return typeof s === 'string' && s.startsWith('data:');
 }
 
-/** Extract all base64 data URIs from AppData, replacing them with IDB placeholders */
-function extractBlobs(data: AppData): BlobRef[] {
+/** Extract all base64 data URIs from DonneesApp, replacing them with IDB placeholders */
+function extractBlobs(data: DonneesApp): BlobRef[] {
   const refs: BlobRef[] = [];
 
-  // Property statusDocs
+  // Bien statusDocs
   for (const p of data.properties) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
@@ -118,7 +118,7 @@ function extractBlobs(data: AppData): BlobRef[] {
 }
 
 /** Restore all IDB placeholders back to base64 data URIs */
-async function restoreBlobs(data: AppData): Promise<void> {
+async function restoreBlobs(data: DonneesApp): Promise<void> {
   const restore = async (obj: { data: string }) => {
     if (typeof obj.data === 'string' && obj.data.startsWith(BLOB_PLACEHOLDER)) {
       const key = obj.data.slice(BLOB_PLACEHOLDER.length);
@@ -144,7 +144,7 @@ async function restoreBlobs(data: AppData): Promise<void> {
 
 // ── Public API ──
 
-export function loadData(): AppData {
+export function loadData(): DonneesApp {
   if (typeof window === 'undefined') return getDefaultData();
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -156,18 +156,18 @@ export function loadData(): AppData {
 }
 
 /** Load data and restore blobs from IndexedDB (async) */
-export async function loadDataWithBlobs(): Promise<AppData> {
+export async function loadDataWithBlobs(): Promise<DonneesApp> {
   const data = loadData();
   await restoreBlobs(data);
   return data;
 }
 
-export function saveData(data: AppData): void {
+export function saveData(data: DonneesApp): void {
   if (typeof window === 'undefined') return;
 
   // Clone to avoid mutating in-memory state. structuredClone is the native, much faster
   // alternative to JSON.parse(JSON.stringify(...)) — meaningful with photos as data URIs.
-  const clone: AppData = structuredClone(data);
+  const clone: DonneesApp = structuredClone(data);
   const blobs = extractBlobs(clone);
 
   // Write blobs to IndexedDB (fire-and-forget — fast enough for small counts)
@@ -189,7 +189,7 @@ export function saveData(data: AppData): void {
 
 const SAVE_DEBOUNCE_MS = 250;
 let saveTimeout: ReturnType<typeof setTimeout> | null = null;
-let pendingData: AppData | null = null;
+let pendingData: DonneesApp | null = null;
 
 function flushPendingSave(): void {
   if (saveTimeout) {
@@ -203,7 +203,7 @@ function flushPendingSave(): void {
   }
 }
 
-export function saveDataDebounced(data: AppData): void {
+export function saveDataDebounced(data: DonneesApp): void {
   if (typeof window === 'undefined') return;
   pendingData = data;
   if (saveTimeout) clearTimeout(saveTimeout);
@@ -236,7 +236,7 @@ export function exportData(): string {
   }, null, 2);
 }
 
-export function importData(json: string): AppData {
+export function importData(json: string): DonneesApp {
   const parsed = JSON.parse(json);
   const raw = parsed.version && parsed.data ? parsed.data : parsed;
   const merged = migrateData({ ...getDefaultData(), ...raw });
@@ -251,7 +251,7 @@ export function importData(json: string): AppData {
  * ├── Documents/{NomBien} - Documents/...
  * └── haussmann-backup.json
  */
-export async function exportDataAsZip(data: AppData): Promise<Blob> {
+export async function exportDataAsZip(data: DonneesApp): Promise<Blob> {
   const JSZip = (await import('jszip')).default;
   const zip = new JSZip();
   const root = 'Haussmann';
@@ -271,7 +271,7 @@ export async function exportDataAsZip(data: AppData): Promise<Blob> {
 }
 
 /** Import from a ZIP — find and parse haussmann-backup.json inside */
-export async function importDataFromZip(file: File): Promise<AppData> {
+export async function importDataFromZip(file: File): Promise<DonneesApp> {
   const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(file);
 

@@ -1,14 +1,14 @@
-import type { AppData, CalculatorInputs, Property, Income, Expense, LoanDetails, Lot } from "@/types";
+import type { DonneesApp, EntreesCalculateur, Bien, Revenu, Depense, Pret, Lot } from "@/types";
 import { generateId, now } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations/loan";
 
 /**
- * Creates a Property + Incomes + Expenses + Loan from a CalculatorInputs simulation.
+ * Creates a Bien + Incomes + Expenses + Loan from a EntreesCalculateur simulation.
  * Returns the new property ID.
  */
 export function simulationToBien(
-  inputs: CalculatorInputs,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  inputs: EntreesCalculateur,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   simulationId?: string,
 ): string {
   const propertyId = generateId();
@@ -25,7 +25,7 @@ export function simulationToBien(
   // depuis l'ajout du bucket "mobilier" dedie).
   const autreAlloc = fraisCourtage;
 
-  const property: Property = {
+  const property: Bien = {
     id: propertyId,
     nom: inputs.nomSimulation || "Nouveau bien",
     adresse: inputs.adresse || "",
@@ -77,7 +77,7 @@ export function simulationToBien(
     statut: "vacant" as const,
   }));
 
-  const incomes: Income[] = simLots.map((lot) => ({
+  const incomes: Revenu[] = simLots.map((lot) => ({
     id: generateId(),
     propertyId,
     categorie: "loyer" as const,
@@ -91,7 +91,7 @@ export function simulationToBien(
   }));
 
   // Expenses: one per charge category
-  const chargeEntries: { categorie: Expense["categorie"]; label: string; montant: number }[] = [
+  const chargeEntries: { categorie: Depense["categorie"]; label: string; montant: number }[] = [
     { categorie: "copropriete", label: "Copropriete", montant: inputs.chargesCopro },
     { categorie: "taxe_fonciere", label: "Taxe fonciere", montant: inputs.taxeFonciere },
     { categorie: "assurance_pno", label: "Assurance PNO", montant: inputs.assurancePNO },
@@ -106,7 +106,7 @@ export function simulationToBien(
     chargeEntries.push({ categorie: "autre", label: "Autres charges", montant: inputs.autresChargesAnnuelles });
   }
 
-  const expenses: Expense[] = chargeEntries
+  const expenses: Depense[] = chargeEntries
     .filter((c) => c.montant > 0)
     .map((c) => ({
       id: generateId(),
@@ -143,7 +143,7 @@ export function simulationToBien(
   }
 
   // Loan — propagate defer config from the simulator
-  const loans: LoanDetails[] = inputs.montantEmprunte > 0
+  const loans: Pret[] = inputs.montantEmprunte > 0
     ? [{
         id: generateId(),
         propertyId,

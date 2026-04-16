@@ -22,7 +22,7 @@ const HistoryModal = dynamic(
   () => import("@/components/calculator/HistoryModal").then((m) => m.HistoryModal),
   { ssr: false }
 );
-import type { CalculatorInputs, SavedSimulation, Attachment } from "@/types";
+import type { EntreesCalculateur, SimulationSauvegardee, PieceJointe } from "@/types";
 import { AttachmentsPanel } from "@/components/calculator/AttachmentsPanel";
 import { bienToSimulation } from "@/lib/bienToSimulation";
 import { Button } from "@/components/ui/button";
@@ -42,10 +42,10 @@ function SimulationList({
   onExport,
   onImportClick,
 }: {
-  simulations: SavedSimulation[];
+  simulations: SimulationSauvegardee[];
   activeId: string | null;
-  onLoad: (sim: SavedSimulation) => void;
-  onDelete: (sim: SavedSimulation) => void;
+  onLoad: (sim: SimulationSauvegardee) => void;
+  onDelete: (sim: SimulationSauvegardee) => void;
   onSave: () => void;
   onNew: () => void;
   onExport: () => void;
@@ -130,8 +130,8 @@ function SimulateurContent() {
     return fromBien ?? DEFAULT_CALCULATOR_INPUTS;
   }, [bienId, data]);
 
-  const [inputs, setInputs] = useState<CalculatorInputs>(initialInputs);
-  const [simulations, setSimulations] = useState<SavedSimulation[]>([]);
+  const [inputs, setInputs] = useState<EntreesCalculateur>(initialInputs);
+  const [simulations, setSimulations] = useState<SimulationSauvegardee[]>([]);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const loadedBienIdRef = useRef<string | null>(null);
@@ -177,7 +177,7 @@ function SimulateurContent() {
     }
   }, [bienId, data]);
 
-  const handleUpdate = useCallback(<K extends keyof CalculatorInputs>(key: K, value: CalculatorInputs[K]) => {
+  const handleUpdate = useCallback(<K extends keyof EntreesCalculateur>(key: K, value: EntreesCalculateur[K]) => {
     setInputs(prev => ({ ...prev, [key]: value }));
   }, []);
 
@@ -189,13 +189,13 @@ function SimulateurContent() {
     toast.success(`"${sim.nom}" sauvegardee`);
   };
 
-  const handleLoad = async (sim: SavedSimulation) => {
+  const handleLoad = async (sim: SimulationSauvegardee) => {
     const hydrated = await hydrateSimulation(sim);
     setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
     setDrawerOpen(false);
   };
 
-  const handleDelete = async (sim: SavedSimulation) => {
+  const handleDelete = async (sim: SimulationSauvegardee) => {
     await deleteSimulation(sim.id);
     setSimulations(loadSimulations());
     if (inputs.id === sim.id) {

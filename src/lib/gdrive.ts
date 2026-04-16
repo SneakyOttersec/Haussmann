@@ -15,7 +15,7 @@
  * └── haussmann-backup.json   (stripped of base64, contains __gdrive:{id}__ markers)
  */
 
-import type { AppData } from '@/types';
+import type { DonneesApp } from '@/types';
 import { extractAllDocuments } from './doc-extract';
 
 // drive scope lets us browse the user's folder tree via the Picker and write
@@ -299,9 +299,9 @@ async function restoreMarkers(obj: Record<string, unknown> | unknown[]): Promise
 
 // ── Public API ──
 
-export async function saveToGDrive(data: AppData, parentFolderId?: string): Promise<{ savedAt: string; docsUploaded: number }> {
+export async function saveToGDrive(data: DonneesApp, parentFolderId?: string): Promise<{ savedAt: string; docsUploaded: number }> {
   const startParent = parentFolderId ?? 'root';
-  const clone: AppData = structuredClone(data);
+  const clone: DonneesApp = structuredClone(data);
   const extracted = extractAllDocuments(clone, ROOT_FOLDER);
   let docsUploaded = 0;
 
@@ -343,7 +343,7 @@ export async function saveToGDrive(data: AppData, parentFolderId?: string): Prom
   return { savedAt, docsUploaded };
 }
 
-export async function loadFromGDrive(parentFolderId?: string): Promise<AppData> {
+export async function loadFromGDrive(parentFolderId?: string): Promise<DonneesApp> {
   const startParent = parentFolderId ?? 'root';
   const rootId = await ensureFolder(ROOT_FOLDER, startParent);
   const fileId = await findFile(rootId, FILE_NAME);
@@ -356,7 +356,7 @@ export async function loadFromGDrive(parentFolderId?: string): Promise<AppData> 
   if (!res.ok) throw new Error(`Download failed: ${await res.text()}`);
 
   const parsed = await res.json();
-  const data: AppData = parsed.version && parsed.data ? parsed.data : parsed;
+  const data: DonneesApp = parsed.version && parsed.data ? parsed.data : parsed;
 
   // Download all documents referenced by __gdrive:xxx__ markers
   await restoreMarkers(data as unknown as Record<string, unknown>);

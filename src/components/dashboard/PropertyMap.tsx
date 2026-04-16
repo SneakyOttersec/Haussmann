@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import type { Property } from "@/types";
+import type { Bien } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface PropertyMapProps {
-  properties: Property[];
+  properties: Bien[];
 }
 
 interface GeocodedProperty {
-  property: Property;
+  property: Bien;
   lat: number;
   lng: number;
 }

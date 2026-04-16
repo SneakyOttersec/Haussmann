@@ -1,4 +1,4 @@
-import type { CalculatorInputs } from "@/types";
+import type { EntreesCalculateur } from "@/types";
 import { calculerRentabilite } from "./index";
 
 export type SensitivityMode = "relative" | "absolute";
@@ -13,7 +13,7 @@ export interface SensitivityParam {
   /** Short description of the variation (e.g. "±10%", "±5 pts") */
   variationLabel: string;
   /** Apply delta to inputs and return modified inputs */
-  apply: (inputs: CalculatorInputs, delta: number) => CalculatorInputs;
+  apply: (inputs: EntreesCalculateur, delta: number) => EntreesCalculateur;
 }
 
 /**
@@ -118,7 +118,7 @@ export interface SensitivityResult {
  * Run sensitivity analysis on the calculator inputs.
  * Returns one result per parameter, sorted by spread descending.
  */
-export function computeSensitivity(inputs: CalculatorInputs): SensitivityResult[] {
+export function computeSensitivity(inputs: EntreesCalculateur): SensitivityResult[] {
   const baseResults = calculerRentabilite(inputs);
   const triBase = baseResults.tri;
 

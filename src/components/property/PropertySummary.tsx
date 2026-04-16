@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CalculatorInputs, Expense, Income, LoanDetails, Lot, Property, PropertyStatus, RentMonthEntry } from "@/types";
-import { PROPERTY_STATUS_ORDER } from "@/types";
+import type { EntreesCalculateur, Depense, Revenu, Pret, Lot, Bien, StatutBien, SuiviMensuelLoyer } from "@/types";
+import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from "@/lib/calculations/loan";
@@ -36,16 +36,16 @@ interface SimKpis {
   rendementNetByYear: SimYearValue;
 }
 
-function statusAtLeast(statut: PropertyStatus | undefined, min: PropertyStatus): boolean {
+function statusAtLeast(statut: StatutBien | undefined, min: StatutBien): boolean {
   if (!statut) return true; // backward compat
-  return PROPERTY_STATUS_ORDER.indexOf(statut) >= PROPERTY_STATUS_ORDER.indexOf(min);
+  return STATUT_BIEN_ORDER.indexOf(statut) >= STATUT_BIEN_ORDER.indexOf(min);
 }
 
 interface PropertySummaryProps {
-  property: Property;
-  expenses: Expense[];
-  incomes: Income[];
-  loan?: LoanDetails | null;
+  property: Bien;
+  expenses: Depense[];
+  incomes: Revenu[];
+  loan?: Pret | null;
   /** Cout total deja engage (coutTotal - travaux non tires). When provided
    *  and different from coutTotal, rendement cards show an extra row based
    *  on this capital actually drawn so far. */
@@ -61,7 +61,7 @@ interface PropertySummaryProps {
   /** Lots pour calculer occupation + loyer theorique et le breakdown. */
   lots?: Lot[];
   /** Rent entries pour deriver le loyer percu du mois courant + impayes. */
-  rentEntries?: RentMonthEntry[];
+  rentEntries?: SuiviMensuelLoyer[];
   /** Somme brute des loyers des lots a 100% d'occupation (sans vacance).
    *  Si fourni ET different de revenuMensuelTheorique, une ligne "Max"
    *  est affichee sur les cards Revenu / Cash flow / Rendement. */
@@ -96,7 +96,7 @@ export function PropertySummary({
     if (!sim) return;
     hydrateSimulation(sim).then((hydrated) => {
       if (cancelled) return;
-      const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
+      const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
       const results = calculerRentabilite(inputs);
       const depensesMensuellesHorsCredit = results.chargesAnnuellesTotales / 12;
       const creditMensuel = results.mensualiteCredit;

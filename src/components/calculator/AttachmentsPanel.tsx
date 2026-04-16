@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import type { Attachment } from "@/types";
+import type { PieceJointe } from "@/types";
 import { checkFileSize } from "@/lib/utils";
 
 function formatSize(bytes: number): string {
@@ -27,8 +27,8 @@ function fileTag(type: string): string {
 }
 
 interface AttachmentsPanelProps {
-  attachments: Attachment[];
-  onChange: (attachments: Attachment[]) => void;
+  attachments: PieceJointe[];
+  onChange: (attachments: PieceJointe[]) => void;
 }
 
 export function AttachmentsPanel({ attachments, onChange }: AttachmentsPanelProps) {
@@ -42,7 +42,7 @@ export function AttachmentsPanel({ attachments, onChange }: AttachmentsPanelProp
       if (!checkFileSize(file)) return;
       const reader = new FileReader();
       reader.onload = () => {
-        const attachment: Attachment = {
+        const attachment: PieceJointe = {
           id: crypto.randomUUID(),
           nom: file.name,
           type: file.type,
@@ -62,7 +62,7 @@ export function AttachmentsPanel({ attachments, onChange }: AttachmentsPanelProp
     onChange(attachments.filter((a) => a.id !== id));
   };
 
-  const handleDownload = (attachment: Attachment) => {
+  const handleDownload = (attachment: PieceJointe) => {
     const a = document.createElement("a");
     a.href = attachment.data;
     a.download = attachment.nom;

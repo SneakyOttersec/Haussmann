@@ -1,4 +1,4 @@
-import type { AppData, CalculatorInputs } from "@/types";
+import type { DonneesApp, EntreesCalculateur } from "@/types";
 import { mensualiserMontant, coutTotalBien } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { crdAtMonth, mensualiteAtMonth, loanDureeTotaleMois } from "@/lib/calculations/loan";
@@ -54,11 +54,11 @@ function yearsElapsedSince(dateISO: string): number {
 }
 
 /**
- * Compute snapshot from the real portfolio stored in AppData.
+ * Compute snapshot from the real portfolio stored in DonneesApp.
  * Applies a default appreciation rate to estimate current property values.
  */
 export function computePortfolioSnapshot(
-  data: AppData,
+  data: DonneesApp,
   appreciationAnnuelle = 0.02,
 ): PortfolioSnapshot {
   const { properties, expenses, incomes, loans } = data;
@@ -127,7 +127,7 @@ export function computePortfolioSnapshot(
  * Compute the contribution a simulation would add to the portfolio.
  * Uses year-1 figures (before any appreciation) to match a fresh acquisition.
  */
-export function computeSimulationContribution(inputs: CalculatorInputs): PortfolioSnapshot {
+export function computeSimulationContribution(inputs: EntreesCalculateur): PortfolioSnapshot {
   const fin = computeYearlyFinancials(inputs);
   const y0 = fin.years[0];
   if (!y0) return EMPTY;

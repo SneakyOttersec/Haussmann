@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { LoanDetails, LoanType, DifferType } from "@/types";
+import type { Pret, TypePret, TypeDiffere } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { loanSchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
-type LoanFormData = Omit<LoanDetails, "id">;
+type LoanFormData = Omit<Pret, "id">;
 
 interface LoanFormProps {
   propertyId: string;
@@ -108,7 +108,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
             </div>
             <div className="space-y-2">
               <Label>Type de pret</Label>
-              <Select value={form.type} onValueChange={(v) => update("type", v as LoanType)}>
+              <Select value={form.type} onValueChange={(v) => update("type", v as TypePret)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="amortissable">Amortissable</SelectItem>
@@ -205,7 +205,7 @@ export function LoanForm({ propertyId, initialData, onSubmit }: LoanFormProps) {
                 <Label>Type de differe</Label>
                 <Select
                   value={form.differeType ?? "partiel"}
-                  onValueChange={(v) => update("differeType", v as DifferType)}
+                  onValueChange={(v) => update("differeType", v as TypeDiffere)}
                   disabled={!form.differeMois || form.differeMois <= 0}
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>

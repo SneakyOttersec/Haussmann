@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { calculerRentabilite, computeYearlyFinancials } from '../index';
-import type { CalculatorInputs } from '@/types';
+import type { EntreesCalculateur } from '@/types';
 import { DEFAULT_CALCULATOR_INPUTS } from '../../constants';
 
 describe('computeYearlyFinancials', () => {
-  const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS };
+  const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS };
 
   it('calcule le cout total d acquisition', () => {
     const fin = computeYearlyFinancials(inputs);
@@ -55,7 +55,7 @@ describe('computeYearlyFinancials', () => {
   });
 
   it('avec differe pret : annee 1 paye uniquement interets', () => {
-    const deferredInputs: CalculatorInputs = { ...inputs, differePretMois: 12 };
+    const deferredInputs: EntreesCalculateur = { ...inputs, differePretMois: 12 };
     const fin = computeYearlyFinancials(deferredInputs);
     // En differe total, mensualites annee 1 = interets + assurance seulement
     // capital rembourse devrait etre ~0
@@ -64,7 +64,7 @@ describe('computeYearlyFinancials', () => {
 });
 
 describe('calculerRentabilite', () => {
-  const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS };
+  const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS };
 
   it('retourne des rendements positifs pour les inputs par defaut', () => {
     const results = calculerRentabilite(inputs);

@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Income, IncomeFrequency } from "@/types";
-import { INCOME_CATEGORY_LABELS, FREQUENCY_LABELS } from "@/types";
+import type { Revenu, FrequenceRevenu } from "@/types";
+import { CATEGORIE_REVENU_LABELS, FREQUENCY_LABELS } from "@/types";
 import { formatCurrency, annualiserMontant } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/table";
 
 interface IncomeListProps {
-  incomes: Income[];
+  incomes: Revenu[];
   onDelete: (id: string) => void;
-  onUpdate?: (id: string, updates: Partial<Income>) => void;
+  onUpdate?: (id: string, updates: Partial<Revenu>) => void;
 }
 
 function EditableCell({
@@ -70,8 +70,8 @@ function FrequencyChips({
   value,
   onChange,
 }: {
-  value: IncomeFrequency;
-  onChange: (v: IncomeFrequency) => void;
+  value: FrequenceRevenu;
+  onChange: (v: FrequenceRevenu) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -92,7 +92,7 @@ function FrequencyChips({
         <button
           key={k}
           type="button"
-          onClick={() => { onChange(k as IncomeFrequency); setOpen(false); }}
+          onClick={() => { onChange(k as FrequenceRevenu); setOpen(false); }}
           className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
             value === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
           }`}
@@ -132,7 +132,7 @@ export function IncomeList({ incomes, onDelete, onUpdate }: IncomeListProps) {
                 />
               ) : income.label}
             </TableCell>
-            <TableCell className="text-muted-foreground">{INCOME_CATEGORY_LABELS[income.categorie]}</TableCell>
+            <TableCell className="text-muted-foreground">{CATEGORIE_REVENU_LABELS[income.categorie]}</TableCell>
             <TableCell className="text-right">
               {onUpdate ? (
                 <EditableCell

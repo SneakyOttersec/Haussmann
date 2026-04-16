@@ -4,13 +4,13 @@ import { useState, useMemo, useSyncExternalStore } from "react";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
-import type { SavedSimulation, CalculatorInputs, CalculatorResults } from "@/types";
+import type { SimulationSauvegardee, EntreesCalculateur, ResultatsCalculateur } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 
 interface ComparedSimulation {
-  sim: SavedSimulation;
-  inputs: CalculatorInputs;
-  results: CalculatorResults;
+  sim: SimulationSauvegardee;
+  inputs: EntreesCalculateur;
+  results: ResultatsCalculateur;
 }
 
 function KpiCell({ value, isBest, format }: { value: number; isBest: boolean; format: "eur" | "pct" }) {
@@ -23,13 +23,13 @@ function KpiCell({ value, isBest, format }: { value: number; isBest: boolean; fo
 
 // Stable empty array for the SSR snapshot — must be referentially equal across calls
 // to avoid infinite re-renders in useSyncExternalStore.
-const EMPTY_SIMS: SavedSimulation[] = [];
+const EMPTY_SIMS: SimulationSauvegardee[] = [];
 
 // loadSimulations() returns a fresh array on each call. Cache the result so the
 // snapshot is referentially stable between renders; bust the cache when the user
 // triggers a known mutation (none in this read-only page).
-let cachedSims: SavedSimulation[] | null = null;
-const getSimsSnapshot = (): SavedSimulation[] => {
+let cachedSims: SimulationSauvegardee[] | null = null;
+const getSimsSnapshot = (): SimulationSauvegardee[] => {
   if (cachedSims === null) cachedSims = loadSimulations();
   return cachedSims;
 };
@@ -43,7 +43,7 @@ export default function Comparateur() {
   const [selected, setSelected] = useState<ComparedSimulation[]>([]);
   const [loading, setLoading] = useState<string | null>(null);
 
-  const toggleSim = async (sim: SavedSimulation) => {
+  const toggleSim = async (sim: SimulationSauvegardee) => {
     const existing = selected.find((s) => s.sim.id === sim.id);
     if (existing) {
       setSelected(selected.filter((s) => s.sim.id !== sim.id));

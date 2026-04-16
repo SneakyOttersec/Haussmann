@@ -1,22 +1,22 @@
 "use client";
 
-import type { AppData, PropertyStatus } from "@/types";
-import { PROPERTY_STATUS_ORDER } from "@/types";
+import type { DonneesApp, StatutBien } from "@/types";
+import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
 import { rendementBrut } from "@/lib/calculations/rendement";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 
-const PRE_ACTE: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
+const PRE_ACTE: StatutBien[] = ['prospection', 'offre', 'compromis'];
 
-function isActive(statut?: PropertyStatus): boolean {
+function isActive(statut?: StatutBien): boolean {
   if (!statut) return true;
   return !PRE_ACTE.includes(statut);
 }
 
 interface PortfolioSummaryProps {
-  data: AppData;
+  data: DonneesApp;
 }
 
 function monthsWindow(count: number): string[] {

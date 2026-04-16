@@ -1,4 +1,4 @@
-export type TaxRegime = 'IR' | 'IS';
+export type RegimeFiscal = 'IR' | 'IS';
 
 /**
  * Granular tax regime used for multi-regime comparison.
@@ -8,9 +8,9 @@ export type TaxRegime = 'IR' | 'IS';
  * - lmnp_micro  : location meublee, micro-BIC (abattement 50%, plafond 77 700 €)
  * - is          : SCI/SARL a l'IS (taux 15% / 25%)
  */
-export type RegimeFiscalType = 'ir_reel' | 'ir_micro' | 'lmnp_reel' | 'lmnp_micro' | 'is';
+export type RegimeFiscalDetaille = 'ir_reel' | 'ir_micro' | 'lmnp_reel' | 'lmnp_micro' | 'is';
 
-export const REGIME_FISCAL_LABELS: Record<RegimeFiscalType, string> = {
+export const REGIME_FISCAL_DETAILLE_LABELS: Record<RegimeFiscalDetaille, string> = {
   ir_reel: 'IR - Foncier reel',
   ir_micro: 'IR - Micro-foncier',
   lmnp_reel: 'LMNP - Reel BIC',
@@ -18,7 +18,7 @@ export const REGIME_FISCAL_LABELS: Record<RegimeFiscalType, string> = {
   is: 'IS (SCI/SARL)',
 };
 
-export const REGIME_FISCAL_SHORT: Record<RegimeFiscalType, string> = {
+export const REGIME_FISCAL_DETAILLE_SHORT: Record<RegimeFiscalDetaille, string> = {
   ir_reel: 'IR reel',
   ir_micro: 'IR micro',
   lmnp_reel: 'LMNP reel',
@@ -26,19 +26,19 @@ export const REGIME_FISCAL_SHORT: Record<RegimeFiscalType, string> = {
   is: 'IS',
 };
 
-/** Convert legacy TaxRegime to granular RegimeFiscalType */
-export function toRegimeFiscalType(r: TaxRegime): RegimeFiscalType {
+/** Convert legacy RegimeFiscal to granular RegimeFiscalDetaille */
+export function versRegimeFiscalDetaille(r: RegimeFiscal): RegimeFiscalDetaille {
   return r === 'IR' ? 'ir_reel' : 'is';
 }
 
-export type PropertyType =
+export type TypeBien =
   | 'appartement'
   | 'maison'
   | 'immeuble'
   | 'local_commercial'
   | 'parking';
 
-export type ExpenseCategory =
+export type CategorieDepense =
   | 'credit'
   | 'taxe_fonciere'
   | 'assurance_pno'
@@ -52,17 +52,17 @@ export type ExpenseCategory =
   | 'ameublement'
   | 'autre';
 
-export type ExpenseFrequency = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
+export type FrequenceDepense = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
 
-export type IncomeCategory = 'loyer' | 'parking' | 'charges_recuperees' | 'autre';
+export type CategorieRevenu = 'loyer' | 'parking' | 'charges_recuperees' | 'autre';
 
-export type IncomeFrequency = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
+export type FrequenceRevenu = 'mensuel' | 'trimestriel' | 'annuel' | 'ponctuel';
 
-export type LoanType = 'amortissable' | 'in_fine';
+export type TypePret = 'amortissable' | 'in_fine';
 
-export type AssurancePretMode = 'eur' | 'pct';
+export type ModeAssurancePret = 'eur' | 'pct';
 
-export type PropertyStatus =
+export type StatutBien =
   | 'prospection'
   | 'offre'
   | 'compromis'
@@ -71,7 +71,7 @@ export type PropertyStatus =
   | 'location'
   | 'exploitation';
 
-export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {
+export const STATUT_BIEN_LABELS: Record<StatutBien, string> = {
   prospection: 'Prospection',
   offre: 'Offre',
   compromis: 'Compromis',
@@ -81,11 +81,11 @@ export const PROPERTY_STATUS_LABELS: Record<PropertyStatus, string> = {
   exploitation: 'Exploitation',
 };
 
-export const PROPERTY_STATUS_ORDER: PropertyStatus[] = [
+export const STATUT_BIEN_ORDER: StatutBien[] = [
   'prospection', 'offre', 'compromis', 'acte', 'travaux', 'location', 'exploitation',
 ];
 
-export interface StatusDocument {
+export interface StatutDocument {
   nom: string;
   data: string;
   type: string;
@@ -108,11 +108,11 @@ export interface AllocationCredit {
 
 export type DpeGrade = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "VIERGE";
 
-export interface Property {
+export interface Bien {
   id: string;
   nom: string;
   adresse: string;
-  type: PropertyType;
+  type: TypeBien;
   prixAchat: number;
   dateSaisie: string;
   fraisNotaire: number;
@@ -133,12 +133,12 @@ export interface Property {
   dpe?: DpeGrade;
   /** Apport personnel explicite. Si absent, derive de coutTotal - emprunt. */
   apport?: number;
-  statut?: PropertyStatus;
+  statut?: StatutBien;
   allocationCredit?: AllocationCredit;
   /** Date (YYYY-MM-DD) at which each status phase was reached */
-  statusDates?: Partial<Record<PropertyStatus, string>>;
+  statusDates?: Partial<Record<StatutBien, string>>;
   /** Document attached to each status phase */
-  statusDocs?: Partial<Record<PropertyStatus, StatusDocument>>;
+  statusDocs?: Partial<Record<StatutBien, StatutDocument>>;
   simulationId?: string;
   /** Taux de vacance locative theorique global au niveau du bien (0..1).
    *  Quand defini, ecrase le tauxVacance de chaque lot pour le calcul
@@ -167,7 +167,7 @@ export interface Property {
 // --- Interventions / Travaux ---
 
 export type InterventionStatut = 'planifie' | 'en_cours' | 'termine';
-export type InterventionType = 'travaux' | 'intervention';
+export type TypeIntervention = 'travaux' | 'intervention';
 
 export const INTERVENTION_STATUT_LABELS: Record<InterventionStatut, string> = {
   planifie: 'Planifie',
@@ -175,12 +175,12 @@ export const INTERVENTION_STATUT_LABELS: Record<InterventionStatut, string> = {
   termine: 'Termine',
 };
 
-export const INTERVENTION_TYPE_LABELS: Record<InterventionType, string> = {
+export const TYPE_INTERVENTION_LABELS: Record<TypeIntervention, string> = {
   travaux: 'Travaux',
   intervention: 'Intervention',
 };
 
-export interface InterventionPJ {
+export interface PieceJointeIntervention {
   nom: string;
   data: string;
   type: string;
@@ -191,7 +191,7 @@ export interface Intervention {
   id: string;
   propertyId: string;
   /** 'travaux' (gros chantier) or 'intervention' (maintenance courante). Defaults to 'intervention' for backward compat. */
-  interventionType?: InterventionType;
+  interventionType?: TypeIntervention;
   /** Lot concerne (optionnel) */
   lotId?: string;
   date: string;
@@ -200,7 +200,7 @@ export interface Intervention {
   description: string;
   notes?: string;
   statut: InterventionStatut;
-  pieceJointe?: InterventionPJ;
+  pieceJointe?: PieceJointeIntervention;
   /**
    * For travaux only: true if this line is funded by the loan's "enveloppe
    * travaux" (allocationCredit.travaux). Used to track how much of the
@@ -213,9 +213,9 @@ export interface Intervention {
 
 // --- Contacts / Prestataires ---
 
-export type ContactRole = 'agence' | 'gestionnaire' | 'artisan' | 'notaire' | 'banque' | 'assureur' | 'autre';
+export type RoleContact = 'agence' | 'gestionnaire' | 'artisan' | 'notaire' | 'banque' | 'assureur' | 'autre';
 
-export const CONTACT_ROLE_LABELS: Record<ContactRole, string> = {
+export const ROLE_CONTACT_LABELS: Record<RoleContact, string> = {
   agence: 'Agence immobiliere',
   gestionnaire: 'Gestionnaire locatif',
   artisan: 'Artisan',
@@ -229,7 +229,7 @@ export interface Contact {
   id: string;
   propertyId?: string;
   nom: string;
-  role: ContactRole;
+  role: RoleContact;
   telephone?: string;
   email?: string;
   notes?: string;
@@ -239,9 +239,9 @@ export interface Contact {
 
 // --- Documents ---
 
-export type DocumentCategory = 'ddt' | 'dpe' | 'devis' | 'facture' | 'copro' | 'fiscal' | 'autre';
+export type CategorieDocument = 'ddt' | 'dpe' | 'devis' | 'facture' | 'copro' | 'fiscal' | 'autre';
 
-export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
+export const CATEGORIE_DOCUMENT_LABELS: Record<CategorieDocument, string> = {
   ddt: 'DDT',
   dpe: 'DPE',
   devis: 'Devis',
@@ -251,11 +251,11 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   autre: 'Autre',
 };
 
-export interface PropertyDocument {
+export interface DocumentBien {
   id: string;
   propertyId: string;
   nom: string;
-  categorie: DocumentCategory;
+  categorie: CategorieDocument;
   data: string;
   type: string;
   taille: number;
@@ -268,7 +268,7 @@ export interface PropertyDocument {
 
 export type LotStatut = 'occupe' | 'vacant' | 'travaux';
 
-export interface RentHistoryEntry {
+export interface EntreeHistoriqueLoyer {
   id: string;
   date: string;
   montant: number;
@@ -282,7 +282,7 @@ export interface Lot {
   surface?: number;
   loyerMensuel: number;
   statut: LotStatut;
-  historiqueLoyers?: RentHistoryEntry[];
+  historiqueLoyers?: EntreeHistoriqueLoyer[];
   /** Taux de vacance locative theorique (0..1, ex: 0.05 = 5%/an).
    *  Utilise pour ajuster le revenu theorique a pleine occupation. */
   tauxVacance?: number;
@@ -290,10 +290,10 @@ export interface Lot {
 
 // --- Rent tracking (month by month) ---
 
-export type RentMonthStatus = 'paye' | 'partiel' | 'impaye' | 'vacant' | 'travaux';
+export type StatutSuiviMensuelLoyer = 'paye' | 'partiel' | 'impaye' | 'vacant' | 'travaux';
 export type PartielRaison = 'impaye' | 'vacance_partielle';
 
-export const RENT_MONTH_STATUS_LABELS: Record<RentMonthStatus, string> = {
+export const STATUT_SUIVI_MENSUEL_LOYER_LABELS: Record<StatutSuiviMensuelLoyer, string> = {
   paye: 'Paye',
   partiel: 'Partiel',
   impaye: 'Impaye',
@@ -301,7 +301,7 @@ export const RENT_MONTH_STATUS_LABELS: Record<RentMonthStatus, string> = {
   travaux: 'En travaux',
 };
 
-export interface RentMonthEntry {
+export interface SuiviMensuelLoyer {
   id: string;
   propertyId: string;
   lotId: string;
@@ -311,7 +311,7 @@ export interface RentMonthEntry {
   loyerAttendu: number;
   /** Loyer effectivement percu (0 pour vacant/impaye) */
   loyerPercu: number;
-  statut: RentMonthStatus;
+  statut: StatutSuiviMensuelLoyer;
   /** Raison du paiement partiel (impaye ou vacance partielle du mois) */
   partielRaison?: PartielRaison;
   notes?: string;
@@ -319,7 +319,7 @@ export interface RentMonthEntry {
   updatedAt: string;
 }
 
-export interface ExpenseRevision {
+export interface RevisionDepense {
   id: string;
   /** Date d'effet de la revision (YYYY-MM-DD) */
   dateEffet: string;
@@ -327,18 +327,18 @@ export interface ExpenseRevision {
   notes?: string;
 }
 
-export interface Expense {
+export interface Depense {
   id: string;
   propertyId: string;
-  categorie: ExpenseCategory;
+  categorie: CategorieDepense;
   label: string;
   montant: number;
-  frequence: ExpenseFrequency;
+  frequence: FrequenceDepense;
   dateDebut: string;
   dateFin?: string;
   notes?: string;
   /** Historique des revisions de prix. Ordre indifferent — trie par dateEffet a l'utilisation. */
-  revisions?: ExpenseRevision[];
+  revisions?: RevisionDepense[];
   /**
    * True once the user has confirmed that a real contract / quote backs this
    * amount (used during pre-acte to mark which simulated charges are now firm).
@@ -348,13 +348,13 @@ export interface Expense {
   updatedAt: string;
 }
 
-export interface Income {
+export interface Revenu {
   id: string;
   propertyId: string;
-  categorie: IncomeCategory;
+  categorie: CategorieRevenu;
   label: string;
   montant: number;
-  frequence: IncomeFrequency;
+  frequence: FrequenceRevenu;
   dateDebut: string;
   dateFin?: string;
   notes?: string;
@@ -362,7 +362,7 @@ export interface Income {
   updatedAt: string;
 }
 
-export interface LoanPJ {
+export interface PieceJointePret {
   nom: string;
   data: string;
   type: string;
@@ -376,12 +376,12 @@ export interface LoanPJ {
  * - "total":   during the defer period, nothing is paid; interest is capitalized.
  *              The loan starts amortizing on the inflated principal afterwards.
  */
-export type DifferType = "partiel" | "total";
+export type TypeDiffere = "partiel" | "total";
 
-export interface LoanDetails {
+export interface Pret {
   id: string;
   propertyId: string;
-  type: LoanType;
+  type: TypePret;
   montantEmprunte: number;
   tauxAnnuel: number;
   /**
@@ -392,7 +392,7 @@ export interface LoanDetails {
   dateDebut: string;
   assuranceAnnuelle: number;
   banque?: string;
-  documents?: LoanPJ[];
+  documents?: PieceJointePret[];
   /**
    * True once the user has confirmed that the loan reflects a real bank offer
    * (and not just a simulation). Drives the "Theorique"/"Reel" label on the
@@ -402,7 +402,7 @@ export interface LoanDetails {
   /** Number of months of defer at the start of the loan (0 = no defer). */
   differeMois?: number;
   /** Defer type — only meaningful if differeMois > 0. */
-  differeType?: DifferType;
+  differeType?: TypeDiffere;
   /**
    * - true (default): dureeAnnees includes the defer period.
    *   e.g. 6 mois differe + 20 ans → amortissement = 19 ans 6 mois.
@@ -465,7 +465,7 @@ export const AMORT_DUREES = {
   meubles: 7,
 };
 
-export interface Attachment {
+export interface PieceJointe {
   id: string;
   nom: string;
   type: string;
@@ -474,7 +474,7 @@ export interface Attachment {
   ajouteLe: string;
 }
 
-export type EvolvableKey =
+export type CleEvolution =
   | 'lopiloyer'
   | 'assurancePNO'
   | 'taxeFonciere'
@@ -486,7 +486,7 @@ export type EvolvableKey =
   | 'gestionLocative'
   | 'autresCharges';
 
-export interface CalculatorInputs {
+export interface EntreesCalculateur {
   // Identity — persistent unique ID; when present, saving overwrites the existing simulation
   id?: string;
 
@@ -494,7 +494,7 @@ export interface CalculatorInputs {
   nomSimulation: string;
   adresse: string;
   /** Type de bien (appartement / maison / immeuble). Default: "appartement". */
-  type: PropertyType;
+  type: TypeBien;
   /** Date de saisie / acquisition (YYYY-MM-DD). Default: today. */
   dateSaisie: string;
 
@@ -516,7 +516,7 @@ export interface CalculatorInputs {
 
   // Notes
   pointsNotables: string;
-  attachments: Attachment[];
+  attachments: PieceJointe[];
 
   // Revenus
   lots: LotLoyer[];
@@ -529,8 +529,8 @@ export interface CalculatorInputs {
   montantEmprunte: number;
   tauxCredit: number;
   dureeCredit: number;
-  typePret: LoanType;
-  assurancePretMode: AssurancePretMode;
+  typePret: TypePret;
+  assurancePretMode: ModeAssurancePret;
   assurancePretAnnuelle: number;
   assurancePretPct: number;
   differePretMois: number;
@@ -539,7 +539,7 @@ export interface CalculatorInputs {
   differeLoyer: number;
 
   // Evolutions annuelles (% d'augmentation par an, ex: 0.05 = +5%/an)
-  evolutions: Partial<Record<EvolvableKey, number>>;
+  evolutions: Partial<Record<CleEvolution, number>>;
 
   // Charges
   chargesCopro: number;
@@ -553,7 +553,7 @@ export interface CalculatorInputs {
   autresChargesAnnuelles: number;
 
   // Fiscalite
-  regimeFiscal: TaxRegime;
+  regimeFiscal: RegimeFiscal;
   trancheMarginalePct?: number;
   amortissementImmobilierPct?: number;
   amortissementTravauxPct?: number;
@@ -565,7 +565,7 @@ export interface CalculatorInputs {
   dureeDetention: number;
 }
 
-export interface YearProjection {
+export interface ProjectionAnnuelle {
   annee: number;
   loyerBrut: number;
   loyerNet: number;
@@ -581,7 +581,7 @@ export interface YearProjection {
   plusValue: number;
 }
 
-export interface CalculatorResults {
+export interface ResultatsCalculateur {
   apportPersonnel: number;
   rendementBrut: number;
   rendementNet: number;
@@ -599,21 +599,21 @@ export interface CalculatorResults {
   impotAnnuel: number;
   tri: number;
   triProjet: number;
-  projection: YearProjection[];
+  projection: ProjectionAnnuelle[];
 }
 
-export interface SimulationSnapshot {
-  inputs: CalculatorInputs;
+export interface SnapshotSimulation {
+  inputs: EntreesCalculateur;
   savedAt: string;
 }
 
-export interface SavedSimulation {
+export interface SimulationSauvegardee {
   id: string;
   nom: string;
-  inputs: CalculatorInputs;
+  inputs: EntreesCalculateur;
   savedAt: string;
   /** Previous versions of this simulation (most recent first). Capped to keep storage reasonable. */
-  history?: SimulationSnapshot[];
+  history?: SnapshotSimulation[];
 }
 
 export interface Associe {
@@ -622,8 +622,8 @@ export interface Associe {
   quotePart: number; // percentage, e.g. 50 = 50%
 }
 
-export interface AppSettings {
-  regimeFiscal: TaxRegime;
+export interface ParametresApp {
+  regimeFiscal: RegimeFiscal;
   nomSCI: string;
   siren?: string;
   adresseSiege?: string;
@@ -639,15 +639,15 @@ export interface AppSettings {
 
 // --- Charge payments (budget vs reel) ---
 
-export type ChargePaymentStatus = 'paye' | 'partiel' | 'en_attente';
+export type StatutPaiementCharge = 'paye' | 'partiel' | 'en_attente';
 
-export const CHARGE_PAYMENT_STATUS_LABELS: Record<ChargePaymentStatus, string> = {
+export const STATUT_PAIEMENT_CHARGE_LABELS: Record<StatutPaiementCharge, string> = {
   paye: 'Paye',
   partiel: 'Partiel',
   en_attente: 'En attente',
 };
 
-export interface ChargePaymentEntry {
+export interface PaiementCharge {
   id: string;
   /** Linked recurring expense */
   expenseId: string;
@@ -656,28 +656,28 @@ export interface ChargePaymentEntry {
   periode: string;
   montantAttendu: number;
   montantPaye: number;
-  statut: ChargePaymentStatus;
+  statut: StatutPaiementCharge;
   datePaiement?: string;
   notes?: string;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface AppData {
-  properties: Property[];
-  expenses: Expense[];
-  incomes: Income[];
-  loans: LoanDetails[];
+export interface DonneesApp {
+  properties: Bien[];
+  expenses: Depense[];
+  incomes: Revenu[];
+  loans: Pret[];
   interventions: Intervention[];
   contacts: Contact[];
-  documents: PropertyDocument[];
+  documents: DocumentBien[];
   lots: Lot[];
-  rentTracking: RentMonthEntry[];
-  chargePayments: ChargePaymentEntry[];
-  settings: AppSettings;
+  rentTracking: SuiviMensuelLoyer[];
+  chargePayments: PaiementCharge[];
+  settings: ParametresApp;
 }
 
-export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
+export const TYPE_BIEN_LABELS: Record<TypeBien, string> = {
   appartement: 'Appartement',
   maison: 'Maison',
   immeuble: 'Immeuble',
@@ -685,7 +685,7 @@ export const PROPERTY_TYPE_LABELS: Record<PropertyType, string> = {
   parking: 'Parking',
 };
 
-export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
+export const CATEGORIE_DEPENSE_LABELS: Record<CategorieDepense, string> = {
   credit: 'Mensualite credit',
   taxe_fonciere: 'Taxe fonciere',
   assurance_pno: 'Assurance PNO',
@@ -700,21 +700,21 @@ export const EXPENSE_CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   autre: 'Autre',
 };
 
-export const INCOME_CATEGORY_LABELS: Record<IncomeCategory, string> = {
+export const CATEGORIE_REVENU_LABELS: Record<CategorieRevenu, string> = {
   loyer: 'Loyer',
   parking: 'Parking',
   charges_recuperees: 'Charges recuperees',
   autre: 'Autre',
 };
 
-export const FREQUENCY_LABELS: Record<ExpenseFrequency, string> = {
+export const FREQUENCY_LABELS: Record<FrequenceDepense, string> = {
   mensuel: 'Mensuel',
   trimestriel: 'Trimestriel',
   annuel: 'Annuel',
   ponctuel: 'Ponctuel',
 };
 
-export const EXPENSE_GROUPS: Record<string, ExpenseCategory[]> = {
+export const DEPENSE_GROUPS: Record<string, CategorieDepense[]> = {
   'Charges fixes': ['credit', 'taxe_fonciere', 'assurance_pno', 'gestion_locative', 'copropriete'],
   'Charges variables': ['reparations', 'charges_locatives', 'vacance'],
   'Ponctuelles': ['frais_notaire', 'travaux', 'ameublement', 'autre'],

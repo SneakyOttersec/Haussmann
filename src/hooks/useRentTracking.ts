@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, RentMonthEntry, LotStatut } from "@/types";
+import type { DonneesApp, SuiviMensuelLoyer, LotStatut } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 /**
@@ -10,7 +10,7 @@ import { generateId, now } from "@/lib/utils";
  * - If the most recent entry is marked "vacant", lot is vacant.
  * - Otherwise (paid, partial, unpaid), lot is considered occupied.
  */
-function deriveLotStatus(lotEntries: RentMonthEntry[]): LotStatut | null {
+function deriveLotStatus(lotEntries: SuiviMensuelLoyer[]): LotStatut | null {
   if (lotEntries.length === 0) return null;
   const sorted = [...lotEntries].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
   const latest = sorted[0].statut;
@@ -22,8 +22,8 @@ function deriveLotStatus(lotEntries: RentMonthEntry[]): LotStatut | null {
  * Entries are keyed by (propertyId, lotId, yearMonth) — upsert semantics.
  */
 export function useRentTracking(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string,
 ) {
   const allEntries = data?.rentTracking ?? [];
@@ -34,7 +34,7 @@ export function useRentTracking(
 
   /** Find entry for a given lot + month. */
   const getEntry = useCallback(
-    (lotId: string, yearMonth: string): RentMonthEntry | undefined => {
+    (lotId: string, yearMonth: string): SuiviMensuelLoyer | undefined => {
       return entries.find((e) => e.lotId === lotId && e.yearMonth === yearMonth);
     },
     [entries],
@@ -50,20 +50,20 @@ export function useRentTracking(
       propId: string,
       lotId: string,
       yearMonth: string,
-      updates: Partial<Omit<RentMonthEntry, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
+      updates: Partial<Omit<SuiviMensuelLoyer, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
     ) => {
       const timestamp = now();
       setData((prev) => {
         const existing = (prev.rentTracking ?? []).find(
           (e) => e.lotId === lotId && e.yearMonth === yearMonth,
         );
-        let nextRentTracking: RentMonthEntry[];
+        let nextRentTracking: SuiviMensuelLoyer[];
         if (existing) {
           nextRentTracking = (prev.rentTracking ?? []).map((e) =>
             e.id === existing.id ? { ...e, ...updates, updatedAt: timestamp } : e,
           );
         } else {
-          const newEntry: RentMonthEntry = {
+          const newEntry: SuiviMensuelLoyer = {
             id: generateId(),
             propertyId: propId,
             lotId,

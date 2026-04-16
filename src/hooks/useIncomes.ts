@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, Income } from "@/types";
+import type { DonneesApp, Revenu } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 export function useIncomes(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
 ) {
   const allIncomes = data?.incomes ?? [];
@@ -17,8 +17,8 @@ export function useIncomes(
   );
 
   const addIncome = useCallback(
-    (income: Omit<Income, "id" | "createdAt" | "updatedAt">) => {
-      const newIncome: Income = {
+    (income: Omit<Revenu, "id" | "createdAt" | "updatedAt">) => {
+      const newIncome: Revenu = {
         ...income,
         id: generateId(),
         createdAt: now(),
@@ -34,7 +34,7 @@ export function useIncomes(
   );
 
   const updateIncome = useCallback(
-    (id: string, updates: Partial<Omit<Income, "id" | "createdAt">>) => {
+    (id: string, updates: Partial<Omit<Revenu, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
         incomes: prev.incomes.map((i) =>

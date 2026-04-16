@@ -1,16 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { AppData } from "@/types";
+import type { DonneesApp } from "@/types";
 import { loadDataWithBlobs, saveDataDebounced, flushSave } from "@/lib/storage";
 
 // Module-level cache: avoid re-reading the entire dataset (incl. IndexedDB blobs)
 // from storage on every page navigation. The first useAppData() does the async load;
 // every subsequent mount synchronously reuses the cached snapshot.
-let cachedData: AppData | null = null;
-let loadPromise: Promise<AppData> | null = null;
+let cachedData: DonneesApp | null = null;
+let loadPromise: Promise<DonneesApp> | null = null;
 
-function ensureLoaded(): Promise<AppData> {
+function ensureLoaded(): Promise<DonneesApp> {
   if (cachedData) return Promise.resolve(cachedData);
   if (!loadPromise) {
     loadPromise = loadDataWithBlobs().then((d) => {
@@ -22,7 +22,7 @@ function ensureLoaded(): Promise<AppData> {
 }
 
 export function useAppData() {
-  const [data, setDataState] = useState<AppData | null>(cachedData);
+  const [data, setDataState] = useState<DonneesApp | null>(cachedData);
 
   useEffect(() => {
     if (cachedData) return; // already in cache → nothing to load
@@ -38,7 +38,7 @@ export function useAppData() {
     };
   }, []);
 
-  const setData = useCallback((updater: AppData | ((prev: AppData) => AppData)) => {
+  const setData = useCallback((updater: DonneesApp | ((prev: DonneesApp) => DonneesApp)) => {
     setDataState((prev) => {
       if (!prev) return prev;
       const next = typeof updater === "function" ? updater(prev) : updater;

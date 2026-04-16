@@ -1,6 +1,6 @@
 import type jsPDF from "jspdf";
-import type { AppData } from "@/types";
-import { PROPERTY_TYPE_LABELS } from "@/types";
+import type { DonneesApp } from "@/types";
+import { TYPE_BIEN_LABELS } from "@/types";
 import { computeBilanFiscal } from "@/lib/calculations/fiscal-bilan";
 import { calculerAmortissementAnnee } from "@/lib/calculations/tax-is";
 import { crdAtYearEnd } from "@/lib/calculations/loan";
@@ -102,7 +102,7 @@ function pageFooter(doc: jsPDF, page: number, total: number, nomSCI: string) {
 
 // ── Missing data detection ──
 
-function detectMissing(data: AppData, bilan: ReturnType<typeof computeBilanFiscal>): boolean {
+function detectMissing(data: DonneesApp, bilan: ReturnType<typeof computeBilanFiscal>): boolean {
   if (!data.settings.siren) return true;
   if (!data.settings.adresseSiege) return true;
   if (bilan.totaux.revenusLocatifs === 0 && data.properties.length > 0) return true;
@@ -129,7 +129,7 @@ function applyWatermark(doc: jsPDF) {
 
 // ── Main generator ──
 
-export async function generateLiasseIS(data: AppData, annee: number): Promise<void> {
+export async function generateLiasseIS(data: DonneesApp, annee: number): Promise<void> {
   const { settings } = data;
   const bilan = computeBilanFiscal(data, annee);
   const properties = data.properties.filter(p => !p.deletedAt);
@@ -181,7 +181,7 @@ export async function generateLiasseIS(data: AppData, annee: number): Promise<vo
 
   y = section(doc, y, "Liste des immeubles");
   for (const p of properties) {
-    y = row(doc, y, p.nom, `${PROPERTY_TYPE_LABELS[p.type]} · ${p.adresse?.slice(0, 40) || ""}`, { indent: 4 });
+    y = row(doc, y, p.nom, `${TYPE_BIEN_LABELS[p.type]} · ${p.adresse?.slice(0, 40) || ""}`, { indent: 4 });
   }
 
   pageFooter(doc, 1, totalPages, settings.nomSCI);
@@ -365,7 +365,7 @@ export async function generateLiasseIS(data: AppData, annee: number): Promise<vo
     if (p.montantTravaux > 0) composantes.push({ nom: "Travaux", brut: p.montantTravaux, duree: 18 });
     if ((p.montantMobilier ?? 0) > 0) composantes.push({ nom: "Mobilier", brut: p.montantMobilier ?? 0, duree: 7 });
 
-    // Property header
+    // Bien header
     y = tableRow(doc, y, [
       { value: p.nom, x: M, w: 55, bold: true },
       { value: getPropertyAcquisitionDate(p).slice(0, 10), x: M + 55, w: 22, align: "right" },

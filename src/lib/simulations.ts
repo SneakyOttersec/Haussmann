@@ -1,4 +1,4 @@
-import type { CalculatorInputs, SavedSimulation, SimulationSnapshot, Attachment } from '@/types';
+import type { EntreesCalculateur, SimulationSauvegardee, SnapshotSimulation, PieceJointe } from '@/types';
 import { putBlob, getBlob, deleteBlobsWithPrefix } from './blobstore';
 
 const STORAGE_KEY = 'sci-immobilier-simulations';
@@ -13,7 +13,7 @@ function photoKey(simId: string) { return `sim:${simId}:photo`; }
 function attachKey(simId: string, attId: string) { return `sim:${simId}:att:${attId}`; }
 
 /** Strip large data (photo, attachment blobs) from inputs before localStorage */
-function stripForStorage(inputs: CalculatorInputs): CalculatorInputs {
+function stripForStorage(inputs: EntreesCalculateur): EntreesCalculateur {
   return {
     ...inputs,
     photo: inputs.photo ? '__blob__' : '',
@@ -24,7 +24,7 @@ function stripForStorage(inputs: CalculatorInputs): CalculatorInputs {
   };
 }
 
-export function loadSimulations(): SavedSimulation[] {
+export function loadSimulations(): SimulationSauvegardee[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -34,7 +34,7 @@ export function loadSimulations(): SavedSimulation[] {
   }
 }
 
-function saveAll(simulations: SavedSimulation[]): void {
+function saveAll(simulations: SimulationSauvegardee[]): void {
   if (typeof window === 'undefined') return;
   localStorage.setItem(STORAGE_KEY, JSON.stringify(simulations));
 }
@@ -45,7 +45,7 @@ function saveAll(simulations: SavedSimulation[]): void {
  * When overwriting, the previous state is pushed to history (capped at HISTORY_CAP).
  * Returns the saved simulation with its assigned id.
  */
-export async function saveSimulation(nom: string, inputs: CalculatorInputs): Promise<SavedSimulation> {
+export async function saveSimulation(nom: string, inputs: EntreesCalculateur): Promise<SimulationSauvegardee> {
   const sims = loadSimulations();
   const id = inputs.id || crypto.randomUUID();
 
@@ -63,7 +63,7 @@ export async function saveSimulation(nom: string, inputs: CalculatorInputs): Pro
   const existing = existingIdx >= 0 ? sims[existingIdx] : null;
 
   // Build history: if overwriting, push the previous state (unless too recent)
-  let history: SimulationSnapshot[] = existing?.history ?? [];
+  let history: SnapshotSimulation[] = existing?.history ?? [];
   if (existing) {
     const prevSavedAt = new Date(existing.savedAt).getTime();
     const now = Date.now();
@@ -76,7 +76,7 @@ export async function saveSimulation(nom: string, inputs: CalculatorInputs): Pro
     }
   }
 
-  const sim: SavedSimulation = {
+  const sim: SimulationSauvegardee = {
     id,
     nom: nom || `Simulation ${sims.length + 1}`,
     inputs: { ...stripForStorage(inputs), id },
@@ -99,7 +99,7 @@ export async function saveSimulation(nom: string, inputs: CalculatorInputs): Pro
  * typically save afterward which will push the current (restored) state.
  * Returns the hydrated inputs of the restored snapshot (blobs restored from IndexedDB).
  */
-export async function restoreSnapshot(simId: string, snapshotIndex: number): Promise<CalculatorInputs | null> {
+export async function restoreSnapshot(simId: string, snapshotIndex: number): Promise<EntreesCalculateur | null> {
   const sims = loadSimulations();
   const sim = sims.find((s) => s.id === simId);
   if (!sim || !sim.history || snapshotIndex < 0 || snapshotIndex >= sim.history.length) {
@@ -113,7 +113,7 @@ export async function restoreSnapshot(simId: string, snapshotIndex: number): Pro
   }
   if (inputs.attachments) {
     inputs.attachments = await Promise.all(
-      inputs.attachments.map(async (a: Attachment) => {
+      inputs.attachments.map(async (a: PieceJointe) => {
         if (a.data === '__blob__') {
           const data = await getBlob(attachKey(sim.id, a.id));
           return { ...a, data: data ?? '' };
@@ -126,7 +126,7 @@ export async function restoreSnapshot(simId: string, snapshotIndex: number): Pro
 }
 
 /** Restore blobs from IndexedDB into a simulation's inputs */
-export async function hydrateSimulation(sim: SavedSimulation): Promise<CalculatorInputs> {
+export async function hydrateSimulation(sim: SimulationSauvegardee): Promise<EntreesCalculateur> {
   const inputs = { ...sim.inputs, id: sim.id };
 
   // Restore photo
@@ -137,7 +137,7 @@ export async function hydrateSimulation(sim: SavedSimulation): Promise<Calculato
   // Restore attachments
   if (inputs.attachments) {
     inputs.attachments = await Promise.all(
-      inputs.attachments.map(async (a: Attachment) => {
+      inputs.attachments.map(async (a: PieceJointe) => {
         if (a.data === '__blob__') {
           const data = await getBlob(attachKey(sim.id, a.id));
           return { ...a, data: data ?? '' };
@@ -169,12 +169,12 @@ export async function exportSimulations(): Promise<string> {
   return JSON.stringify(hydrated, null, 2);
 }
 
-export async function importSimulations(json: string): Promise<SavedSimulation[]> {
+export async function importSimulations(json: string): Promise<SimulationSauvegardee[]> {
   const imported = JSON.parse(json);
   if (!Array.isArray(imported)) throw new Error('Format invalide');
   const existing = loadSimulations();
   const existingIds = new Set(existing.map((s) => s.id));
-  const newSims = imported.filter((s: SavedSimulation) => !existingIds.has(s.id));
+  const newSims = imported.filter((s: SimulationSauvegardee) => !existingIds.has(s.id));
 
   // Store blobs in IndexedDB for each new simulation
   for (const sim of newSims) {

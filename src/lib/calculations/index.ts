@@ -1,12 +1,12 @@
-import type { CalculatorInputs, CalculatorResults, RegimeFiscalType } from '@/types';
-import { toRegimeFiscalType } from '@/types';
+import type { EntreesCalculateur, ResultatsCalculateur, RegimeFiscalDetaille } from '@/types';
+import { versRegimeFiscalDetaille } from '@/types';
 import { calculerMensualite, calculerMensualiteAmortissable } from './loan';
 import { rendementBrut, rendementNet, rendementNetNet } from './rendement';
 import { calculerTRI } from './irr';
 import { projeterAvecRegime, type YearComputed } from './regimes';
 import { round2 } from '@/lib/round';
 
-function resolveAssuranceAnnuelle(inputs: CalculatorInputs): number {
+function resolveAssuranceAnnuelle(inputs: EntreesCalculateur): number {
   if (inputs.assurancePretMode === 'pct') {
     return inputs.montantEmprunte * inputs.assurancePretPct;
   }
@@ -148,7 +148,7 @@ export interface YearlyFinancials {
  * Compute all regime-independent yearly financial data for a projection.
  * This is what every regime computation shares.
  */
-export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinancials {
+export function computeYearlyFinancials(inputs: EntreesCalculateur): YearlyFinancials {
   const loyerMensuelTotal = inputs.lots && inputs.lots.length > 0
     ? inputs.lots.reduce((sum, lot) => sum + (lot.loyerMensuel || 0), 0)
     : inputs.loyerMensuel;
@@ -256,10 +256,10 @@ export function computeYearlyFinancials(inputs: CalculatorInputs): YearlyFinanci
 
 /* ── Main ── */
 
-export function calculerRentabilite(inputs: CalculatorInputs): CalculatorResults {
+export function calculerRentabilite(inputs: EntreesCalculateur): ResultatsCalculateur {
   const fin = computeYearlyFinancials(inputs);
 
-  const regime: RegimeFiscalType = toRegimeFiscalType(inputs.regimeFiscal);
+  const regime: RegimeFiscalDetaille = versRegimeFiscalDetaille(inputs.regimeFiscal);
   const regimeProjection = projeterAvecRegime(regime, inputs, fin.fraisNotaire, fin.years);
   const projection = regimeProjection.projection;
 

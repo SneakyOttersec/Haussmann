@@ -13,7 +13,7 @@ import {
   crdAtYearEnd,
   interetsAnneeForLoan,
   totalMensualitesAnnee,
-  type LoanLike,
+  type PretLike,
 } from '../loan';
 
 describe('calculerMensualiteAmortissable', () => {
@@ -129,7 +129,7 @@ describe('interetsAnnuels', () => {
 
 // ── Differe (partial / total) ──
 
-const baseLoan: LoanLike = {
+const baseLoan: PretLike = {
   montantEmprunte: 200_000,
   tauxAnnuel: 0.036,
   dureeAnnees: 20, // 240 months total
@@ -137,7 +137,7 @@ const baseLoan: LoanLike = {
 };
 
 describe('differe partiel — 12 mois', () => {
-  const loan: LoanLike = { ...baseLoan, differeMois: 12, differeType: 'partiel' };
+  const loan: PretLike = { ...baseLoan, differeMois: 12, differeType: 'partiel' };
 
   it('capital effectif inchange apres differe partiel', () => {
     expect(capitalApresDiffere(loan)).toBe(200_000);
@@ -184,7 +184,7 @@ describe('differe partiel — 12 mois', () => {
 });
 
 describe('differe total — 12 mois', () => {
-  const loan: LoanLike = { ...baseLoan, differeMois: 12, differeType: 'total' };
+  const loan: PretLike = { ...baseLoan, differeMois: 12, differeType: 'total' };
 
   it('capital apres differe = capital * (1+t)^12', () => {
     const expected = 200_000 * Math.pow(1 + 0.036 / 12, 12);
@@ -221,7 +221,7 @@ describe('differe total — 12 mois', () => {
 
 describe('differe nul (compatibilite)', () => {
   it('comportement identique a un pret sans differe', () => {
-    const loanSansDiffere: LoanLike = { ...baseLoan, differeMois: 0 };
+    const loanSansDiffere: PretLike = { ...baseLoan, differeMois: 0 };
     const m1 = mensualiteAmortissement(loanSansDiffere);
     const m2 = calculerMensualiteAmortissable(200_000, 0.036, 20);
     expect(m1).toBeCloseTo(m2, 2);
@@ -234,7 +234,7 @@ describe('differe nul (compatibilite)', () => {
 
 describe('differeInclus = false (differe en plus de la duree)', () => {
   // 12 mois differe partiel + 20 ans amort = 252 mois total
-  const loanEnPlus: LoanLike = {
+  const loanEnPlus: PretLike = {
     ...baseLoan,
     differeMois: 12,
     differeType: 'partiel',
@@ -242,7 +242,7 @@ describe('differeInclus = false (differe en plus de la duree)', () => {
   };
 
   // Same config but inclus (existing behavior) = 240 mois total, 228 amort
-  const loanInclus: LoanLike = {
+  const loanInclus: PretLike = {
     ...baseLoan,
     differeMois: 12,
     differeType: 'partiel',
@@ -291,7 +291,7 @@ describe('differeInclus = false (differe en plus de la duree)', () => {
 });
 
 describe('differe partiel — 6 mois (annee 1 mixte)', () => {
-  const loan: LoanLike = { ...baseLoan, differeMois: 6, differeType: 'partiel' };
+  const loan: PretLike = { ...baseLoan, differeMois: 6, differeType: 'partiel' };
   const t = 0.036 / 12;
   const interetMensuelDiffere = 200_000 * t; // 600
 
@@ -336,7 +336,7 @@ describe('differe partiel — 6 mois (annee 1 mixte)', () => {
 });
 
 describe('in_fine + differe total — 6 mois', () => {
-  const loan: LoanLike = {
+  const loan: PretLike = {
     montantEmprunte: 200_000,
     tauxAnnuel: 0.036,
     dureeAnnees: 20,

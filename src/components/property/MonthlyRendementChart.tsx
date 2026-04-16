@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ChargePaymentEntry, Expense, Income, LoanDetails, Property, RentMonthEntry } from "@/types";
+import type { PaiementCharge, Depense, Revenu, Pret, Bien, SuiviMensuelLoyer } from "@/types";
 import { coutTotalBien } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
 import { Tooltip as UiTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -57,12 +57,12 @@ function CurvesInfoTooltip() {
 }
 
 interface Props {
-  property: Property;
-  incomes: Income[];
-  expenses: Expense[];
-  rentEntries: RentMonthEntry[];
-  loan?: LoanDetails | null;
-  chargePayments?: ChargePaymentEntry[];
+  property: Bien;
+  incomes: Revenu[];
+  expenses: Depense[];
+  rentEntries: SuiviMensuelLoyer[];
+  loan?: Pret | null;
+  chargePayments?: PaiementCharge[];
 }
 
 /**

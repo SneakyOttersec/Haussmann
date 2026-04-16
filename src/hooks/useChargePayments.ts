@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, ChargePaymentEntry } from "@/types";
+import type { DonneesApp, PaiementCharge } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 export function useChargePayments(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string,
 ) {
   const allEntries = data?.chargePayments ?? [];
@@ -16,7 +16,7 @@ export function useChargePayments(
   );
 
   const getEntry = useCallback(
-    (expenseId: string, periode: string): ChargePaymentEntry | undefined => {
+    (expenseId: string, periode: string): PaiementCharge | undefined => {
       return entries.find((e) => e.expenseId === expenseId && e.periode === periode);
     },
     [entries],
@@ -27,7 +27,7 @@ export function useChargePayments(
       propId: string,
       expenseId: string,
       periode: string,
-      updates: Partial<Omit<ChargePaymentEntry, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
+      updates: Partial<Omit<PaiementCharge, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
     ) => {
       const timestamp = now();
       setData((prev) => {
@@ -42,7 +42,7 @@ export function useChargePayments(
             ),
           };
         }
-        const newEntry: ChargePaymentEntry = {
+        const newEntry: PaiementCharge = {
           id: generateId(),
           expenseId,
           propertyId: propId,

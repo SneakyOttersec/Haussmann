@@ -1,18 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import type { PropertyStatus, StatusDocument } from "@/types";
-import { PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
+import type { StatutBien, StatutDocument } from "@/types";
+import { STATUT_BIEN_LABELS, STATUT_BIEN_ORDER } from "@/types";
 import { checkFileSize } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface PropertyStatusBarProps {
-  statut: PropertyStatus;
-  statusDates?: Partial<Record<PropertyStatus, string>>;
-  statusDocs?: Partial<Record<PropertyStatus, StatusDocument>>;
-  onChange: (s: PropertyStatus) => void;
-  onDateChange?: (s: PropertyStatus, date: string) => void;
-  onDocChange?: (s: PropertyStatus, doc: StatusDocument | null) => void;
+  statut: StatutBien;
+  statusDates?: Partial<Record<StatutBien, string>>;
+  statusDocs?: Partial<Record<StatutBien, StatutDocument>>;
+  onChange: (s: StatutBien) => void;
+  onDateChange?: (s: StatutBien, date: string) => void;
+  onDocChange?: (s: StatutBien, doc: StatutDocument | null) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -22,10 +22,10 @@ function formatSize(bytes: number): string {
 }
 
 function DocCell({ status, doc, isActive, onDocChange }: {
-  status: PropertyStatus;
-  doc: StatusDocument | undefined;
+  status: StatutBien;
+  doc: StatutDocument | undefined;
   isActive: boolean;
-  onDocChange?: (s: PropertyStatus, doc: StatusDocument | null) => void;
+  onDocChange?: (s: StatutBien, doc: StatutDocument | null) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -96,13 +96,13 @@ function DocCell({ status, doc, isActive, onDocChange }: {
 }
 
 export function PropertyStatusBar({ statut, statusDates, statusDocs, onChange, onDateChange, onDocChange }: PropertyStatusBarProps) {
-  const currentIdx = PROPERTY_STATUS_ORDER.indexOf(statut);
+  const currentIdx = STATUT_BIEN_ORDER.indexOf(statut);
 
   return (
     <div className="space-y-1">
       {/* Status buttons */}
       <div className="flex items-center gap-0.5">
-        {PROPERTY_STATUS_ORDER.map((s, i) => {
+        {STATUT_BIEN_ORDER.map((s, i) => {
           const isActive = i <= currentIdx;
           const isCurrent = s === statut;
           return (
@@ -117,40 +117,40 @@ export function PropertyStatusBar({ statut, statusDates, statusDocs, onChange, o
                   ? "bg-primary/20 text-primary font-medium"
                   : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
-              title={PROPERTY_STATUS_LABELS[s]}
+              title={STATUT_BIEN_LABELS[s]}
             >
-              {PROPERTY_STATUS_LABELS[s]}
+              {STATUT_BIEN_LABELS[s]}
             </button>
           );
         })}
       </div>
       {/* Date row */}
       <div className="flex items-center gap-0.5">
-        {PROPERTY_STATUS_ORDER.map((s, i) => {
+        {STATUT_BIEN_ORDER.map((s, i) => {
           const isActive = i <= currentIdx;
           const date = statusDates?.[s] ?? "";
           // Find the latest date among ALL earlier phases and earliest date among ALL later phases
           let prevDate: string | undefined;
           let prevLabel = "";
           for (let j = i - 1; j >= 0; j--) {
-            const d = statusDates?.[PROPERTY_STATUS_ORDER[j]];
-            if (d) { prevDate = d; prevLabel = PROPERTY_STATUS_LABELS[PROPERTY_STATUS_ORDER[j]]; break; }
+            const d = statusDates?.[STATUT_BIEN_ORDER[j]];
+            if (d) { prevDate = d; prevLabel = STATUT_BIEN_LABELS[STATUT_BIEN_ORDER[j]]; break; }
           }
           let nextDate: string | undefined;
           let nextLabel = "";
-          for (let j = i + 1; j < PROPERTY_STATUS_ORDER.length; j++) {
-            const d = statusDates?.[PROPERTY_STATUS_ORDER[j]];
-            if (d) { nextDate = d; nextLabel = PROPERTY_STATUS_LABELS[PROPERTY_STATUS_ORDER[j]]; break; }
+          for (let j = i + 1; j < STATUT_BIEN_ORDER.length; j++) {
+            const d = statusDates?.[STATUT_BIEN_ORDER[j]];
+            if (d) { nextDate = d; nextLabel = STATUT_BIEN_LABELS[STATUT_BIEN_ORDER[j]]; break; }
           }
 
           const handleDateChange = (newDate: string) => {
             if (!newDate) { onDateChange?.(s, newDate); return; }
             if (prevDate && newDate < prevDate) {
-              toast.error(`Date invalide`, { description: `${PROPERTY_STATUS_LABELS[s]} ne peut pas etre avant ${prevLabel} (${prevDate})` });
+              toast.error(`Date invalide`, { description: `${STATUT_BIEN_LABELS[s]} ne peut pas etre avant ${prevLabel} (${prevDate})` });
               return;
             }
             if (nextDate && newDate > nextDate) {
-              toast.error(`Date invalide`, { description: `${PROPERTY_STATUS_LABELS[s]} ne peut pas etre apres ${nextLabel} (${nextDate})` });
+              toast.error(`Date invalide`, { description: `${STATUT_BIEN_LABELS[s]} ne peut pas etre apres ${nextLabel} (${nextDate})` });
               return;
             }
             onDateChange?.(s, newDate);
@@ -176,7 +176,7 @@ export function PropertyStatusBar({ statut, statusDates, statusDocs, onChange, o
       </div>
       {/* Document row */}
       <div className="flex items-center gap-0.5">
-        {PROPERTY_STATUS_ORDER.map((s, i) => {
+        {STATUT_BIEN_ORDER.map((s, i) => {
           const isActive = i <= currentIdx;
           return (
             <div key={s} className="flex-1 text-center min-w-0">

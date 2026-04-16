@@ -1,15 +1,15 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { CalculatorResults as Results, CalculatorInputs, Associe } from "@/types";
+import type { ResultatsCalculateur as Results, EntreesCalculateur, Associe } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { calculerTRI } from "@/lib/calculations/irr";
 import { plusValueSortie } from "@/lib/calculations/regimes";
-import { toRegimeFiscalType } from "@/types";
+import { versRegimeFiscalDetaille } from "@/types";
 
 interface CalculatorResultsProps {
   results: Results;
-  inputs?: CalculatorInputs;
+  inputs?: EntreesCalculateur;
   associes?: Associe[];
   differePretMois?: number;
 }
@@ -78,11 +78,11 @@ export function CalculatorResultsPanel({ results, inputs, associes, differePretM
     if (n < 1) return 0;
     const last = r.projection[n - 1];
     if (!last) return 0;
-    const regime = toRegimeFiscalType(inputs.regimeFiscal);
+    const regime = versRegimeFiscalDetaille(inputs.regimeFiscal);
     const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
     // Pour IS/LMNP reel, on a besoin du cumul d'amortissement a la sortie.
     // Approximation : cumul = somme des amortissements sur les annees projetees.
-    // YearProjection n'expose pas l'amort par annee — on utilise 0 en fallback
+    // ProjectionAnnuelle n'expose pas l'amort par annee — on utilise 0 en fallback
     // pour IR (pas de reintegration) et la methode simple pour IS/LMNP.
     const amortCumule = (regime === "is" || regime === "lmnp_reel")
       ? (inputs.prixAchat * 0.80 / 30) * n + (inputs.montantTravaux / 18) * n + (inputs.montantMobilierTotal / 7) * n

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, Expense } from "@/types";
+import type { DonneesApp, Depense } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 export function useExpenses(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
 ) {
   const allExpenses = data?.expenses ?? [];
@@ -17,8 +17,8 @@ export function useExpenses(
   );
 
   const addExpense = useCallback(
-    (expense: Omit<Expense, "id" | "createdAt" | "updatedAt">) => {
-      const newExpense: Expense = {
+    (expense: Omit<Depense, "id" | "createdAt" | "updatedAt">) => {
+      const newExpense: Depense = {
         ...expense,
         id: generateId(),
         createdAt: now(),
@@ -34,7 +34,7 @@ export function useExpenses(
   );
 
   const updateExpense = useCallback(
-    (id: string, updates: Partial<Omit<Expense, "id" | "createdAt">>) => {
+    (id: string, updates: Partial<Omit<Depense, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
         expenses: prev.expenses.map((e) =>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
-import type { SavedSimulation, CalculatorInputs } from "@/types";
+import type { SimulationSauvegardee, EntreesCalculateur } from "@/types";
 import {
   computePortfolioSnapshot,
   computeSimulationContribution,
@@ -89,9 +89,9 @@ function DeltaCell({ delta, format, invert }: { delta: number; format: Row["form
 }
 
 // Cached snapshot for useSyncExternalStore — must be referentially stable.
-const EMPTY_SIMS: SavedSimulation[] = [];
-let cachedSims: SavedSimulation[] | null = null;
-const getSimsSnapshot = (): SavedSimulation[] => {
+const EMPTY_SIMS: SimulationSauvegardee[] = [];
+let cachedSims: SimulationSauvegardee[] | null = null;
+const getSimsSnapshot = (): SimulationSauvegardee[] => {
   if (cachedSims === null) cachedSims = loadSimulations();
   return cachedSims;
 };
@@ -107,7 +107,7 @@ export default function ScenariosPage() {
   const setSelectedSimId = setManualSelectedId;
   // Hydrated inputs are cached by sim id — derived below from `selectedSimId`,
   // so there's no need to clear state synchronously when the selection changes.
-  const [hydratedBySim, setHydratedBySim] = useState<Record<string, CalculatorInputs>>({});
+  const [hydratedBySim, setHydratedBySim] = useState<Record<string, EntreesCalculateur>>({});
 
   useEffect(() => {
     if (!selectedSimId || hydratedBySim[selectedSimId]) return;
@@ -121,7 +121,7 @@ export default function ScenariosPage() {
     });
   }, [selectedSimId, simulations, hydratedBySim]);
 
-  const simInputs: CalculatorInputs | null = selectedSimId ? hydratedBySim[selectedSimId] ?? null : null;
+  const simInputs: EntreesCalculateur | null = selectedSimId ? hydratedBySim[selectedSimId] ?? null : null;
 
   const current = useMemo(
     () => (data ? computePortfolioSnapshot(data) : null),

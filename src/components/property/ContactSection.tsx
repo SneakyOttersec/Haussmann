@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Contact, ContactRole } from "@/types";
-import { CONTACT_ROLE_LABELS } from "@/types";
+import type { Contact, RoleContact } from "@/types";
+import { ROLE_CONTACT_LABELS } from "@/types";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,7 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
   return (
     <>
       <div className="grid grid-cols-[auto_1fr_1fr_1fr_auto_auto] items-center gap-2 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
-        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{CONTACT_ROLE_LABELS[c.role]}</span>
+        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{ROLE_CONTACT_LABELS[c.role]}</span>
         <button
           className="font-medium text-left hover:text-primary transition-colors cursor-pointer truncate"
           onClick={() => { setEdit({ nom: c.nom, role: c.role, telephone: c.telephone || "", email: c.email || "", notes: c.notes || "" }); setEditOpen(true); }}
@@ -59,8 +59,8 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
             <div className="space-y-2.5">
               <Label className="text-xs uppercase tracking-wider text-muted-foreground">Role</Label>
               <div className="flex flex-wrap gap-1.5">
-                {Object.entries(CONTACT_ROLE_LABELS).map(([k, label]) => (
-                  <button key={k} type="button" onClick={() => setEdit({ ...edit, role: k as ContactRole })}
+                {Object.entries(ROLE_CONTACT_LABELS).map(([k, label]) => (
+                  <button key={k} type="button" onClick={() => setEdit({ ...edit, role: k as RoleContact })}
                     className={`px-2.5 py-1 rounded-md text-xs transition-colors ${edit.role === k ? "bg-primary text-primary-foreground font-medium" : "bg-muted text-muted-foreground"}`}
                   >{label}</button>
                 ))}
@@ -99,7 +99,7 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
 
 export function ContactSection({ contacts, onAdd, onUpdate, onDelete, propertyId }: Props) {
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({ nom: "", role: "autre" as ContactRole, telephone: "", email: "", notes: "" });
+  const [form, setForm] = useState({ nom: "", role: "autre" as RoleContact, telephone: "", email: "", notes: "" });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,8 +122,8 @@ export function ContactSection({ contacts, onAdd, onUpdate, onDelete, propertyId
               <div className="space-y-2.5">
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">Role</Label>
                 <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(CONTACT_ROLE_LABELS).map(([k, label]) => (
-                    <button key={k} type="button" onClick={() => setForm({ ...form, role: k as ContactRole })}
+                  {Object.entries(ROLE_CONTACT_LABELS).map(([k, label]) => (
+                    <button key={k} type="button" onClick={() => setForm({ ...form, role: k as RoleContact })}
                       className={`px-2.5 py-1 rounded-md text-xs transition-colors ${form.role === k ? "bg-primary text-primary-foreground font-medium" : "bg-muted text-muted-foreground"}`}
                     >{label}</button>
                   ))}

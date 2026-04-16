@@ -1,4 +1,4 @@
-import type { Expense, ExpenseRevision } from "@/types";
+import type { Depense, RevisionDepense } from "@/types";
 
 /** Convert a local Date to "YYYY-MM-DD" without timezone shift. */
 function toLocalISODate(d: Date): string {
@@ -14,7 +14,7 @@ function toLocalISODate(d: Date): string {
  * If no revision applies (expense has no revisions, or all are future),
  * returns expense.montant (the initial/base price).
  */
-export function getMontantEffectif(expense: Expense, referenceDate: Date): number {
+export function getMontantEffectif(expense: Depense, referenceDate: Date): number {
   const revisions = expense.revisions ?? [];
   if (revisions.length === 0) return expense.montant;
 
@@ -29,12 +29,12 @@ export function getMontantEffectif(expense: Expense, referenceDate: Date): numbe
 }
 
 /** Current effective price (today). */
-export function getCurrentMontant(expense: Expense): number {
+export function getCurrentMontant(expense: Depense): number {
   return getMontantEffectif(expense, new Date());
 }
 
 /** Montant at the START of a given year (Jan 1). */
-export function getMontantForYear(expense: Expense, year: number): number {
+export function getMontantForYear(expense: Depense, year: number): number {
   return getMontantEffectif(expense, new Date(year, 0, 1));
 }
 
@@ -43,7 +43,7 @@ export function getMontantForYear(expense: Expense, year: number): number {
  * Useful to render an evolution table or sparkline.
  */
 export function getYearlyMontants(
-  expense: Expense,
+  expense: Depense,
   fromYear: number,
   toYear: number,
 ): { year: number; montant: number }[] {
@@ -62,7 +62,7 @@ export interface RevisionTimelineEntry {
   id?: string;
 }
 
-export function getRevisionTimeline(expense: Expense): RevisionTimelineEntry[] {
+export function getRevisionTimeline(expense: Depense): RevisionTimelineEntry[] {
   const initial: RevisionTimelineEntry = {
     dateEffet: expense.dateDebut,
     montant: expense.montant,
@@ -78,14 +78,14 @@ export function getRevisionTimeline(expense: Expense): RevisionTimelineEntry[] {
 }
 
 /** Add a new revision and return the updated expense (immutable). */
-export function addRevision(expense: Expense, revision: Omit<ExpenseRevision, "id">): Expense {
-  const newRevision: ExpenseRevision = {
+export function addRevision(expense: Depense, revision: Omit<RevisionDepense, "id">): Depense {
+  const newRevision: RevisionDepense = {
     ...revision,
     id: crypto.randomUUID(),
   };
   return { ...expense, revisions: [...(expense.revisions ?? []), newRevision] };
 }
 
-export function removeRevision(expense: Expense, revisionId: string): Expense {
+export function removeRevision(expense: Depense, revisionId: string): Depense {
   return { ...expense, revisions: (expense.revisions ?? []).filter((r) => r.id !== revisionId) };
 }

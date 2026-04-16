@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Lot, LotStatut, RentHistoryEntry, PropertyStatus } from "@/types";
-import { PROPERTY_STATUS_ORDER } from "@/types";
+import type { Lot, LotStatut, EntreeHistoriqueLoyer, StatutBien } from "@/types";
+import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, generateId } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ interface Props {
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
   propertyId: string;
-  propertyStatut?: PropertyStatus;
+  propertyStatut?: StatutBien;
   /** Optional override for the section card title (defaults to "Lots"). */
   title?: string;
   /** Taux de vacance global (0..1) — quand defini, ecrase celui des lots. */
@@ -25,10 +25,10 @@ interface Props {
   onUpdateTauxVacanceGlobal?: (value: number | undefined) => void;
 }
 
-function isEnLocation(statut?: PropertyStatus): boolean {
+function isEnLocation(statut?: StatutBien): boolean {
   if (!statut) return true;
-  const idx = PROPERTY_STATUS_ORDER.indexOf(statut);
-  const locIdx = PROPERTY_STATUS_ORDER.indexOf("location");
+  const idx = STATUT_BIEN_ORDER.indexOf(statut);
+  const locIdx = STATUT_BIEN_ORDER.indexOf("location");
   return idx >= locIdx;
 }
 
@@ -45,7 +45,7 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   enLocation: boolean;
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
-  propertyStatut?: PropertyStatus;
+  propertyStatut?: StatutBien;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -83,7 +83,7 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
     };
     // Auto-track rent change
     if (edit.loyerMensuel !== l.loyerMensuel) {
-      const newEntry: RentHistoryEntry = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: edit.loyerMensuel };
+      const newEntry: EntreeHistoriqueLoyer = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: edit.loyerMensuel };
       updates.historiqueLoyers = [...(l.historiqueLoyers ?? []), newEntry];
     }
     onUpdate(l.id, updates);
@@ -348,7 +348,7 @@ export function LotSection({ lots, onAdd, onUpdate, onDelete, propertyId, proper
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const entry: RentHistoryEntry = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: form.loyerMensuel };
+    const entry: EntreeHistoriqueLoyer = { id: generateId(), date: new Date().toISOString().slice(0, 10), montant: form.loyerMensuel };
     const { tauxVacancePct, ...rest } = form;
     onAdd({
       ...rest,

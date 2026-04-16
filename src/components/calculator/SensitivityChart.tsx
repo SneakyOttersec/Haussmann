@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo } from "react";
-import type { CalculatorInputs } from "@/types";
+import type { EntreesCalculateur } from "@/types";
 import { computeSensitivity, type SensitivityResult } from "@/lib/calculations/sensitivity";
 import { formatPercent } from "@/lib/utils";
 
 interface Props {
-  inputs: CalculatorInputs;
+  inputs: EntreesCalculateur;
 }
 
 function signed(v: number): string {

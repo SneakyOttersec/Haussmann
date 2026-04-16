@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { calculerImpotIS, calculerAmortissementAnnee } from '../tax-is';
 import { IS_TAUX_REDUIT, IS_SEUIL_REDUIT, IS_TAUX_NORMAL } from '../../constants';
-import type { CalculatorInputs } from '@/types';
+import type { EntreesCalculateur } from '@/types';
 import { DEFAULT_CALCULATOR_INPUTS } from '../../constants';
 
 describe('calculerImpotIS', () => {
@@ -31,7 +31,7 @@ describe('calculerImpotIS', () => {
 });
 
 describe('calculerAmortissementAnnee', () => {
-  const baseInputs: CalculatorInputs = {
+  const baseInputs: EntreesCalculateur = {
     ...DEFAULT_CALCULATOR_INPUTS,
     prixAchat: 200_000,
     fraisAgence: 10_000,
@@ -68,7 +68,7 @@ describe('calculerAmortissementAnnee', () => {
   });
 
   it('avec lotsTravaux : durees specifiques', () => {
-    const inputs: CalculatorInputs = {
+    const inputs: EntreesCalculateur = {
       ...baseInputs,
       fraisAgence: 0,
       lotsMobilier: [],
@@ -87,7 +87,7 @@ describe('calculerAmortissementAnnee', () => {
   });
 
   it('fallback montantTravaux si pas de lotsTravaux', () => {
-    const inputs: CalculatorInputs = {
+    const inputs: EntreesCalculateur = {
       ...baseInputs,
       fraisAgence: 0,
       lotsMobilier: [],

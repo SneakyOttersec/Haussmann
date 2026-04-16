@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Expense, ExpenseFrequency, ExpenseRevision } from "@/types";
-import { EXPENSE_CATEGORY_LABELS, FREQUENCY_LABELS, EXPENSE_GROUPS } from "@/types";
+import type { Depense, FrequenceDepense, RevisionDepense } from "@/types";
+import { CATEGORIE_DEPENSE_LABELS, FREQUENCY_LABELS, DEPENSE_GROUPS } from "@/types";
 import { formatCurrency, annualiserMontant } from "@/lib/utils";
 import { getMontantForYear, getRevisionTimeline } from "@/lib/expenseRevisions";
 import { ExpenseEvolutionTable } from "./ExpenseEvolutionTable";
@@ -18,9 +18,9 @@ import {
 } from "@/components/ui/table";
 
 interface ExpenseListProps {
-  expenses: Expense[];
+  expenses: Depense[];
   onDelete: (id: string) => void;
-  onUpdate?: (id: string, updates: Partial<Expense>) => void;
+  onUpdate?: (id: string, updates: Partial<Depense>) => void;
   /**
    * When true, color each Montant cell based on `priceValidated`:
    * green = confirmed by contract, amber = still a projection.
@@ -79,8 +79,8 @@ function FrequencyChips({
   value,
   onChange,
 }: {
-  value: ExpenseFrequency;
-  onChange: (v: ExpenseFrequency) => void;
+  value: FrequenceDepense;
+  onChange: (v: FrequenceDepense) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -101,7 +101,7 @@ function FrequencyChips({
         <button
           key={k}
           type="button"
-          onClick={() => { onChange(k as ExpenseFrequency); setOpen(false); }}
+          onClick={() => { onChange(k as FrequenceDepense); setOpen(false); }}
           className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${
             value === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
           }`}
@@ -131,10 +131,10 @@ const CATEGORY_ICONS: Record<string, string> = {
 /* ── Reviser dialog ── */
 
 interface ReviseDialogProps {
-  expense: Expense;
+  expense: Depense;
   selectedYear: number;
   onClose: () => void;
-  onSave: (revision: Omit<ExpenseRevision, "id">) => void;
+  onSave: (revision: Omit<RevisionDepense, "id">) => void;
   onDeleteRevision: (revisionId: string) => void;
 }
 
@@ -162,7 +162,7 @@ function ReviseDialog({ expense, selectedYear, onClose, onSave, onDeleteRevision
           <div>
             <h3 className="text-sm font-bold">Reviser le prix</h3>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {expense.label} · {EXPENSE_CATEGORY_LABELS[expense.categorie]}
+              {expense.label} · {CATEGORIE_DEPENSE_LABELS[expense.categorie]}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-primary text-lg leading-none">×</button>
@@ -296,7 +296,7 @@ function YearSelector({
 export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }: ExpenseListProps) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
-  const [reviseTarget, setReviseTarget] = useState<Expense | null>(null);
+  const [reviseTarget, setReviseTarget] = useState<Depense | null>(null);
   const [showEvolution, setShowEvolution] = useState(false);
 
   // Build year options based on expense history
@@ -318,10 +318,10 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
     return <p className="text-sm text-muted-foreground py-4">Aucune depense enregistree.</p>;
   }
 
-  const handleAddRevision = (expenseId: string, revision: Omit<ExpenseRevision, "id">) => {
+  const handleAddRevision = (expenseId: string, revision: Omit<RevisionDepense, "id">) => {
     const expense = expenses.find((e) => e.id === expenseId);
     if (!expense || !onUpdate) return;
-    const newRevision: ExpenseRevision = { ...revision, id: crypto.randomUUID() };
+    const newRevision: RevisionDepense = { ...revision, id: crypto.randomUUID() };
     onUpdate(expenseId, { revisions: [...(expense.revisions ?? []), newRevision] });
   };
 
@@ -337,7 +337,7 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
         <YearSelector years={years} selected={selectedYear} onSelect={setSelectedYear} />
       )}
 
-      {Object.entries(EXPENSE_GROUPS).map(([groupLabel, categories]) => {
+      {Object.entries(DEPENSE_GROUPS).map(([groupLabel, categories]) => {
         const groupExpenses = expenses.filter((e) => categories.includes(e.categorie));
         if (groupExpenses.length === 0) return null;
 
@@ -382,7 +382,7 @@ export function ExpenseList({ expenses, onDelete, onUpdate, colorByValidation }:
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{EXPENSE_CATEGORY_LABELS[expense.categorie]}</TableCell>
+                      <TableCell className="text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[expense.categorie]}</TableCell>
                       <TableCell className={`text-right ${montantColor}`}>
                         <span className="inline-flex items-center gap-1.5 tabular-nums">
                           {formatCurrency(montantEffectif)}

@@ -1,20 +1,20 @@
 "use client";
 
 import { useCallback } from "react";
-import type { AppData, Property } from "@/types";
+import type { DonneesApp, Bien } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 export function useProperties(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void
 ) {
   const allProperties = data?.properties ?? [];
   const properties = allProperties.filter((p) => !p.deletedAt);
   const deletedProperties = allProperties.filter((p) => p.deletedAt);
 
   const addProperty = useCallback(
-    (property: Omit<Property, "id" | "createdAt" | "updatedAt">) => {
-      const newProperty: Property = {
+    (property: Omit<Bien, "id" | "createdAt" | "updatedAt">) => {
+      const newProperty: Bien = {
         ...property,
         id: generateId(),
         createdAt: now(),
@@ -30,7 +30,7 @@ export function useProperties(
   );
 
   const updateProperty = useCallback(
-    (id: string, updates: Partial<Omit<Property, "id" | "createdAt">>) => {
+    (id: string, updates: Partial<Omit<Bien, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
         properties: prev.properties.map((p) =>
@@ -62,7 +62,7 @@ export function useProperties(
         properties: prev.properties.map((p) => {
           if (p.id !== id) return p;
           const { deletedAt: _, ...rest } = p;
-          return { ...rest, updatedAt: now() } as Property;
+          return { ...rest, updatedAt: now() } as Bien;
         }),
       }));
     },

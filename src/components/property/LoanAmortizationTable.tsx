@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import type { LoanDetails } from "@/types";
+import type { Pret } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { crdAtMonth, interetsAnneeForLoan, totalMensualitesAnnee, loanDureeTotaleMois } from "@/lib/calculations/loan";
 
 interface LoanAmortizationTableProps {
-  loan: LoanDetails;
+  loan: Pret;
 }
 
 interface AmortRow {
@@ -22,7 +22,7 @@ interface AmortRow {
   differeType?: "partiel" | "total";
 }
 
-function buildAmortization(loan: LoanDetails): AmortRow[] {
+function buildAmortization(loan: Pret): AmortRow[] {
   const rows: AmortRow[] = [];
   const totalMois = loanDureeTotaleMois(loan);
   const dureeReelleAnnees = Math.ceil(totalMois / 12);

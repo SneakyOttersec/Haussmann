@@ -1,13 +1,13 @@
 "use client";
 
-import type { SimulationSnapshot } from "@/types";
+import type { SnapshotSimulation } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 interface Props {
   open: boolean;
   simulationNom: string;
-  history: SimulationSnapshot[];
+  history: SnapshotSimulation[];
   onClose: () => void;
   onRestore: (index: number) => void;
 }

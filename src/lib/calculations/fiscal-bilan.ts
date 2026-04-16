@@ -1,4 +1,4 @@
-import type { AppData, Property, CalculatorInputs } from "@/types";
+import type { DonneesApp, Bien, EntreesCalculateur } from "@/types";
 import { annualiserMontant, getPropertyAcquisitionDate, prorataPremiereAnneeFactor } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/expenseRevisions";
 import { interetsAnneeForLoan, loanDureeTotaleMois } from "./loan";
@@ -48,7 +48,7 @@ function isActiveInYear(dateDebut: string, dateFin: string | undefined, year: nu
   return true;
 }
 
-function propertyToAmortInputs(p: Property): Pick<CalculatorInputs, 'prixAchat' | 'fraisAgence' | 'montantTravaux' | 'lotsTravaux' | 'lotsMobilier'> {
+function propertyToAmortInputs(p: Bien): Pick<EntreesCalculateur, 'prixAchat' | 'fraisAgence' | 'montantTravaux' | 'lotsTravaux' | 'lotsMobilier'> {
   return {
     prixAchat: p.prixAchat,
     fraisAgence: p.fraisAgence ?? 0,
@@ -60,18 +60,18 @@ function propertyToAmortInputs(p: Property): Pick<CalculatorInputs, 'prixAchat' 
   };
 }
 
-function computeAmortissement(p: Property, fraisNotaire: number, annee: number): number {
+function computeAmortissement(p: Bien, fraisNotaire: number, annee: number): number {
   const purchaseYear = parseInt(getPropertyAcquisitionDate(p).slice(0, 4));
   const yearsOwned = annee - purchaseYear + 1;
   if (yearsOwned < 1) return 0;
   return Math.round(calculerAmortissementAnnee(
-    propertyToAmortInputs(p) as CalculatorInputs,
+    propertyToAmortInputs(p) as EntreesCalculateur,
     fraisNotaire,
     yearsOwned,
   ));
 }
 
-export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnnuel {
+export function computeBilanFiscal(data: DonneesApp, annee: number): BilanFiscalAnnuel {
   const regime = data.settings.regimeFiscal;
   const tmi = 0.30; // default TMI
 
@@ -221,7 +221,7 @@ export function computeBilanFiscal(data: AppData, annee: number): BilanFiscalAnn
   return { annee, regime, rows, totaux };
 }
 
-export function getAvailableYears(data: AppData): number[] {
+export function getAvailableYears(data: DonneesApp): number[] {
   const now = new Date().getFullYear();
   const years = new Set<number>();
 

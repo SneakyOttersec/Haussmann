@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { PropertyDocument, DocumentCategory } from "@/types";
-import { DOCUMENT_CATEGORY_LABELS } from "@/types";
+import type { DocumentBien, CategorieDocument } from "@/types";
+import { CATEGORIE_DOCUMENT_LABELS } from "@/types";
 import { checkFileSize } from "@/lib/utils";
 import { ConfirmDelete } from "@/components/ui/confirm-delete";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,8 +19,8 @@ export interface LinkedDoc {
 }
 
 interface Props {
-  documents: PropertyDocument[];
-  onAdd: (data: Omit<PropertyDocument, "id">) => void;
+  documents: DocumentBien[];
+  onAdd: (data: Omit<DocumentBien, "id">) => void;
   onDelete: (id: string) => void;
   propertyId: string;
   /** Documents from other sources (timeline phases, loan PJs, intervention PJs). Read-only. */
@@ -35,7 +35,7 @@ function formatSize(bytes: number): string {
 
 export function DocumentSection({ documents, onAdd, onDelete, propertyId, linkedDocs = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [categorie, setCategorie] = useState<DocumentCategory>("autre");
+  const [categorie, setCategorie] = useState<CategorieDocument>("autre");
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -56,7 +56,7 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId, linked
     e.target.value = "";
   };
 
-  const download = (doc: PropertyDocument) => {
+  const download = (doc: DocumentBien) => {
     const a = document.createElement("a");
     a.href = doc.data;
     a.download = doc.nom;
@@ -69,8 +69,8 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId, linked
         <CardTitle className="text-base">Documents</CardTitle>
         <div className="flex items-center gap-2">
           <div className="flex flex-wrap gap-1">
-            {Object.entries(DOCUMENT_CATEGORY_LABELS).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setCategorie(k as DocumentCategory)}
+            {Object.entries(CATEGORIE_DOCUMENT_LABELS).map(([k, label]) => (
+              <button key={k} type="button" onClick={() => setCategorie(k as CategorieDocument)}
                 className={`px-1.5 py-0.5 rounded text-[10px] transition-colors ${categorie === k ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}
               >{label}</button>
             ))}
@@ -86,7 +86,7 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId, linked
           <div className="space-y-2">
             {documents.map((doc) => (
               <div key={doc.id} className="flex items-center gap-3 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0">
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{DOCUMENT_CATEGORY_LABELS[doc.categorie]}</span>
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{CATEGORIE_DOCUMENT_LABELS[doc.categorie]}</span>
                 <button onClick={() => download(doc)} className="flex-1 text-left text-primary hover:underline truncate">{doc.nom}</button>
                 <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.taille)}</span>
                 <span className="text-xs text-muted-foreground shrink-0">{doc.ajouteLe}</span>
@@ -105,7 +105,7 @@ export function DocumentSection({ documents, onAdd, onDelete, propertyId, linked
               {linkedDocs.map((doc) => (
                 <div key={doc.key} className="flex items-center gap-3 text-sm py-1.5 border-b border-dashed border-muted-foreground/10 last:border-0 opacity-80">
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">{doc.sourceLabel}</span>
-                  <button onClick={() => download({ nom: doc.fileName, data: doc.dataUri } as PropertyDocument)} className="flex-1 text-left text-primary hover:underline truncate">{doc.fileName}</button>
+                  <button onClick={() => download({ nom: doc.fileName, data: doc.dataUri } as DocumentBien)} className="flex-1 text-left text-primary hover:underline truncate">{doc.fileName}</button>
                   <span className="text-xs text-muted-foreground shrink-0">{formatSize(doc.fileSize)}</span>
                   <span className="text-xs text-muted-foreground shrink-0">{doc.date ? new Date(doc.date).toLocaleDateString("fr-FR") : "—"}</span>
                 </div>

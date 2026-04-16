@@ -3,14 +3,14 @@
 import { useMemo, useState } from "react";
 import { useAppData } from "@/hooks/useLocalStorage";
 import { Input } from "@/components/ui/input";
-import type { AppData } from "@/types";
+import type { DonneesApp } from "@/types";
 import { listAllDocuments, formatFileSize, type DocumentListEntry } from "@/lib/doc-extract";
 
 /**
  * Delete a document by its key. The key encodes source + location:
  *   phase:propId:phaseName | doc:docId | loan:loanId:index | inter:interId
  */
-function deleteDocByKey(key: string, setData: (fn: (prev: AppData) => AppData) => void) {
+function deleteDocByKey(key: string, setData: (fn: (prev: DonneesApp) => DonneesApp) => void) {
   const parts = key.split(":");
   const src = parts[0];
 

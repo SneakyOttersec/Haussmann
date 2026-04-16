@@ -1,4 +1,4 @@
-import type { CalculatorInputs, RegimeFiscalType, YearProjection } from '@/types';
+import type { EntreesCalculateur, RegimeFiscalDetaille, ProjectionAnnuelle } from '@/types';
 import { calculerTRI } from './irr';
 import {
   PRELEVEMENTS_SOCIAUX,
@@ -56,7 +56,7 @@ export interface RegimeApplicability {
  * Micro regimes have revenue thresholds.
  */
 export function regimeApplicability(
-  regime: RegimeFiscalType,
+  regime: RegimeFiscalDetaille,
   loyerBrutAnnuel: number,
 ): RegimeApplicability {
   if (regime === 'ir_micro') {
@@ -97,8 +97,8 @@ function impotIS(resultatFiscal: number): number {
  * Pure function — pass previous state, receive new state.
  */
 export function computeTaxForRegime(
-  regime: RegimeFiscalType,
-  inputs: CalculatorInputs,
+  regime: RegimeFiscalDetaille,
+  inputs: EntreesCalculateur,
   fraisNotaire: number,
   year: YearTaxInput,
   prevState: RegimeState,
@@ -235,7 +235,7 @@ export function computeTaxForRegime(
  * - IS : plus-value pro = prix vente - VNC (prix - amort cumules), taxee au taux IS.
  */
 export function plusValueSortie(
-  regime: RegimeFiscalType,
+  regime: RegimeFiscalDetaille,
   prixAchat: number,
   travaux: number,
   fraisNotaire: number,
@@ -298,9 +298,9 @@ export function plusValueSortie(
 /* ── Full projection under one regime ── */
 
 export interface RegimeProjection {
-  regime: RegimeFiscalType;
+  regime: RegimeFiscalDetaille;
   applicability: RegimeApplicability;
-  projection: YearProjection[];
+  projection: ProjectionAnnuelle[];
   amortCumule: number;
   impotCumule: number;
   cashFlowCumuleApresImpot: number;
@@ -322,7 +322,7 @@ export interface YearComputed {
 }
 
 export interface RegimeComparison {
-  regime: RegimeFiscalType;
+  regime: RegimeFiscalDetaille;
   applicability: RegimeApplicability;
   impotAn1: number;
   impotCumuleHorizon: number;
@@ -339,13 +339,13 @@ export interface RegimeComparison {
  * run tax computation for the given regime and return projection.
  */
 export function projeterAvecRegime(
-  regime: RegimeFiscalType,
-  inputs: CalculatorInputs,
+  regime: RegimeFiscalDetaille,
+  inputs: EntreesCalculateur,
   fraisNotaire: number,
   years: YearComputed[],
 ): RegimeProjection {
   const applicability = regimeApplicability(regime, years[0]?.loyerBrut ?? 0);
-  const projection: YearProjection[] = [];
+  const projection: ProjectionAnnuelle[] = [];
   let state = initialRegimeState();
   let amortCumule = 0;
   let impotCumule = 0;
@@ -406,10 +406,10 @@ export function projeterAvecRegime(
 
 /* ── Multi-regime comparison ── */
 
-const ALL_REGIMES: RegimeFiscalType[] = ['ir_reel', 'ir_micro', 'lmnp_reel', 'lmnp_micro', 'is'];
+const ALL_REGIMES: RegimeFiscalDetaille[] = ['ir_reel', 'ir_micro', 'lmnp_reel', 'lmnp_micro', 'is'];
 
 function notesForRegime(
-  regime: RegimeFiscalType,
+  regime: RegimeFiscalDetaille,
   applicability: RegimeApplicability,
   regProj: RegimeProjection,
   horizon: number,
@@ -460,7 +460,7 @@ export interface ComparerRegimesOptions {
 }
 
 export function comparerRegimes(
-  inputs: CalculatorInputs,
+  inputs: EntreesCalculateur,
   fraisNotaire: number,
   years: YearComputed[],
   opts: ComparerRegimesOptions,

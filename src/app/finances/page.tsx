@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useAppData } from "@/hooks/useLocalStorage";
-import type { AppData, Property, PropertyStatus } from "@/types";
+import type { DonneesApp, Bien, StatutBien } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { toast } from "sonner";
 import { formatCurrency, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
@@ -29,7 +29,7 @@ const RendementChartFinances = dynamic(
 /** Hard cap so charts stay snappy even when a property has very old prospection dates. */
 const MAX_HISTORY_MONTHS = 60;
 
-function buildMonthlyCashFlow(data: AppData): MonthlyFinance[] {
+function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
   const now = new Date();
   const months: MonthlyFinance[] = [];
   let cumul = 0;
@@ -132,7 +132,7 @@ function buildMonthlyCashFlow(data: AppData): MonthlyFinance[] {
 
 const APPRECIATION_ANNUELLE = 0.02;
 
-function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMonth[] {
+function buildPatrimoine(data: DonneesApp, projectionYears: number): PatrimoineMonth[] {
   const months: PatrimoineMonth[] = [];
   const now = new Date();
 
@@ -186,20 +186,20 @@ function buildPatrimoine(data: AppData, projectionYears: number): PatrimoineMont
   return months;
 }
 
-function earliestDate(p: Property): Date {
+function earliestDate(p: Bien): Date {
   return new Date(getPropertyAcquisitionDate(p));
 }
 
 /** Statuts pre-acte: le bien n'est pas encore acquis, pas de flux financiers */
-const PRE_ACTE_STATUSES: PropertyStatus[] = ['prospection', 'offre', 'compromis'];
+const PRE_ACTE_STATUSES: StatutBien[] = ['prospection', 'offre', 'compromis'];
 
-function isPropertyActive(statut: PropertyStatus | undefined): boolean {
+function isPropertyActive(statut: StatutBien | undefined): boolean {
   if (!statut) return true; // backward compat: no status = assume active
   return !PRE_ACTE_STATUSES.includes(statut);
 }
 
-/** Filter AppData to only include financially active properties (post-acte AND not soft-deleted) */
-function filterActiveProperties(data: AppData): AppData {
+/** Filter DonneesApp to only include financially active properties (post-acte AND not soft-deleted) */
+function filterActiveProperties(data: DonneesApp): DonneesApp {
   const activeIds = new Set(
     data.properties.filter((p) => !p.deletedAt && isPropertyActive(p.statut)).map((p) => p.id),
   );
@@ -359,7 +359,7 @@ export default function Finances() {
     <div className="space-y-6">
       <h1>Finances</h1>
 
-      {/* Property filter */}
+      {/* Bien filter */}
       {activeProperties.length > 1 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Biens :</span>

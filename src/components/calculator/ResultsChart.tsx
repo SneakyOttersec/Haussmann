@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { YearProjection, CalculatorInputs, CalculatorResults, EvolvableKey } from "@/types";
+import type { ProjectionAnnuelle, EntreesCalculateur, ResultatsCalculateur, CleEvolution } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import {
   ComposedChart,
@@ -18,10 +18,10 @@ import {
 } from "recharts";
 
 interface ResultsChartProps {
-  projection: YearProjection[];
-  inputs: CalculatorInputs;
-  results: CalculatorResults;
-  onUpdateEvolutions: (evolutions: CalculatorInputs["evolutions"]) => void;
+  projection: ProjectionAnnuelle[];
+  inputs: EntreesCalculateur;
+  results: ResultatsCalculateur;
+  onUpdateEvolutions: (evolutions: EntreesCalculateur["evolutions"]) => void;
 }
 
 interface TableRow {
@@ -29,18 +29,18 @@ interface TableRow {
   values: number[];
   bold?: boolean;
   separator?: boolean;
-  evoKey?: EvolvableKey;
+  evoKey?: CleEvolution;
 }
 
 function evolve(base: number, rate: number, years: number): number[] {
   return Array.from({ length: years }, (_, i) => base * Math.pow(1 + rate, i));
 }
 
-function evoRate(inputs: CalculatorInputs, key: EvolvableKey): number {
+function evoRate(inputs: EntreesCalculateur, key: CleEvolution): number {
   return inputs.evolutions?.[key] ?? 0;
 }
 
-function buildTableRows(inputs: CalculatorInputs, results: CalculatorResults): TableRow[] {
+function buildTableRows(inputs: EntreesCalculateur, results: ResultatsCalculateur): TableRow[] {
   const p = results.projection;
   if (p.length === 0) return [];
 
@@ -48,11 +48,11 @@ function buildTableRows(inputs: CalculatorInputs, results: CalculatorResults): T
   const comptaParLot = 80;
 
   // Individual charge lines (evolved) — recompute from base + evo for the breakdown
-  const r = (key: EvolvableKey) => evoRate(inputs, key);
+  const r = (key: CleEvolution) => evoRate(inputs, key);
   const baseGestion = results.loyerAnnuelNet * inputs.gestionLocativePct;
   const baseCompta = inputs.comptabilite;
 
-  const ev = (base: number, key: EvolvableKey) => p.map((_, i) => base * Math.pow(1 + r(key), i));
+  const ev = (base: number, key: CleEvolution) => p.map((_, i) => base * Math.pow(1 + r(key), i));
 
   const assurancePNO = ev(inputs.assurancePNO, "assurancePNO");
   const gestionLoc = ev(baseGestion, "gestionLocative");
@@ -106,7 +106,7 @@ interface Milestone {
   color: string;
 }
 
-function computeMilestones(projection: YearProjection[], inputs: CalculatorInputs): Milestone[] {
+function computeMilestones(projection: ProjectionAnnuelle[], inputs: EntreesCalculateur): Milestone[] {
   const milestones: Milestone[] = [];
 
   // Annee d'autofinancement: first year cash flow after tax >= 0
@@ -181,7 +181,7 @@ function FluxTooltip({ active, payload, label }: any) {
 
 export function ResultsChart({ projection, inputs, results, onUpdateEvolutions }: ResultsChartProps) {
   const [showTable, setShowTable] = useState(true);
-  const [editingEvo, setEditingEvo] = useState<EvolvableKey | null>(null);
+  const [editingEvo, setEditingEvo] = useState<CleEvolution | null>(null);
   const [fluxYears, setFluxYears] = useState(25);
   const [patrimoineYears, setPatrimoineYears] = useState(25);
 

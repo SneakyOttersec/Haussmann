@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import type { Property, Income, Expense, LoanDetails, Lot, RentMonthEntry, YearProjection, CalculatorInputs, PropertyStatus } from "@/types";
+import type { Bien, Revenu, Depense, Pret, Lot, SuiviMensuelLoyer, ProjectionAnnuelle, EntreesCalculateur, StatutBien } from "@/types";
 import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
@@ -24,7 +24,7 @@ const EXCLUDED_EXPENSE_CATEGORIES = new Set([
 ]);
 
 /** Real cash flow only makes sense once the property is generating rent (location or beyond). */
-function isOperating(statut?: PropertyStatus): boolean {
+function isOperating(statut?: StatutBien): boolean {
   return statut === "location" || statut === "exploitation";
 }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -74,13 +74,13 @@ function RvsCurvesInfo() {
 }
 
 interface Props {
-  property: Property;
-  incomes: Income[];
-  expenses: Expense[];
-  rentEntries: RentMonthEntry[];
-  loan?: LoanDetails | null;
+  property: Bien;
+  incomes: Revenu[];
+  expenses: Depense[];
+  rentEntries: SuiviMensuelLoyer[];
+  loan?: Pret | null;
   /** Callback pour persister lock / overrides / history du snapshot. */
-  onUpdateProperty?: (updates: Partial<Property>) => void;
+  onUpdateProperty?: (updates: Partial<Bien>) => void;
   /** Capital deja tire sur le credit (principal − travaux non consommes).
    *  Quand fourni et different du montant emprunte total, une courbe
    *  "Simule sur capital consomme" est ajoutee au graph. */
@@ -347,8 +347,8 @@ function SimSnapshotBlock({
   onUpdateProperty,
 }: {
   snapshot: SimSnapshot;
-  property: Property;
-  onUpdateProperty?: (updates: Partial<Property>) => void;
+  property: Bien;
+  onUpdateProperty?: (updates: Partial<Bien>) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
@@ -956,11 +956,11 @@ interface SimSnapshot {
 }
 
 export function RealVsSimulatedSection({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots, onActuelSnapshot }: Props) {
-  const [projection, setProjection] = useState<YearProjection[] | null>(null);
-  const [projectionActuel, setProjectionActuel] = useState<YearProjection[] | null>(null);
-  const [projectionActuelConsomme, setProjectionActuelConsomme] = useState<YearProjection[] | null>(null);
-  const [projectionOptimum, setProjectionOptimum] = useState<YearProjection[] | null>(null);
-  const [projectionOptimumConsomme, setProjectionOptimumConsomme] = useState<YearProjection[] | null>(null);
+  const [projection, setProjection] = useState<ProjectionAnnuelle[] | null>(null);
+  const [projectionActuel, setProjectionActuel] = useState<ProjectionAnnuelle[] | null>(null);
+  const [projectionActuelConsomme, setProjectionActuelConsomme] = useState<ProjectionAnnuelle[] | null>(null);
+  const [projectionOptimum, setProjectionOptimum] = useState<ProjectionAnnuelle[] | null>(null);
+  const [projectionOptimumConsomme, setProjectionOptimumConsomme] = useState<ProjectionAnnuelle[] | null>(null);
   const [snapshot, setSnapshot] = useState<SimSnapshot | null>(null);
   const [showSimule, setShowSimule] = useState(true);
   const [showActuel, setShowActuel] = useState(true);
@@ -984,7 +984,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
     const sim = sims.find((s) => s.id === property.simulationId);
     if (!sim) return;
     hydrateSimulation(sim).then((hydrated) => {
-      const inputs: CalculatorInputs = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
+      const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
       // Patch the simulation inputs with the property's CURRENT loan params.
       // The simulation may have been saved before defer was added, or the user
       // may have changed loan terms on the property page without re-saving
@@ -1049,14 +1049,14 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       setProjection(results.projection);
       // ── Optimum : meme simulation mais SANS vacance locative (pleine occupation) ──
       // Donne le plafond theorique du cash flow.
-      const inputsOpt: CalculatorInputs = { ...inputs, tauxVacance: 0 };
+      const inputsOpt: EntreesCalculateur = { ...inputs, tauxVacance: 0 };
       const resultsOpt = calculerRentabilite(inputsOpt);
       setProjectionOptimum(resultsOpt.projection);
       // Variante "sur capital consomme" : meme Optimum mais avec principal tire.
       const hasConsomme = montantEmprunteConsomme != null
         && Math.round(montantEmprunteConsomme) !== Math.round(inputs.montantEmprunte);
       if (hasConsomme) {
-        const inputsOptCons: CalculatorInputs = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
+        const inputsOptCons: EntreesCalculateur = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
         setProjectionOptimumConsomme(calculerRentabilite(inputsOptCons).projection);
       } else {
         setProjectionOptimumConsomme(null);
@@ -1065,7 +1065,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       // courantes du bien (loyer des lots, vacance globale, apport, charges
       // annualisees des 12 derniers mois). Si l'utilisateur modifie un lot ou
       // une depense sans re-sauver la sim, cette courbe le reflete.
-      const inputsActuel: CalculatorInputs = { ...inputs };
+      const inputsActuel: EntreesCalculateur = { ...inputs };
       const lotsLoyerMensuel = (lots ?? []).reduce((s, l) => s + (l.loyerMensuel ?? 0), 0);
       if (lotsLoyerMensuel > 0) {
         inputsActuel.loyerMensuel = lotsLoyerMensuel;
@@ -1112,7 +1112,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       }
       // Variante "sur capital consomme" : meme inputsActuel mais principal tire.
       if (hasConsomme) {
-        const inputsActuelCons: CalculatorInputs = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
+        const inputsActuelCons: EntreesCalculateur = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
         setProjectionActuelConsomme(calculerRentabilite(inputsActuelCons).projection);
       } else {
         setProjectionActuelConsomme(null);

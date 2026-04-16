@@ -12,17 +12,17 @@ import { RentTrackingGrid } from "@/components/property/RentTrackingGrid";
 import { ChargeTrackingGrid } from "@/components/property/ChargeTrackingGrid";
 import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
-import { PROPERTY_TYPE_LABELS } from "@/types";
+import { TYPE_BIEN_LABELS } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { PROPERTY_STATUS_ORDER, PROPERTY_STATUS_LABELS } from "@/types";
-import type { Lot, RentMonthEntry, Property, Expense, ChargePaymentEntry, PropertyStatus } from "@/types";
+import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
+import type { Lot, SuiviMensuelLoyer, Bien, Depense, PaiementCharge, StatutBien } from "@/types";
 
 /** Returns true if the property has reached at least "acte signe" status. */
-function isExploitable(statut?: PropertyStatus): boolean {
+function isExploitable(statut?: StatutBien): boolean {
   if (!statut) return false;
-  const idx = PROPERTY_STATUS_ORDER.indexOf(statut);
-  const acteIdx = PROPERTY_STATUS_ORDER.indexOf("acte");
+  const idx = STATUT_BIEN_ORDER.indexOf(statut);
+  const acteIdx = STATUT_BIEN_ORDER.indexOf("acte");
   return idx >= acteIdx;
 }
 
@@ -33,7 +33,7 @@ function currentMonthStr(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function computeRentKpis(lots: Lot[], entries: RentMonthEntry[], months: string[]) {
+function computeRentKpis(lots: Lot[], entries: SuiviMensuelLoyer[], months: string[]) {
   const currentYM = currentMonthStr();
   const pastMonths = months.filter((m) => m <= currentYM);
   const windowEntries = entries.filter((e) => pastMonths.includes(e.yearMonth));
@@ -78,9 +78,9 @@ function PropertyRentCard({
   entries,
   onClick,
 }: {
-  property: Property;
+  property: Bien;
   lots: Lot[];
-  entries: RentMonthEntry[];
+  entries: SuiviMensuelLoyer[];
   onClick: () => void;
 }) {
   const exploitable = isExploitable(property.statut);
@@ -106,9 +106,9 @@ function PropertyRentCard({
           <h3 className="font-bold text-sm">{property.nom}</h3>
           <div className="flex items-center gap-1.5">
             {!exploitable && property.statut && (
-              <Badge variant="outline" className="text-[10px]">{PROPERTY_STATUS_LABELS[property.statut]}</Badge>
+              <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[property.statut]}</Badge>
             )}
-            <Badge variant="secondary" className="text-xs">{PROPERTY_TYPE_LABELS[property.type]}</Badge>
+            <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[property.type]}</Badge>
           </div>
         </div>
         <p className="text-xs text-muted-foreground mb-3 truncate">
@@ -364,7 +364,7 @@ function LoyersContent() {
             </div>
           )}
 
-          {/* Property detail OR cards */}
+          {/* Bien detail OR cards */}
           {selected ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">

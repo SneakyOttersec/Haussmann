@@ -1,5 +1,5 @@
 import { IS_TAUX_REDUIT, IS_SEUIL_REDUIT, IS_TAUX_NORMAL } from '../constants';
-import type { CalculatorInputs, LotTravaux } from '@/types';
+import type { EntreesCalculateur, LotTravaux } from '@/types';
 import { AMORT_DUREES } from '@/types';
 import { round2 } from '@/lib/round';
 
@@ -16,7 +16,7 @@ export function calculerImpotIS(resultatFiscal: number): number {
  * having its own duration. After the duration, that component stops.
  */
 export function calculerAmortissementAnnee(
-  inputs: CalculatorInputs,
+  inputs: EntreesCalculateur,
   fraisNotaire: number,
   annee: number,
 ): number {

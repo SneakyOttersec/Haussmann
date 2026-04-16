@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Expense, ExpenseCategory, ExpenseFrequency } from "@/types";
-import { EXPENSE_CATEGORY_LABELS, FREQUENCY_LABELS } from "@/types";
+import type { Depense, CategorieDepense, FrequenceDepense } from "@/types";
+import { CATEGORIE_DEPENSE_LABELS, FREQUENCY_LABELS } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { expenseSchema, validateForm, type ValidationErrors } from "@/lib/validation";
 
-type ExpenseFormData = Omit<Expense, "id" | "createdAt" | "updatedAt">;
+type ExpenseFormData = Omit<Depense, "id" | "createdAt" | "updatedAt">;
 
 interface ExpenseFormProps {
   propertyId: string;
@@ -78,7 +78,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
     setErrors({});
     onSubmit({
       ...form,
-      label: form.label || EXPENSE_CATEGORY_LABELS[form.categorie],
+      label: form.label || CATEGORIE_DEPENSE_LABELS[form.categorie],
     });
     setOpen(false);
     setForm({
@@ -109,7 +109,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
           <div className="space-y-2.5">
             <Label className="text-xs uppercase tracking-wider text-muted-foreground">Categorie</Label>
             <ChipGroup
-              options={EXPENSE_CATEGORY_LABELS}
+              options={CATEGORIE_DEPENSE_LABELS}
               value={form.categorie}
               onChange={(v) => update("categorie", v)}
             />
@@ -127,7 +127,7 @@ export function ExpenseForm({ propertyId, initialData, onSubmit, trigger }: Expe
             <Input
               value={form.label}
               onChange={(e) => update("label", e.target.value)}
-              placeholder={EXPENSE_CATEGORY_LABELS[form.categorie]}
+              placeholder={CATEGORIE_DEPENSE_LABELS[form.categorie]}
             />
           </div>
           <div className="grid grid-cols-2 gap-4">

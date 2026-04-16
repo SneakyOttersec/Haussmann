@@ -1,6 +1,6 @@
 "use client";
 
-import type { Expense, Income, LoanDetails, Property, RentMonthEntry } from "@/types";
+import type { Depense, Revenu, Pret, Bien, SuiviMensuelLoyer } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { buildMonthlyFlow, computeCashflowStats } from "@/lib/monthlyFlow";
 import {
@@ -17,12 +17,12 @@ import {
 } from "recharts";
 
 interface CashFlowChartProps {
-  property: Property;
-  incomes: Income[];
-  expenses: Expense[];
-  rentEntries: RentMonthEntry[];
+  property: Bien;
+  incomes: Revenu[];
+  expenses: Depense[];
+  rentEntries: SuiviMensuelLoyer[];
   /** Optional loan — when provided, monthly credit is computed from the loan schedule (handles defer). */
-  loan?: LoanDetails | null;
+  loan?: Pret | null;
 }
 
 const fmtEur = (v: number) =>

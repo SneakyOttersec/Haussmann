@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, Intervention } from "@/types";
+import type { DonneesApp, Intervention } from "@/types";
 import { generateId, now } from "@/lib/utils";
 
 export function useInterventions(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
 ) {
   const all = data?.interventions ?? [];

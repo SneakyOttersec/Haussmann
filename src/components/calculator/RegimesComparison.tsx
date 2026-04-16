@@ -1,23 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { CalculatorInputs, RegimeFiscalType } from "@/types";
-import { REGIME_FISCAL_SHORT, REGIME_FISCAL_LABELS, toRegimeFiscalType } from "@/types";
+import type { EntreesCalculateur, RegimeFiscalDetaille } from "@/types";
+import { REGIME_FISCAL_DETAILLE_SHORT, REGIME_FISCAL_DETAILLE_LABELS, versRegimeFiscalDetaille } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { computeYearlyFinancials } from "@/lib/calculations";
 import { comparerRegimes, type RegimeComparison } from "@/lib/calculations/regimes";
 
 interface Props {
-  inputs: CalculatorInputs;
+  inputs: EntreesCalculateur;
 }
 
 const HORIZONS = [5, 10, 15, 20, 25];
 
 // Fixed column order (LMNP always leftmost)
-const REGIME_ORDER: RegimeFiscalType[] = ['lmnp_reel', 'lmnp_micro', 'ir_reel', 'ir_micro', 'is'];
+const REGIME_ORDER: RegimeFiscalDetaille[] = ['lmnp_reel', 'lmnp_micro', 'ir_reel', 'ir_micro', 'is'];
 
 // Regimes visible by default
-const DEFAULT_VISIBLE: RegimeFiscalType[] = ['ir_reel', 'ir_micro', 'is'];
+const DEFAULT_VISIBLE: RegimeFiscalDetaille[] = ['ir_reel', 'ir_micro', 'is'];
 
 function Cell({
   value,
@@ -49,7 +49,7 @@ function pickBest(
   comparisons: RegimeComparison[],
   key: keyof Pick<RegimeComparison, "impotCumuleHorizon" | "cashFlowCumuleHorizonApresImpot" | "triInvestisseur" | "patrimoineNetApresVente">,
   direction: "min" | "max",
-): RegimeFiscalType | null {
+): RegimeFiscalDetaille | null {
   const applicable = comparisons.filter((c) => c.applicability.applicable);
   if (applicable.length === 0) return null;
   const sorted = [...applicable].sort((a, b) =>
@@ -60,8 +60,8 @@ function pickBest(
 
 export function RegimesComparison({ inputs }: Props) {
   const [horizon, setHorizon] = useState(10);
-  const [visible, setVisible] = useState<Set<RegimeFiscalType>>(new Set(DEFAULT_VISIBLE));
-  const currentRegime = toRegimeFiscalType(inputs.regimeFiscal);
+  const [visible, setVisible] = useState<Set<RegimeFiscalDetaille>>(new Set(DEFAULT_VISIBLE));
+  const currentRegime = versRegimeFiscalDetaille(inputs.regimeFiscal);
 
   const allComparisons = useMemo(() => {
     const fin = computeYearlyFinancials(inputs);
@@ -86,7 +86,7 @@ export function RegimesComparison({ inputs }: Props) {
 
   const recommande = bestPatrimoine;
 
-  const toggleRegime = (r: RegimeFiscalType) => {
+  const toggleRegime = (r: RegimeFiscalDetaille) => {
     setVisible((prev) => {
       const next = new Set(prev);
       if (next.has(r)) {
@@ -140,7 +140,7 @@ export function RegimesComparison({ inputs }: Props) {
                   : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-muted-foreground/60"
               }`}
             >
-              {REGIME_FISCAL_SHORT[r]}
+              {REGIME_FISCAL_DETAILLE_SHORT[r]}
             </button>
           );
         })}
@@ -151,7 +151,7 @@ export function RegimesComparison({ inputs }: Props) {
         <div className="border border-dashed border-green-600/30 bg-green-600/5 rounded-md px-3 py-2">
           <p className="text-[11px] text-muted-foreground">
             <span className="text-green-600 font-semibold">Meilleur regime a {horizon} ans :</span>{" "}
-            <span className="font-bold text-foreground">{REGIME_FISCAL_LABELS[recommande]}</span>
+            <span className="font-bold text-foreground">{REGIME_FISCAL_DETAILLE_LABELS[recommande]}</span>
             {recommande === currentRegime && (
               <span className="ml-2 text-[10px] text-muted-foreground">(regime actuel)</span>
             )}
@@ -177,7 +177,7 @@ export function RegimesComparison({ inputs }: Props) {
                     } ${isCurrent ? "bg-primary/5" : ""}`}
                     title={!c.applicability.applicable ? c.applicability.reason : undefined}
                   >
-                    {REGIME_FISCAL_SHORT[c.regime]}
+                    {REGIME_FISCAL_DETAILLE_SHORT[c.regime]}
                     {isCurrent && <span className="block text-[9px] text-primary font-normal">(actuel)</span>}
                   </th>
                 );
@@ -278,7 +278,7 @@ export function RegimesComparison({ inputs }: Props) {
                 !c.applicability.applicable ? "opacity-50" : ""
               }`}
             >
-              <p className="font-semibold text-[11px]">{REGIME_FISCAL_SHORT[c.regime]}</p>
+              <p className="font-semibold text-[11px]">{REGIME_FISCAL_DETAILLE_SHORT[c.regime]}</p>
               <ul className="space-y-0.5">
                 {c.notes.map((n, i) => (
                   <li key={i} className="text-[10px] text-muted-foreground leading-relaxed">

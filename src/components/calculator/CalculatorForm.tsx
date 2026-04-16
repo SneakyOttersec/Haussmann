@@ -1,6 +1,6 @@
 "use client";
 
-import type { CalculatorInputs, PropertyType, TaxRegime, LoanType, LotLoyer, LotMobilier, LotTravaux } from "@/types";
+import type { EntreesCalculateur, TypeBien, RegimeFiscal, TypePret, LotLoyer, LotMobilier, LotTravaux } from "@/types";
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
 import { checkFileSize } from "@/lib/utils";
@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { useRef, useState } from "react";
 
 export interface CalculatorFormProps {
-  inputs: CalculatorInputs;
-  onUpdate: <K extends keyof CalculatorInputs>(key: K, value: CalculatorInputs[K]) => void;
+  inputs: EntreesCalculateur;
+  onUpdate: <K extends keyof EntreesCalculateur>(key: K, value: EntreesCalculateur[K]) => void;
 }
 
 const inputClass = "flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40";
@@ -182,7 +182,7 @@ export function SimulationCard({ inputs, onUpdate }: CalculatorFormProps) {
           <select
             className={inputClass}
             value={inputs.type ?? "appartement"}
-            onChange={(e) => onUpdate("type", e.target.value as PropertyType)}
+            onChange={(e) => onUpdate("type", e.target.value as TypeBien)}
           >
             <option value="appartement">Appartement</option>
             <option value="maison">Maison</option>
@@ -546,7 +546,7 @@ export function BienCard({ inputs, onUpdate }: CalculatorFormProps) {
 
 /* ── Charges annuelles card ── */
 
-function ChargesSummary({ inputs }: { inputs: CalculatorInputs }) {
+function ChargesSummary({ inputs }: { inputs: EntreesCalculateur }) {
   const lotsCount = inputs.lots?.length || 1;
   const comptaBase = inputs.comptabilite || (80 * lotsCount);
   const loyerAnnuelBrut = (inputs.lots ?? []).reduce((s, l) => s + (l.loyerMensuel || 0), 0) * 12 + inputs.autresRevenusAnnuels;
@@ -675,7 +675,7 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
         <SelectField
           label="Type de pret"
           value={inputs.typePret}
-          onChange={(v) => onUpdate("typePret", v as LoanType)}
+          onChange={(v) => onUpdate("typePret", v as TypePret)}
           options={[
             { value: "amortissable", label: "Amortissable" },
             { value: "in_fine", label: "In fine" },
@@ -757,7 +757,7 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
   );
 }
 
-function AmortissementSummary({ inputs }: { inputs: CalculatorInputs }) {
+function AmortissementSummary({ inputs }: { inputs: EntreesCalculateur }) {
   const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
   const valeurBatiment = inputs.prixAchat * 0.80;
   const mobilierTotal = (inputs.lotsMobilier ?? []).reduce((s, l) => s + (l.montant || 0), 0);
@@ -816,7 +816,7 @@ export function FiscaliteCard({ inputs, onUpdate }: CalculatorFormProps) {
       <SelectField
         label="Regime fiscal"
         value={inputs.regimeFiscal}
-        onChange={(v) => onUpdate("regimeFiscal", v as TaxRegime)}
+        onChange={(v) => onUpdate("regimeFiscal", v as RegimeFiscal)}
         options={[
           { value: "IR", label: "SCI a l'IR" },
           { value: "IS", label: "SCI a l'IS" },

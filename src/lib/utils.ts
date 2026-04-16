@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { ExpenseFrequency, IncomeFrequency } from "@/types"
+import type { FrequenceDepense, FrequenceRevenu } from "@/types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -28,7 +28,7 @@ export function formatPercent(value: number, decimals = 2): string {
   return `${value.toFixed(decimals)} %`;
 }
 
-export function annualiserMontant(montant: number, frequence: ExpenseFrequency | IncomeFrequency): number {
+export function annualiserMontant(montant: number, frequence: FrequenceDepense | FrequenceRevenu): number {
   switch (frequence) {
     case 'mensuel': return montant * 12;
     case 'trimestriel': return montant * 4;
@@ -37,7 +37,7 @@ export function annualiserMontant(montant: number, frequence: ExpenseFrequency |
   }
 }
 
-export function mensualiserMontant(montant: number, frequence: ExpenseFrequency | IncomeFrequency): number {
+export function mensualiserMontant(montant: number, frequence: FrequenceDepense | FrequenceRevenu): number {
   switch (frequence) {
     case 'mensuel': return montant;
     case 'trimestriel': return montant / 3;

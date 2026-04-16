@@ -8,12 +8,12 @@ import {
   type YearTaxInput,
   type YearComputed,
 } from '../regimes';
-import type { CalculatorInputs } from '@/types';
+import type { EntreesCalculateur } from '@/types';
 import { DEFAULT_CALCULATOR_INPUTS, PRELEVEMENTS_SOCIAUX } from '../../constants';
 
 /* ── Shared fixtures ── */
 
-const baseInputs: CalculatorInputs = {
+const baseInputs: EntreesCalculateur = {
   ...DEFAULT_CALCULATOR_INPUTS,
   prixAchat: 200_000,
   fraisNotairePct: 0.08,

@@ -1,4 +1,4 @@
-import type { Property, Income, Expense, RentMonthEntry, LoanDetails } from "@/types";
+import type { Bien, Revenu, Depense, SuiviMensuelLoyer, Pret } from "@/types";
 import { getMontantEffectif } from "./expenseRevisions";
 import { getPropertyAcquisitionDate } from "./utils";
 import { mensualiteAtMonth, loanDureeTotaleMois } from "./calculations/loan";
@@ -28,7 +28,7 @@ function monthLabel(d: Date): string {
  * Returns YYYY-MM for the start of the property's exploitation window.
  * Uses dateSaisie as a proxy. Capped at `maxMonthsBack` months ago to avoid huge ranges.
  */
-export function propertyStartYM(property: Property): string {
+export function propertyStartYM(property: Bien): string {
   const acqDate = getPropertyAcquisitionDate(property);
   const d = new Date(acqDate);
   if (!isNaN(d.getTime())) return ymKey(d);
@@ -65,18 +65,18 @@ function monthlyContribution(
 
 /**
  * Build monthly flow data for a property from exploitation start up to current month.
- * - Loyer incomes are taken from RentMonthEntry.loyerPercu (actual tracked values).
+ * - Loyer incomes are taken from SuiviMensuelLoyer.loyerPercu (actual tracked values).
  * - Non-loyer incomes + expenses are projected from recurring entries.
  * - Credit: if `loan` is provided, the per-month payment is computed from the
  *   loan helpers (taking defer into account). Otherwise, the legacy behavior
  *   reads the auto-created "credit" expense — which doesn't model defer.
  */
 export function buildMonthlyFlow(
-  property: Property,
-  incomes: Income[],
-  expenses: Expense[],
-  rentEntries: RentMonthEntry[],
-  loan?: LoanDetails | null,
+  property: Bien,
+  incomes: Revenu[],
+  expenses: Depense[],
+  rentEntries: SuiviMensuelLoyer[],
+  loan?: Pret | null,
 ): MonthFlowData[] {
   const startYM = propertyStartYM(property);
   const [sy, sm] = startYM.split("-").map(Number);
@@ -167,7 +167,7 @@ export function computeCashflowStats(monthlyData: MonthFlowData[]): CashflowStat
  * This is what the property "should" generate per month based on contracts/projections,
  * as opposed to the actual cashflow derived from rent tracking + bookkeeping.
  */
-export function computeTheoreticalMonthlyCashflow(incomes: Income[], expenses: Expense[]): number {
+export function computeTheoreticalMonthlyCashflow(incomes: Revenu[], expenses: Depense[]): number {
   const mensualise = (montant: number, frequence: "mensuel" | "trimestriel" | "annuel" | "ponctuel") => {
     switch (frequence) {
       case "mensuel": return montant;

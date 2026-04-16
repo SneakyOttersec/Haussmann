@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
-import type { AppData, LoanDetails } from "@/types";
+import type { DonneesApp, Pret } from "@/types";
 import { generateId } from "@/lib/utils";
 
 export function useLoans(
-  data: AppData | null,
-  setData: (updater: (prev: AppData) => AppData) => void,
+  data: DonneesApp | null,
+  setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   propertyId?: string
 ) {
   const allLoans = data?.loans ?? [];
@@ -19,7 +19,7 @@ export function useLoans(
   const loan = propertyId ? loans[0] ?? null : null;
 
   const setLoan = useCallback(
-    (loanData: Omit<LoanDetails, "id">) => {
+    (loanData: Omit<Pret, "id">) => {
       setData((prev) => {
         const existing = prev.loans.find((l) => l.propertyId === loanData.propertyId);
         if (existing) {

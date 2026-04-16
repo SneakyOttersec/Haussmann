@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo } from "react";
-import type { Property, Expense, Income, LoanDetails, RentMonthEntry, PropertyStatus } from "@/types";
-import { PROPERTY_TYPE_LABELS, PROPERTY_STATUS_LABELS, PROPERTY_STATUS_ORDER } from "@/types";
+import type { Bien, Depense, Revenu, Pret, SuiviMensuelLoyer, StatutBien } from "@/types";
+import { TYPE_BIEN_LABELS, STATUT_BIEN_LABELS, STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { getCurrentMontant } from "@/lib/expenseRevisions";
@@ -13,22 +13,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface PropertyCardProps {
-  property: Property;
-  expenses: Expense[];
-  incomes: Income[];
-  rentEntries: RentMonthEntry[];
-  loan?: LoanDetails | null;
+  property: Bien;
+  expenses: Depense[];
+  incomes: Revenu[];
+  rentEntries: SuiviMensuelLoyer[];
+  loan?: Pret | null;
   onDelete?: (id: string) => void;
 }
 
-function isPostActe(statut?: PropertyStatus): boolean {
+function isPostActe(statut?: StatutBien): boolean {
   if (!statut) return true;
-  return PROPERTY_STATUS_ORDER.indexOf(statut) >= PROPERTY_STATUS_ORDER.indexOf("acte");
+  return STATUT_BIEN_ORDER.indexOf(statut) >= STATUT_BIEN_ORDER.indexOf("acte");
 }
 
-function isEnLocation(statut?: PropertyStatus): boolean {
+function isEnLocation(statut?: StatutBien): boolean {
   if (!statut) return true;
-  return PROPERTY_STATUS_ORDER.indexOf(statut) >= PROPERTY_STATUS_ORDER.indexOf("location");
+  return STATUT_BIEN_ORDER.indexOf(statut) >= STATUT_BIEN_ORDER.indexOf("location");
 }
 
 export function PropertyCard({ property, expenses, incomes, rentEntries, loan, onDelete }: PropertyCardProps) {
@@ -71,9 +71,9 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             <h3 className="font-bold text-sm group-hover:text-primary transition-colors">{property.nom}</h3>
             <div className="flex items-center gap-1.5">
               {property.statut && property.statut !== "exploitation" && (
-                <Badge variant="outline" className="text-[10px]">{PROPERTY_STATUS_LABELS[property.statut]}</Badge>
+                <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[property.statut]}</Badge>
               )}
-              <Badge variant="secondary" className="text-xs">{PROPERTY_TYPE_LABELS[property.type]}</Badge>
+              <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[property.type]}</Badge>
               {onDelete && (
                 <button
                   onClick={(e) => {

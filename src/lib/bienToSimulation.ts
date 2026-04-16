@@ -1,15 +1,15 @@
-import type { AppData, CalculatorInputs, LotLoyer, LotMobilier } from "@/types";
+import type { DonneesApp, EntreesCalculateur, LotLoyer, LotMobilier } from "@/types";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { annualiserMontant, mensualiserMontant } from "@/lib/utils";
 
 /**
- * Build CalculatorInputs from an existing property in AppData.
+ * Build EntreesCalculateur from an existing property in DonneesApp.
  * Symmetric of simulationToBien: reads property + linked lots, incomes,
  * expenses and loan, reconstructing a simulation that matches.
  *
  * Returns null if property not found.
  */
-export function bienToSimulation(data: AppData, propertyId: string): CalculatorInputs | null {
+export function bienToSimulation(data: DonneesApp, propertyId: string): EntreesCalculateur | null {
   const property = data.properties.find((p) => p.id === propertyId);
   if (!property) return null;
 
