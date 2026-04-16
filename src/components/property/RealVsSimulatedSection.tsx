@@ -1475,7 +1475,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
           </span>
         </div>
 
-        <ResponsiveContainer width="100%" height={330}>
+        <ResponsiveContainer width="100%" height={495}>
           <ComposedChart data={data} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} />
             <XAxis dataKey="annee" tick={{ fontSize: 10 }} />

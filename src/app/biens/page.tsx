@@ -37,7 +37,7 @@ const CashFlowChart = dynamic(
 );
 const RealVsSimulatedSection = dynamic(
   () => import("@/components/property/RealVsSimulatedSection").then((m) => m.RealVsSimulatedSection),
-  { ssr: false, loading: () => <div className="h-[330px] border border-dashed rounded-md" /> }
+  { ssr: false, loading: () => <div className="h-[495px] border border-dashed rounded-md" /> }
 );
 const MonthlyRendementChart = dynamic(
   () => import("@/components/property/MonthlyRendementChart").then((m) => m.MonthlyRendementChart),
