@@ -7,9 +7,9 @@ export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"
   label: string;              // "mar 25"
   revenusLoyers: number;      // from rent tracking entries
-  revenusAutres: number;      // other recurring incomes (non-loyer)
-  depenses: number;           // non-credit expenses
-  credit: number;             // credit expenses
+  revenusAutres: number;      // other recurring revenus (non-loyer)
+  depenses: number;           // non-credit depenses
+  credit: number;             // credit depenses
   cashFlow: number;
 }
 
@@ -25,18 +25,18 @@ function monthLabel(d: Date): string {
 }
 
 /**
- * Returns YYYY-MM for the start of the property's exploitation window.
+ * Returns YYYY-MM for the start of the bien's exploitation window.
  * Uses dateSaisie as a proxy. Capped at `maxMonthsBack` months ago to avoid huge ranges.
  */
-export function propertyStartYM(property: Bien): string {
-  const acqDate = getPropertyAcquisitionDate(property);
+export function propertyStartYM(bien: Bien): string {
+  const acqDate = getPropertyAcquisitionDate(bien);
   const d = new Date(acqDate);
   if (!isNaN(d.getTime())) return ymKey(d);
   const now = new Date();
   return ymKey(new Date(now.getFullYear(), now.getMonth() - 24, 1));
 }
 
-/** Amount of a recurring income/expense contributed to a specific month, proratized if needed. */
+/** Amount of a recurring revenu/depense contributed to a specific month, proratized if needed. */
 function monthlyContribution(
   dateDebut: string,
   dateFin: string | undefined,
@@ -64,21 +64,21 @@ function monthlyContribution(
 }
 
 /**
- * Build monthly flow data for a property from exploitation start up to current month.
- * - Loyer incomes are taken from SuiviMensuelLoyer.loyerPercu (actual tracked values).
- * - Non-loyer incomes + expenses are projected from recurring entries.
- * - Credit: if `loan` is provided, the per-month payment is computed from the
- *   loan helpers (taking defer into account). Otherwise, the legacy behavior
- *   reads the auto-created "credit" expense — which doesn't model defer.
+ * Build monthly flow data for a bien from exploitation start up to current month.
+ * - Loyer revenus are taken from SuiviMensuelLoyer.loyerPercu (actual tracked values).
+ * - Non-loyer revenus + depenses are projected from recurring entries.
+ * - Credit: if `pret` is provided, the per-month payment is computed from the
+ *   pret helpers (taking defer into account). Otherwise, the legacy behavior
+ *   reads the auto-created "credit" depense — which doesn't model defer.
  */
 export function buildMonthlyFlow(
-  property: Bien,
-  incomes: Revenu[],
-  expenses: Depense[],
-  rentEntries: SuiviMensuelLoyer[],
-  loan?: Pret | null,
+  bien: Bien,
+  revenus: Revenu[],
+  depenses: Depense[],
+  suiviLoyers: SuiviMensuelLoyer[],
+  pret?: Pret | null,
 ): MonthFlowData[] {
-  const startYM = propertyStartYM(property);
+  const startYM = propertyStartYM(bien);
   const [sy, sm] = startYM.split("-").map(Number);
   const start = new Date(sy, sm - 1, 1);
   const now = new Date();
@@ -89,50 +89,50 @@ export function buildMonthlyFlow(
 
   // Fast lookup of rent entries by yearMonth
   const rentByYM = new Map<string, number>();
-  for (const e of rentEntries) {
+  for (const e of suiviLoyers) {
     rentByYM.set(e.yearMonth, (rentByYM.get(e.yearMonth) ?? 0) + e.loyerPercu);
   }
 
-  // Pre-compute loan start cursor for the per-month credit calculation.
-  const loanStart = loan ? new Date(loan.dateDebut) : null;
+  // Pre-compute pret start cursor for the per-month credit calculation.
+  const loanStart = pret ? new Date(pret.dateDebut) : null;
 
   while (ymKey(cursor) <= currentYM) {
     const yearMonth = ymKey(cursor);
     let revenusAutres = 0;
-    let depenses = 0;
+    let totalDepenses = 0;
     let credit = 0;
 
-    for (const inc of incomes) {
-      if (inc.categorie === "loyer") continue; // loyer comes from rentEntries
+    for (const inc of revenus) {
+      if (inc.categorie === "loyer") continue; // loyer comes from suiviLoyers
       revenusAutres += monthlyContribution(inc.dateDebut, inc.dateFin, inc.montant, inc.frequence, cursor);
     }
-    for (const exp of expenses) {
-      // Skip the auto-created credit expense when we have a loan: we recompute
-      // it from the loan schedule below to handle defer correctly.
-      if (loan && exp.categorie === "credit") continue;
+    for (const exp of depenses) {
+      // Skip the auto-created credit depense when we have a pret: we recompute
+      // it from the pret schedule below to handle defer correctly.
+      if (pret && exp.categorie === "credit") continue;
       const montantEff = obtenirMontantEffectif(exp, cursor);
       const montant = monthlyContribution(exp.dateDebut, exp.dateFin, montantEff, exp.frequence, cursor);
       if (exp.categorie === "credit") credit += montant;
-      else depenses += montant;
+      else totalDepenses += montant;
     }
 
-    if (loan && loanStart && !isNaN(loanStart.getTime())) {
+    if (pret && loanStart && !isNaN(loanStart.getTime())) {
       const monthIdx = (cursor.getFullYear() - loanStart.getFullYear()) * 12
         + (cursor.getMonth() - loanStart.getMonth());
-      if (monthIdx >= 0 && monthIdx < dureeTotaleMoisPret(loan)) {
-        credit += mensualiteAuMois(loan, monthIdx) + loan.assuranceAnnuelle / 12;
+      if (monthIdx >= 0 && monthIdx < dureeTotaleMoisPret(pret)) {
+        credit += mensualiteAuMois(pret, monthIdx) + pret.assuranceAnnuelle / 12;
       }
     }
 
     const revenusLoyers = rentByYM.get(yearMonth) ?? 0;
-    const cashFlow = revenusLoyers + revenusAutres - depenses - credit;
+    const cashFlow = revenusLoyers + revenusAutres - totalDepenses - credit;
 
     months.push({
       yearMonth,
       label: monthLabel(cursor),
       revenusLoyers: Math.round(revenusLoyers),
       revenusAutres: Math.round(revenusAutres),
-      depenses: Math.round(depenses),
+      depenses: Math.round(totalDepenses),
       credit: Math.round(credit),
       cashFlow: Math.round(cashFlow),
     });
@@ -163,11 +163,11 @@ export function computeCashflowStats(monthlyData: MonthFlowData[]): CashflowStat
 }
 
 /**
- * Theoretical monthly cashflow based on recurring incomes and expenses (ignoring ponctuels).
- * This is what the property "should" generate per month based on contracts/projections,
+ * Theoretical monthly cashflow based on recurring revenus and depenses (ignoring ponctuels).
+ * This is what the bien "should" generate per month based on contracts/projections,
  * as opposed to the actual cashflow derived from rent tracking + bookkeeping.
  */
-export function computeTheoreticalMonthlyCashflow(incomes: Revenu[], expenses: Depense[]): number {
+export function computeTheoreticalMonthlyCashflow(revenus: Revenu[], depenses: Depense[]): number {
   const mensualise = (montant: number, frequence: "mensuel" | "trimestriel" | "annuel" | "ponctuel") => {
     switch (frequence) {
       case "mensuel": return montant;
@@ -177,7 +177,7 @@ export function computeTheoreticalMonthlyCashflow(incomes: Revenu[], expenses: D
     }
   };
   const today = new Date();
-  const revenus = incomes.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
-  const depenses = expenses.reduce((s, e) => s + mensualise(obtenirMontantEffectif(e, today), e.frequence), 0);
-  return revenus - depenses;
+  const totalRevenus = revenus.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
+  const totalDepenses = depenses.reduce((s, e) => s + mensualise(obtenirMontantEffectif(e, today), e.frequence), 0);
+  return totalRevenus - totalDepenses;
 }

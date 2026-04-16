@@ -101,7 +101,7 @@ export interface AllocationCredit {
   garantie: number;
   /** Mobilier (pour une location meublee). Ajoute en 2026 — avant cette date
    *  il etait regroupe avec "autre". Les allocations existantes sans ce
-   *  champ sont backfilled depuis property.montantMobilier. */
+   *  champ sont backfilled depuis bien.montantMobilier. */
   mobilier?: number;
   autre: number;
 }
@@ -189,7 +189,7 @@ export interface PieceJointeIntervention {
 
 export interface Intervention {
   id: string;
-  propertyId: string;
+  bienId: string;
   /** 'travaux' (gros chantier) or 'intervention' (maintenance courante). Defaults to 'intervention' for backward compat. */
   interventionType?: TypeIntervention;
   /** Lot concerne (optionnel) */
@@ -202,7 +202,7 @@ export interface Intervention {
   statut: InterventionStatut;
   pieceJointe?: PieceJointeIntervention;
   /**
-   * For travaux only: true if this line is funded by the loan's "enveloppe
+   * For travaux only: true if this line is funded by the pret's "enveloppe
    * travaux" (allocationCredit.travaux). Used to track how much of the
    * envelope has been consumed.
    */
@@ -227,7 +227,7 @@ export const ROLE_CONTACT_LABELS: Record<RoleContact, string> = {
 
 export interface Contact {
   id: string;
-  propertyId?: string;
+  bienId?: string;
   nom: string;
   role: RoleContact;
   telephone?: string;
@@ -253,7 +253,7 @@ export const CATEGORIE_DOCUMENT_LABELS: Record<CategorieDocument, string> = {
 
 export interface DocumentBien {
   id: string;
-  propertyId: string;
+  bienId: string;
   nom: string;
   categorie: CategorieDocument;
   data: string;
@@ -276,7 +276,7 @@ export interface EntreeHistoriqueLoyer {
 
 export interface Lot {
   id: string;
-  propertyId: string;
+  bienId: string;
   nom: string;
   etage?: string;
   surface?: number;
@@ -303,7 +303,7 @@ export const STATUT_SUIVI_MENSUEL_LOYER_LABELS: Record<StatutSuiviMensuelLoyer, 
 
 export interface SuiviMensuelLoyer {
   id: string;
-  propertyId: string;
+  bienId: string;
   lotId: string;
   /** "YYYY-MM" e.g. "2025-03" */
   yearMonth: string;
@@ -329,7 +329,7 @@ export interface RevisionDepense {
 
 export interface Depense {
   id: string;
-  propertyId: string;
+  bienId: string;
   categorie: CategorieDepense;
   label: string;
   montant: number;
@@ -350,7 +350,7 @@ export interface Depense {
 
 export interface Revenu {
   id: string;
-  propertyId: string;
+  bienId: string;
   categorie: CategorieRevenu;
   label: string;
   montant: number;
@@ -371,16 +371,16 @@ export interface PieceJointePret {
 }
 
 /**
- * Differe type for a loan:
+ * Differe type for a pret:
  * - "partiel": during the defer period, only the interest is paid (no capital).
  * - "total":   during the defer period, nothing is paid; interest is capitalized.
- *              The loan starts amortizing on the inflated principal afterwards.
+ *              The pret starts amortizing on the inflated principal afterwards.
  */
 export type TypeDiffere = "partiel" | "total";
 
 export interface Pret {
   id: string;
-  propertyId: string;
+  bienId: string;
   type: TypePret;
   montantEmprunte: number;
   tauxAnnuel: number;
@@ -394,12 +394,12 @@ export interface Pret {
   banque?: string;
   documents?: PieceJointePret[];
   /**
-   * True once the user has confirmed that the loan reflects a real bank offer
+   * True once the user has confirmed that the pret reflects a real bank offer
    * (and not just a simulation). Drives the "Theorique"/"Reel" label on the
-   * Credit section in pre-acte properties.
+   * Credit section in pre-acte biens.
    */
   offerValidated?: boolean;
-  /** Number of months of defer at the start of the loan (0 = no defer). */
+  /** Number of months of defer at the start of the pret (0 = no defer). */
   differeMois?: number;
   /** Defer type — only meaningful if differeMois > 0. */
   differeType?: TypeDiffere;
@@ -649,9 +649,9 @@ export const STATUT_PAIEMENT_CHARGE_LABELS: Record<StatutPaiementCharge, string>
 
 export interface PaiementCharge {
   id: string;
-  /** Linked recurring expense */
-  expenseId: string;
-  propertyId: string;
+  /** Linked recurring depense */
+  depenseId: string;
+  bienId: string;
   /** "YYYY-MM" for mensuel, "YYYY-Q1".."YYYY-Q4" for trimestriel, "YYYY" for annuel */
   periode: string;
   montantAttendu: number;
@@ -664,16 +664,16 @@ export interface PaiementCharge {
 }
 
 export interface DonneesApp {
-  properties: Bien[];
-  expenses: Depense[];
-  incomes: Revenu[];
-  loans: Pret[];
+  biens: Bien[];
+  depenses: Depense[];
+  revenus: Revenu[];
+  prets: Pret[];
   interventions: Intervention[];
   contacts: Contact[];
   documents: DocumentBien[];
   lots: Lot[];
-  rentTracking: SuiviMensuelLoyer[];
-  chargePayments: PaiementCharge[];
+  suiviLoyers: SuiviMensuelLoyer[];
+  paiementsCharges: PaiementCharge[];
   settings: ParametresApp;
 }
 

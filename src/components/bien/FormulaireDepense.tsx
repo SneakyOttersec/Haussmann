@@ -18,7 +18,7 @@ import { expenseSchema, validateForm, type ValidationErrors } from "@/lib/valida
 type ExpenseFormData = Omit<Depense, "id" | "createdAt" | "updatedAt">;
 
 interface ExpenseFormProps {
-  propertyId: string;
+  bienId: string;
   initialData?: Partial<ExpenseFormData>;
   onSubmit: (data: ExpenseFormData) => void;
   trigger?: React.ReactNode;
@@ -53,10 +53,10 @@ function ChipGroup<T extends string>({
   );
 }
 
-export function FormulaireDepense({ propertyId, initialData, onSubmit, trigger }: ExpenseFormProps) {
+export function FormulaireDepense({ bienId, initialData, onSubmit, trigger }: ExpenseFormProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<ExpenseFormData>({
-    propertyId,
+    bienId,
     categorie: initialData?.categorie ?? "autre",
     label: initialData?.label ?? "",
     montant: initialData?.montant ?? 0,
@@ -82,7 +82,7 @@ export function FormulaireDepense({ propertyId, initialData, onSubmit, trigger }
     });
     setOpen(false);
     setForm({
-      propertyId,
+      bienId,
       categorie: "autre",
       label: "",
       montant: 0,

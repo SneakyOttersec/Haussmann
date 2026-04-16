@@ -105,7 +105,7 @@ function pageFooter(doc: jsPDF, page: number, total: number, nomSCI: string) {
 function detectMissing(data: DonneesApp, bilan: ReturnType<typeof computeBilanFiscal>): boolean {
   if (!data.settings.siren) return true;
   if (!data.settings.adresseSiege) return true;
-  if (bilan.totaux.revenusLocatifs === 0 && data.properties.length > 0) return true;
+  if (bilan.totaux.revenusLocatifs === 0 && data.biens.length > 0) return true;
   if ((data.settings.associes ?? []).length === 0) return true;
   return false;
 }
@@ -132,8 +132,8 @@ function applyWatermark(doc: jsPDF) {
 export async function generateLiasseIS(data: DonneesApp, annee: number): Promise<void> {
   const { settings } = data;
   const bilan = computeBilanFiscal(data, annee);
-  const properties = data.properties.filter(p => !p.deletedAt);
-  const loans = data.loans;
+  const biens = data.biens.filter(p => !p.deletedAt);
+  const prets = data.prets;
   const missing = detectMissing(data, bilan);
 
   const { default: JsPDF } = await import("jspdf");
@@ -180,7 +180,7 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
   y += 4;
 
   y = section(doc, y, "Liste des immeubles");
-  for (const p of properties) {
+  for (const p of biens) {
     y = row(doc, y, p.nom, `${TYPE_BIEN_LABELS[p.type]} · ${p.adresse?.slice(0, 40) || ""}`, { indent: 4 });
   }
 
@@ -200,7 +200,7 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
   let totalImmoBrut = 0;
   let totalAmortCumule = 0;
 
-  for (const p of properties) {
+  for (const p of biens) {
     const fraisNotaire = p.fraisNotaire ?? (p.prixAchat * 0.08);
     const brut = p.prixAchat + fraisNotaire + (p.fraisAgence ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
     totalImmoBrut += brut;
@@ -230,7 +230,7 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
   // Actif circulant
   y = row(doc, y, "ACTIF CIRCULANT", "", { bold: true });
   // Impayés = créances
-  const impayes = (data.rentTracking ?? [])
+  const impayes = (data.suiviLoyers ?? [])
     .filter(r => r.yearMonth.startsWith(String(annee)) && (r.statut === "impaye" || (r.statut === "partiel" && r.partielRaison !== "vacance_partielle")))
     .reduce((s, r) => s + Math.max(0, r.loyerAttendu - r.loyerPercu), 0);
   y = row(doc, y, "  Creances clients (impayes)", eur(Math.round(impayes)), { indent: 4 });
@@ -257,11 +257,11 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
 
   // Emprunts (defer-aware via crdEnFinAnnee)
   let totalCRD = 0;
-  for (const loan of loans) {
-    const loanStart = parseInt(loan.dateDebut.slice(0, 4));
+  for (const pret of prets) {
+    const loanStart = parseInt(pret.dateDebut.slice(0, 4));
     const yearsElapsed = annee - loanStart + 1;
-    if (yearsElapsed >= 1 && yearsElapsed <= loan.dureeAnnees) {
-      totalCRD += crdEnFinAnnee(loan, yearsElapsed);
+    if (yearsElapsed >= 1 && yearsElapsed <= pret.dureeAnnees) {
+      totalCRD += crdEnFinAnnee(pret, yearsElapsed);
     }
   }
   y = row(doc, y, "Emprunts et dettes", eur(Math.round(totalCRD)));
@@ -340,7 +340,7 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
   let totalDotation = 0;
   let totalAmortCumuleDetail = 0;
 
-  for (const p of properties) {
+  for (const p of biens) {
     const fraisNotaire = p.fraisNotaire ?? (p.prixAchat * 0.08);
     const purchaseYear = parseInt(getPropertyAcquisitionDate(p).slice(0, 4));
     const yearsOwned = annee - purchaseYear + 1;

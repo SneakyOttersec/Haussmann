@@ -12,7 +12,7 @@ import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
 
 // Categories already reflected elsewhere in the simulation — we exclude them
 // from the "Projection actuelle" annual charges to avoid double counting:
-// - credit : handled by the loan inputs
+// - credit : handled by the pret inputs
 // - vacance : handled by tauxVacance
 // - frais_notaire / travaux / ameublement : included in acquisition cost
 const EXCLUDED_EXPENSE_CATEGORIES = new Set([
@@ -23,7 +23,7 @@ const EXCLUDED_EXPENSE_CATEGORIES = new Set([
   "ameublement",
 ]);
 
-/** Real cash flow only makes sense once the property is generating rent (location or beyond). */
+/** Real cash flow only makes sense once the bien is generating rent (location or beyond). */
 function estEnExploitation(statut?: StatutBien): boolean {
   return statut === "location" || statut === "exploitation";
 }
@@ -74,11 +74,11 @@ function RvsCurvesInfo() {
 }
 
 interface Props {
-  property: Bien;
-  incomes: Revenu[];
-  expenses: Depense[];
-  rentEntries: SuiviMensuelLoyer[];
-  loan?: Pret | null;
+  bien: Bien;
+  revenus: Revenu[];
+  depenses: Depense[];
+  suiviLoyers: SuiviMensuelLoyer[];
+  pret?: Pret | null;
   /** Callback pour persister lock / overrides / history du snapshot. */
   onUpdateProperty?: (updates: Partial<Bien>) => void;
   /** Capital deja tire sur le credit (principal − travaux non consommes).
@@ -104,7 +104,7 @@ interface SimBreakdown {
   charges: number;
   mensualitesCredit: number;
   cashFlowAvantImpot: number;
-  /** True if this year is (fully or partially) in the loan defer phase. */
+  /** True if this year is (fully or partially) in the pret defer phase. */
   isDiffere: boolean;
 }
 
@@ -339,15 +339,15 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
  * Snapshot repliable + verrouillable + editable de la simulation initiale.
  * - Header cliquable pour deplier/replier.
  * - Cadenas (verrouille par defaut) pour autoriser l'edition.
- * - Chaque modification pousse une entree dans property.simulationSnapshotHistory.
+ * - Chaque modification pousse une entree dans bien.simulationSnapshotHistory.
  */
 function SimSnapshotBlock({
   snapshot,
-  property,
+  bien,
   onUpdateProperty,
 }: {
   snapshot: SimSnapshot;
-  property: Bien;
+  bien: Bien;
   onUpdateProperty?: (updates: Partial<Bien>) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -355,9 +355,9 @@ function SimSnapshotBlock({
   const [draft, setDraft] = useState<string>("");
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const locked = property.simulationSnapshotLocked ?? true;
-  const overrides = property.simulationSnapshotOverrides ?? {};
-  const history = property.simulationSnapshotHistory ?? [];
+  const locked = bien.simulationSnapshotLocked ?? true;
+  const overrides = bien.simulationSnapshotOverrides ?? {};
+  const history = bien.simulationSnapshotHistory ?? [];
 
   // Valeurs effectives : overrides si presents, sinon snapshot derive.
   type NumField =
@@ -489,9 +489,9 @@ function SimSnapshotBlock({
           <span className="text-[10px] text-muted-foreground font-normal ml-1 hidden sm:inline">({expanded ? "replier" : "cliquer pour deplier"})</span>
         </button>
         <div className="flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
-          {property.simulationId && (
+          {bien.simulationId && (
             <Link
-              href={`/simulateur?simId=${property.simulationId}`}
+              href={`/simulateur?simId=${bien.simulationId}`}
               className="text-[10px] text-primary hover:underline shrink-0"
               title="Ouvrir la simulation initiale dans le simulateur"
             >
@@ -955,7 +955,7 @@ interface SimSnapshot {
   regimeFiscal: string;
 }
 
-export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, loan, onUpdateProperty, montantEmprunteConsomme, lots, onActuelSnapshot }: Props) {
+export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret, onUpdateProperty, montantEmprunteConsomme, lots, onActuelSnapshot }: Props) {
   const [projection, setProjection] = useState<ProjectionAnnuelle[] | null>(null);
   const [projectionActuel, setProjectionActuel] = useState<ProjectionAnnuelle[] | null>(null);
   const [projectionActuelConsomme, setProjectionActuelConsomme] = useState<ProjectionAnnuelle[] | null>(null);
@@ -974,31 +974,31 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
   // Incremented by a "Recharger" button so the user can pull fresh data
   // after editing the simulation in the simulator.
   const [reloadKey, setReloadKey] = useState(0);
-  // Hide the "real" curve until the property is actually generating rent.
+  // Hide the "real" curve until the bien is actually generating rent.
   // Until then there is no meaningful real cash flow to compare against the simulator.
-  const operating = estEnExploitation(property.statut);
+  const operating = estEnExploitation(bien.statut);
 
   useEffect(() => {
-    if (!property.simulationId) return;
+    if (!bien.simulationId) return;
     const sims = chargerSimulations();
-    const sim = sims.find((s) => s.id === property.simulationId);
+    const sim = sims.find((s) => s.id === bien.simulationId);
     if (!sim) return;
     hydraterSimulation(sim).then((hydrated) => {
       const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
-      // Patch the simulation inputs with the property's CURRENT loan params.
+      // Patch the simulation inputs with the bien's CURRENT pret params.
       // The simulation may have been saved before defer was added, or the user
-      // may have changed loan terms on the property page without re-saving
-      // the simulation. This ensures the chart reflects the actual loan config.
-      if (loan) {
-        inputs.montantEmprunte = loan.montantEmprunte;
-        inputs.tauxCredit = loan.tauxAnnuel;
-        inputs.dureeCredit = loan.dureeAnnees;
-        inputs.typePret = loan.type;
-        inputs.differePretMois = loan.differeMois ?? 0;
-        inputs.differePretInclus = loan.differeInclus ?? true;
-        if (loan.assuranceAnnuelle > 0) {
+      // may have changed pret terms on the bien page without re-saving
+      // the simulation. This ensures the chart reflects the actual pret config.
+      if (pret) {
+        inputs.montantEmprunte = pret.montantEmprunte;
+        inputs.tauxCredit = pret.tauxAnnuel;
+        inputs.dureeCredit = pret.dureeAnnees;
+        inputs.typePret = pret.type;
+        inputs.differePretMois = pret.differeMois ?? 0;
+        inputs.differePretInclus = pret.differeInclus ?? true;
+        if (pret.assuranceAnnuelle > 0) {
           inputs.assurancePretMode = "eur";
-          inputs.assurancePretAnnuelle = loan.assuranceAnnuelle;
+          inputs.assurancePretAnnuelle = pret.assuranceAnnuelle;
         }
       }
       // Applique les overrides snapshot (input-level) pour que la courbe
@@ -1006,7 +1006,7 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
       // (mensualite credit, rendement, TRI) restent recalcules a partir
       // des inputs ajustes — overrider ces valeurs directement n'aurait
       // pas de sens pour la courbe de projection annuelle.
-      const ov = property.simulationSnapshotOverrides ?? {};
+      const ov = bien.simulationSnapshotOverrides ?? {};
       if (typeof ov.loyerMensuelTotal === "number") {
         inputs.loyerMensuel = ov.loyerMensuelTotal;
         inputs.lots = []; // la surcharge remplace la somme des lots
@@ -1071,11 +1071,11 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
         inputsActuel.loyerMensuel = lotsLoyerMensuel;
         inputsActuel.lots = [];
       }
-      if (typeof property.tauxVacanceGlobal === "number") {
-        inputsActuel.tauxVacance = property.tauxVacanceGlobal;
+      if (typeof bien.tauxVacanceGlobal === "number") {
+        inputsActuel.tauxVacance = bien.tauxVacanceGlobal;
       }
-      if (typeof property.apport === "number") {
-        inputsActuel.apportPersonnel = property.apport;
+      if (typeof bien.apport === "number") {
+        inputsActuel.apportPersonnel = bien.apport;
       }
       // Charges annuelles : somme des depenses declarees (fixes + variables
       // + ponctuelles) annualisees via leur frequence. On utilise le montant
@@ -1085,10 +1085,10 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
       // Les ponctuelles ont frequence "ponctuel" -> annualiserMontant renvoie
       // 0, ce qui est correct : un one-shot deja paye n'a pas a etre projete
       // sur 30 ans.
-      const annualCharges = (expenses ?? [])
+      const annualCharges = (depenses ?? [])
         .filter((e) => !EXCLUDED_EXPENSE_CATEGORIES.has(e.categorie))
         .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
-      if (annualCharges > 0 || (expenses ?? []).length > 0) {
+      if (annualCharges > 0 || (depenses ?? []).length > 0) {
         inputsActuel.chargesCopro = 0;
         inputsActuel.taxeFonciere = 0;
         inputsActuel.assurancePNO = 0;
@@ -1158,19 +1158,19 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
       });
     });
   }, [
-    property,
+    bien,
     reloadKey,
-    loan,
+    pret,
     montantEmprunteConsomme,
     lots,
-    expenses,
+    depenses,
   ]);
 
   /**
    * Real cash flow built from the SAME source of truth as the rest of the app:
-   * buildMonthlyFlow respects rent tracking, expense revisions, dateDebut/dateFin,
-   * and the loan defer schedule. We then sum the trailing 12 months and, if the
-   * property is younger than 12 months, extrapolate from what we have so the
+   * buildMonthlyFlow respects rent tracking, depense revisions, dateDebut/dateFin,
+   * and the pret defer schedule. We then sum the trailing 12 months and, if the
+   * bien is younger than 12 months, extrapolate from what we have so the
    * comparison vs the simulator's annual projection stays meaningful.
    *
    * We also expose the breakdown (loyers / autres revenus / charges / credit) so
@@ -1182,7 +1182,7 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
    * The last (current) year may have < 12 months → extrapolated to annual.
    */
   const { realByYear, yearsOwned } = useMemo(() => {
-    const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
+    const monthly = buildMonthlyFlow(bien, revenus, depenses, suiviLoyers, pret ?? null);
     if (monthly.length === 0) return { realByYear: [] as RealYearData[], yearsOwned: 0 };
 
     const nbYears = Math.max(1, Math.ceil(monthly.length / 12));
@@ -1212,9 +1212,9 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
       });
     }
     return { realByYear: result, yearsOwned: nbYears };
-  }, [property, incomes, expenses, rentEntries, loan]);
+  }, [bien, revenus, depenses, suiviLoyers, pret]);
 
-  if (!property.simulationId) return null;
+  if (!bien.simulationId) return null;
   if (!projection) return null;
 
   const years = Math.min(10, projection.length);
@@ -1572,7 +1572,7 @@ export function SectionReelVsSimule({ property, incomes, expenses, rentEntries, 
         {snapshot && (
           <SimSnapshotBlock
             snapshot={snapshot}
-            property={property}
+            bien={bien}
             onUpdateProperty={onUpdateProperty}
           />
         )}

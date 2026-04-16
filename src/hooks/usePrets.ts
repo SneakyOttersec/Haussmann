@@ -7,32 +7,32 @@ import { generateId } from "@/lib/utils";
 export function usePrets(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
-  const allLoans = data?.loans ?? [];
+  const allLoans = data?.prets ?? [];
 
-  const loans = useMemo(
-    () => propertyId ? allLoans.filter((l) => l.propertyId === propertyId) : allLoans,
-    [allLoans, propertyId]
+  const prets = useMemo(
+    () => bienId ? allLoans.filter((l) => l.bienId === bienId) : allLoans,
+    [allLoans, bienId]
   );
 
-  const loan = propertyId ? loans[0] ?? null : null;
+  const pret = bienId ? prets[0] ?? null : null;
 
   const setPret = useCallback(
     (loanData: Omit<Pret, "id">) => {
       setData((prev) => {
-        const existing = prev.loans.find((l) => l.propertyId === loanData.propertyId);
+        const existing = prev.prets.find((l) => l.bienId === loanData.bienId);
         if (existing) {
           return {
             ...prev,
-            loans: prev.loans.map((l) =>
-              l.propertyId === loanData.propertyId ? { ...loanData, id: l.id } : l
+            prets: prev.prets.map((l) =>
+              l.bienId === loanData.bienId ? { ...loanData, id: l.id } : l
             ),
           };
         }
         return {
           ...prev,
-          loans: [...prev.loans, { ...loanData, id: generateId() }],
+          prets: [...prev.prets, { ...loanData, id: generateId() }],
         };
       });
     },
@@ -43,11 +43,11 @@ export function usePrets(
     (id: string) => {
       setData((prev) => ({
         ...prev,
-        loans: prev.loans.filter((l) => l.id !== id),
+        prets: prev.prets.filter((l) => l.id !== id),
       }));
     },
     [setData]
   );
 
-  return { loans, loan, setPret, supprimerPret };
+  return { prets, pret, setPret, supprimerPret };
 }

@@ -18,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
 import type { Lot, SuiviMensuelLoyer, Bien, Depense, PaiementCharge, StatutBien } from "@/types";
 
-/** Returns true if the property has reached at least "acte signe" status. */
+/** Returns true if the bien has reached at least "acte signe" status. */
 function isExploitable(statut?: StatutBien): boolean {
   if (!statut) return false;
   const idx = STATUT_BIEN_ORDER.indexOf(statut);
@@ -70,20 +70,20 @@ function computeRentKpis(lots: Lot[], entries: SuiviMensuelLoyer[], months: stri
 
 type TabId = "loyers" | "charges";
 
-/* ── Rent card (for property cards view) ── */
+/* ── Rent card (for bien cards view) ── */
 
 function PropertyRentCard({
-  property,
+  bien,
   lots,
   entries,
   onClick,
 }: {
-  property: Bien;
+  bien: Bien;
   lots: Lot[];
   entries: SuiviMensuelLoyer[];
   onClick: () => void;
 }) {
-  const exploitable = isExploitable(property.statut);
+  const exploitable = isExploitable(bien.statut);
   const kpis = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -103,16 +103,16 @@ function PropertyRentCard({
     >
       <CardContent className="p-4">
         <div className="flex items-start justify-between mb-2">
-          <h3 className="font-bold text-sm">{property.nom}</h3>
+          <h3 className="font-bold text-sm">{bien.nom}</h3>
           <div className="flex items-center gap-1.5">
-            {!exploitable && property.statut && (
-              <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[property.statut]}</Badge>
+            {!exploitable && bien.statut && (
+              <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[bien.statut]}</Badge>
             )}
-            <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[property.type]}</Badge>
+            <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[bien.type]}</Badge>
           </div>
         </div>
         <p className="text-xs text-muted-foreground mb-3 truncate">
-          {property.adresse} · {lots.length} lot{lots.length > 1 ? "s" : ""} · {formatCurrency(loyerTheoriqueMensuel)}/mois
+          {bien.adresse} · {lots.length} lot{lots.length > 1 ? "s" : ""} · {formatCurrency(loyerTheoriqueMensuel)}/mois
         </p>
         {exploitable ? (
           <div className="grid grid-cols-4 gap-2 text-xs">
@@ -171,11 +171,11 @@ function PropertyRentCard({
 function LoyersContent() {
   const { data, setData } = useDonnees();
   const { lots: allLots } = useLots(data, setData);
-  const { expenses: allExpenses } = useDepenses(data, setData);
+  const { depenses: allExpenses } = useDepenses(data, setData);
   const { entries: allRentEntries, upsertEntry: upsertRent, deleteEntry: deleteRent } = useSuiviLoyers(data, setData);
   const { entries: allChargeEntries, upsertEntry: upsertCharge, deleteEntry: deleteCharge } = useChargePayments(data, setData);
   const searchParams = useSearchParams();
-  const propertyIdFromUrl = searchParams.get("propertyId");
+  const propertyIdFromUrl = searchParams.get("bienId");
   const tabFromUrl = searchParams.get("tab") as TabId | null;
 
   const [activeTab, setActiveTab] = useState<TabId>(tabFromUrl === "charges" ? "charges" : "loyers");
@@ -188,19 +188,19 @@ function LoyersContent() {
 
   const propertiesWithData = useMemo(() => {
     if (!data) return [];
-    // Exclude soft-deleted properties so they disappear from /loyers as soon as
+    // Exclude soft-deleted biens so they disappear from /loyers as soon as
     // the user moves them to the bin from the dashboard.
-    return data.properties
+    return data.biens
       .filter((p) => !p.deletedAt)
       .map((p) => ({
-        property: p,
-        lots: allLots.filter((l) => l.propertyId === p.id),
-        expenses: allExpenses.filter((e) => e.propertyId === p.id),
+        bien: p,
+        lots: allLots.filter((l) => l.bienId === p.id),
+        depenses: allExpenses.filter((e) => e.bienId === p.id),
         exploitable: isExploitable(p.statut),
       }));
   }, [data, allLots, allExpenses]);
 
-  // Global rent KPIs (exploitable properties, current calendar year)
+  // Global rent KPIs (exploitable biens, current calendar year)
   const globalRentKpis = useMemo(() => {
     const now = new Date();
     const year = now.getFullYear();
@@ -225,9 +225,9 @@ function LoyersContent() {
     let totalPaye = 0;
     let nbCharges = 0;
 
-    for (const { expenses, exploitable } of propertiesWithData) {
+    for (const { depenses, exploitable } of propertiesWithData) {
       if (!exploitable) continue;
-      for (const exp of expenses) {
+      for (const exp of depenses) {
         if (exp.frequence === "ponctuel" || exp.categorie === "credit") continue;
         nbCharges++;
         const montant = obtenirMontantCourant(exp);
@@ -241,7 +241,7 @@ function LoyersContent() {
         totalAttenduToDate += montant * periodsToDate;
 
         const expEntries = allChargeEntries.filter(
-          (e) => e.expenseId === exp.id && e.periode.startsWith(String(year)),
+          (e) => e.depenseId === exp.id && e.periode.startsWith(String(year)),
         );
         totalPaye += expEntries.reduce((s, e) => s + e.montantPaye, 0);
       }
@@ -254,9 +254,9 @@ function LoyersContent() {
   if (!data) return null;
 
   const selectedData = selectedPropertyId
-    ? propertiesWithData.find((x) => x.property.id === selectedPropertyId)
+    ? propertiesWithData.find((x) => x.bien.id === selectedPropertyId)
     : null;
-  // Only allow detail view for exploitable properties
+  // Only allow detail view for exploitable biens
   const selected = selectedData?.exploitable ? selectedData : null;
 
   const tabs: { id: TabId; label: string }[] = [
@@ -375,46 +375,46 @@ function LoyersContent() {
                   ← Tous les biens
                 </button>
                 <Link
-                  href={`/biens?id=${selected.property.id}`}
+                  href={`/biens?id=${selected.bien.id}`}
                   className="text-[11px] text-muted-foreground hover:text-primary"
                 >
                   Voir la fiche bien →
                 </Link>
               </div>
               <div>
-                <h2 className="text-lg font-semibold">{selected.property.nom}</h2>
-                <p className="text-xs text-muted-foreground">{selected.property.adresse}</p>
+                <h2 className="text-lg font-semibold">{selected.bien.nom}</h2>
+                <p className="text-xs text-muted-foreground">{selected.bien.adresse}</p>
               </div>
 
               {activeTab === "loyers" ? (
                 <RentTrackingGrid
-                  propertyId={selected.property.id}
+                  bienId={selected.bien.id}
                   lots={selected.lots}
-                  entries={allRentEntries.filter((e) => e.propertyId === selected.property.id)}
-                  dateExploitation={getPropertyAcquisitionDate(selected.property)}
+                  entries={allRentEntries.filter((e) => e.bienId === selected.bien.id)}
+                  dateExploitation={getPropertyAcquisitionDate(selected.bien)}
                   onUpsert={upsertRent}
                   onDelete={deleteRent}
                 />
               ) : (
                 <GrilleSuiviCharges
-                  propertyId={selected.property.id}
-                  expenses={selected.expenses}
-                  entries={allChargeEntries.filter((e) => e.propertyId === selected.property.id)}
+                  bienId={selected.bien.id}
+                  depenses={selected.depenses}
+                  entries={allChargeEntries.filter((e) => e.bienId === selected.bien.id)}
                   onUpsert={upsertCharge}
                   onDelete={deleteCharge}
-                  dateSaisie={getPropertyAcquisitionDate(selected.property)}
+                  dateSaisie={getPropertyAcquisitionDate(selected.bien)}
                 />
               )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {propertiesWithData.map(({ property, lots }) => (
+              {propertiesWithData.map(({ bien, lots }) => (
                 <PropertyRentCard
-                  key={property.id}
-                  property={property}
+                  key={bien.id}
+                  bien={bien}
                   lots={lots}
-                  entries={allRentEntries.filter((e) => e.propertyId === property.id)}
-                  onClick={() => isExploitable(property.statut) ? setSelectedPropertyId(property.id) : undefined}
+                  entries={allRentEntries.filter((e) => e.bienId === bien.id)}
+                  onClick={() => isExploitable(bien.statut) ? setSelectedPropertyId(bien.id) : undefined}
                 />
               ))}
             </div>

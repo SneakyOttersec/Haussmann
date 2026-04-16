@@ -59,7 +59,7 @@ function creditAnnee(
 
   const tauxMensuel = taux / 12;
   // When differeInclus === false, the amortization phase = full dureeAns,
-  // and the total loan duration is dureeAns + differeMois.
+  // and the total pret duration is dureeAns + differeMois.
   const dureeAmortMois = differeInclus
     ? dureeAns * 12 - differeMois    // inclus: defer eats into the stated duration
     : dureeAns * 12;                 // en plus: full stated duration is amortization

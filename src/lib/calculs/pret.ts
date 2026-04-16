@@ -72,11 +72,11 @@ export function interetsAnnuels(
 // Loans can include a "differe" period at the start:
 // - "partiel": only interest is paid each month (capital is untouched)
 // - "total":   nothing is paid; interest is capitalized into the principal
-// After the defer period, the loan amortizes normally over the remaining months
+// After the defer period, the pret amortizes normally over the remaining months
 // on the post-defer principal (which equals the original capital for partial,
 // or the inflated capital for total).
 //
-// `dureeAnnees` represents the TOTAL loan duration, including the defer period.
+// `dureeAnnees` represents the TOTAL pret duration, including the defer period.
 
 export interface PretLike {
   montantEmprunte: number;
@@ -99,7 +99,7 @@ export interface PretLike {
 const tauxMensuel = (l: PretLike): number => l.tauxAnnuel / 12;
 const moisDiffere = (l: PretLike): number => Math.max(0, l.differeMois ?? 0);
 
-/** Total duration of the loan in months (defer + amortization). */
+/** Total duration of the pret in months (defer + amortization). */
 const totalMois = (l: PretLike): number => {
   const dM = moisDiffere(l);
   if (dM <= 0) return l.dureeAnnees * 12;
@@ -124,28 +124,28 @@ const moisAmortissables = (l: PretLike): number => {
  * - Sans differe / partiel: = montantEmprunte (les interets ont ete payes)
  * - Differe total: = montantEmprunte * (1 + t)^N (interets capitalises)
  */
-export function capitalApresDiffere(loan: PretLike): number {
-  const dM = moisDiffere(loan);
-  if (dM <= 0) return loan.montantEmprunte;
-  if (loan.differeType === 'total') {
-    return round2(loan.montantEmprunte * Math.pow(1 + tauxMensuel(loan), dM));
+export function capitalApresDiffere(pret: PretLike): number {
+  const dM = moisDiffere(pret);
+  if (dM <= 0) return pret.montantEmprunte;
+  if (pret.differeType === 'total') {
+    return round2(pret.montantEmprunte * Math.pow(1 + tauxMensuel(pret), dM));
   }
-  return loan.montantEmprunte;
+  return pret.montantEmprunte;
 }
 
 /**
  * Mensualite (hors assurance) durant la phase d'amortissement, apres differe.
  * Calcul standard sur le capital effectif et la duree restante.
  */
-export function mensualiteAmortissement(loan: PretLike): number {
-  if (loan.type === 'in_fine') {
-    return round2(loan.montantEmprunte * loan.tauxAnnuel / 12);
+export function mensualiteAmortissement(pret: PretLike): number {
+  if (pret.type === 'in_fine') {
+    return round2(pret.montantEmprunte * pret.tauxAnnuel / 12);
   }
-  const capital = capitalApresDiffere(loan);
-  const n = moisAmortissables(loan);
+  const capital = capitalApresDiffere(pret);
+  const n = moisAmortissables(pret);
   if (capital <= 0 || n <= 0) return 0;
-  if (loan.tauxAnnuel <= 0) return round2(capital / n);
-  const t = tauxMensuel(loan);
+  if (pret.tauxAnnuel <= 0) return round2(capital / n);
+  const t = tauxMensuel(pret);
   return round2(capital * (t * Math.pow(1 + t, n)) / (Math.pow(1 + t, n) - 1));
 }
 
@@ -154,52 +154,52 @@ export function mensualiteAmortissement(loan: PretLike): number {
  * - partiel: interets uniquement = capital * (taux/12)
  * - total:   0 (interets capitalises, rien n'est paye)
  */
-export function mensualitePendantDiffere(loan: PretLike): number {
-  if (moisDiffere(loan) <= 0) return 0;
-  if (loan.differeType === 'total') return 0;
-  return round2(loan.montantEmprunte * loan.tauxAnnuel / 12);
+export function mensualitePendantDiffere(pret: PretLike): number {
+  if (moisDiffere(pret) <= 0) return 0;
+  if (pret.differeType === 'total') return 0;
+  return round2(pret.montantEmprunte * pret.tauxAnnuel / 12);
 }
 
 /**
  * Mensualite (hors assurance) au mois `monthIdx` (0-indexed depuis le debut du pret).
  */
-export function mensualiteAuMois(loan: PretLike, monthIdx: number): number {
-  if (monthIdx < 0 || monthIdx >= totalMois(loan)) return 0;
-  if (monthIdx < moisDiffere(loan)) return mensualitePendantDiffere(loan);
-  return mensualiteAmortissement(loan);
+export function mensualiteAuMois(pret: PretLike, monthIdx: number): number {
+  if (monthIdx < 0 || monthIdx >= totalMois(pret)) return 0;
+  if (monthIdx < moisDiffere(pret)) return mensualitePendantDiffere(pret);
+  return mensualiteAmortissement(pret);
 }
 
 /**
  * Capital restant du a la fin du mois `monthIdx` (0-indexed depuis le debut).
  * Tient compte du differe (partiel ou total).
  */
-export function crdAuMois(loan: PretLike, monthIdx: number): number {
-  if (monthIdx < 0) return loan.montantEmprunte;
-  // After the loan ends, the CRD is exactly zero (avoid the ~1 EUR rounding tail
+export function crdAuMois(pret: PretLike, monthIdx: number): number {
+  if (monthIdx < 0) return pret.montantEmprunte;
+  // After the pret ends, the CRD is exactly zero (avoid the ~1 EUR rounding tail
   // accumulated by hundreds of floating-point ops).
-  if (monthIdx >= totalMois(loan) - 1) return 0;
-  if (loan.type === 'in_fine') return loan.montantEmprunte;
+  if (monthIdx >= totalMois(pret) - 1) return 0;
+  if (pret.type === 'in_fine') return pret.montantEmprunte;
 
-  const t = tauxMensuel(loan);
-  const dM = moisDiffere(loan);
+  const t = tauxMensuel(pret);
+  const dM = moisDiffere(pret);
 
   // Phase de differe
   if (monthIdx < dM) {
-    if (loan.differeType === 'total') {
-      return round2(loan.montantEmprunte * Math.pow(1 + t, monthIdx + 1));
+    if (pret.differeType === 'total') {
+      return round2(pret.montantEmprunte * Math.pow(1 + t, monthIdx + 1));
     }
-    return loan.montantEmprunte; // partiel: capital constant
+    return pret.montantEmprunte; // partiel: capital constant
   }
 
   // Phase d'amortissement
-  const capital = capitalApresDiffere(loan);
+  const capital = capitalApresDiffere(pret);
   const moisDansAmort = monthIdx - dM + 1; // 1-based
-  const n = moisAmortissables(loan);
+  const n = moisAmortissables(pret);
   if (n <= 0) return 0;
-  if (loan.tauxAnnuel <= 0) {
+  if (pret.tauxAnnuel <= 0) {
     return round2(Math.max(0, capital - (capital / n) * moisDansAmort));
   }
-  const mensualite = mensualiteAmortissement(loan);
+  const mensualite = mensualiteAmortissement(pret);
   const crd = capital * Math.pow(1 + t, moisDansAmort) - mensualite * ((Math.pow(1 + t, moisDansAmort) - 1) / t);
   return round2(Math.max(0, crd));
 }
@@ -209,37 +209,37 @@ export function crdAuMois(loan: PretLike, monthIdx: number): number {
  * Pour la deductibilite fiscale : les interets capitalises pendant un differe
  * total ne sont pas consideres comme payes — donc non deductibles cette annee-la.
  */
-export function interetsAnneePret(loan: PretLike, annee: number): number {
-  const dureeReelleAnnees = Math.ceil(totalMois(loan) / 12);
+export function interetsAnneePret(pret: PretLike, annee: number): number {
+  const dureeReelleAnnees = Math.ceil(totalMois(pret) / 12);
   if (annee < 1 || annee > dureeReelleAnnees) return 0;
 
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12 - 1;
-  const dM = moisDiffere(loan);
+  const dM = moisDiffere(pret);
   let totalInterets = 0;
 
-  // In_fine: interest is paid every month the loan is active (no amortization).
+  // In_fine: interest is paid every month the pret is active (no amortization).
   // But during a differe total, nothing is paid at all → 0 deductible interest.
-  if (loan.type === 'in_fine') {
-    for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
-      if (m < dM && loan.differeType === 'total') continue; // capitalized, not paid
-      totalInterets += loan.montantEmprunte * loan.tauxAnnuel / 12;
+  if (pret.type === 'in_fine') {
+    for (let m = moisDebut; m <= moisFin && m < totalMois(pret); m++) {
+      if (m < dM && pret.differeType === 'total') continue; // capitalized, not paid
+      totalInterets += pret.montantEmprunte * pret.tauxAnnuel / 12;
     }
     return round2(totalInterets);
   }
 
-  for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
+  for (let m = moisDebut; m <= moisFin && m < totalMois(pret); m++) {
     if (m < dM) {
       // Phase differe
-      if (loan.differeType === 'partiel') {
-        totalInterets += loan.montantEmprunte * loan.tauxAnnuel / 12;
+      if (pret.differeType === 'partiel') {
+        totalInterets += pret.montantEmprunte * pret.tauxAnnuel / 12;
       }
       // total: rien n'est paye, rien n'est deductible
     } else {
       // Phase amortissement: interets = mensualite - capital rembourse
-      const crdAvant = m === 0 ? loan.montantEmprunte : crdAuMois(loan, m - 1);
-      const crdApres = crdAuMois(loan, m);
-      const mensualite = mensualiteAmortissement(loan);
+      const crdAvant = m === 0 ? pret.montantEmprunte : crdAuMois(pret, m - 1);
+      const crdApres = crdAuMois(pret, m);
+      const mensualite = mensualiteAmortissement(pret);
       const capitalRembourse = crdAvant - crdApres;
       totalInterets += Math.max(0, mensualite - capitalRembourse);
     }
@@ -251,31 +251,31 @@ export function interetsAnneePret(loan: PretLike, annee: number): number {
  * Total des mensualites (hors assurance) payees pendant l'annee (1-based).
  * Utile pour le cash flow annuel et le bilan.
  */
-export function totalMensualitesAnnee(loan: PretLike, annee: number): number {
+export function totalMensualitesAnnee(pret: PretLike, annee: number): number {
   if (annee < 1) return 0;
   let total = 0;
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12 - 1;
-  for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
-    total += mensualiteAuMois(loan, m);
+  for (let m = moisDebut; m <= moisFin && m < totalMois(pret); m++) {
+    total += mensualiteAuMois(pret, m);
   }
   return round2(total);
 }
 
 /**
- * Total loan duration in months (defer + amortization). Exported so that
+ * Total pret duration in months (defer + amortization). Exported so that
  * call sites don't have to duplicate the differeInclus logic.
  */
-export function dureeTotaleMoisPret(loan: PretLike): number {
-  return totalMois(loan);
+export function dureeTotaleMoisPret(pret: PretLike): number {
+  return totalMois(pret);
 }
 
 /**
  * CRD a la fin de l'annee N (1-based). Wrapper sur crdAuMois pour les callers
  * qui raisonnent en annees plutot qu'en mois.
  */
-export function crdEnFinAnnee(loan: PretLike, annee: number): number {
-  if (annee <= 0) return loan.montantEmprunte;
+export function crdEnFinAnnee(pret: PretLike, annee: number): number {
+  if (annee <= 0) return pret.montantEmprunte;
   const m = annee * 12 - 1;
-  return crdAuMois(loan, Math.min(m, totalMois(loan) - 1));
+  return crdAuMois(pret, Math.min(m, totalMois(pret) - 1));
 }

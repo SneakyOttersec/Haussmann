@@ -16,10 +16,10 @@ interface Props {
   onAdd: (data: Omit<Intervention, "id" | "createdAt" | "updatedAt">) => void;
   onUpdate: (id: string, updates: Partial<Intervention>) => void;
   onDelete: (id: string) => void;
-  propertyId: string;
+  bienId: string;
   filterType: TypeIntervention;
   lots?: Lot[];
-  /** Only meaningful for filterType === "travaux": the loan's travaux envelope. */
+  /** Only meaningful for filterType === "travaux": the pret's travaux envelope. */
   enveloppeCredit?: number;
   /** True if the travaux envelope is still open (date not passed). Defaults to true. */
   enveloppeOuverte?: boolean;
@@ -250,7 +250,7 @@ const SECTION_LABELS: Record<TypeIntervention, { title: string; addLabel: string
   },
 };
 
-export function SectionInterventions({ interventions, onAdd, onUpdate, onDelete, propertyId, filterType, lots = [], enveloppeCredit, enveloppeOuverte = true }: Props) {
+export function SectionInterventions({ interventions, onAdd, onUpdate, onDelete, bienId, filterType, lots = [], enveloppeCredit, enveloppeOuverte = true }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ description: "", prestataire: "", montant: 0, date: new Date().toISOString().slice(0, 10), statut: "planifie" as InterventionStatut, lotId: "", notes: "", financeParCredit: false });
   const labels = SECTION_LABELS[filterType];
@@ -264,7 +264,7 @@ export function SectionInterventions({ interventions, onAdd, onUpdate, onDelete,
     e.preventDefault();
     onAdd({
       ...form,
-      propertyId,
+      bienId,
       interventionType: filterType,
       lotId: form.lotId || undefined,
       notes: showNotes && form.notes ? form.notes : undefined,

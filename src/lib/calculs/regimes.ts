@@ -33,8 +33,8 @@ export interface YearTaxInput {
   loyerBrut: number;      // annual, before vacancy
   loyerNet: number;       // annual, after vacancy
   charges: number;        // annual deductible charges (copro, TF, PNO, gestion, etc.)
-  interets: number;       // annual loan interest
-  assurancePret: number;  // annual loan insurance
+  interets: number;       // annual pret interest
+  assurancePret: number;  // annual pret insurance
 }
 
 export interface YearTaxOutput {

@@ -31,27 +31,27 @@ export default function NouveauBien() {
               statusDates: { prospection: today },
             });
 
-            // If the user filled the financing section, create the loan + credit expense
+            // If the user filled the financing section, create the pret + credit depense
             if (loanData && loanData.montantEmprunte > 0) {
               const loanId = crypto.randomUUID();
-              const loan = { ...loanData, id: loanId, propertyId: id };
-              const mensualite = mensualiteAmortissement(loan);
-              const assurMensuelle = loan.assuranceAnnuelle / 12;
+              const pret = { ...loanData, id: loanId, bienId: id };
+              const mensualite = mensualiteAmortissement(pret);
+              const assurMensuelle = pret.assuranceAnnuelle / 12;
               const montantCredit = Math.round((mensualite + assurMensuelle) * 100) / 100;
 
               setData((prev) => ({
                 ...prev,
-                loans: [...prev.loans, loan],
-                expenses: [
-                  ...prev.expenses,
+                prets: [...prev.prets, pret],
+                depenses: [
+                  ...prev.depenses,
                   {
                     id: crypto.randomUUID(),
-                    propertyId: id,
+                    bienId: id,
                     categorie: "credit" as const,
                     label: "Mensualite credit",
                     montant: montantCredit,
                     frequence: "mensuel" as const,
-                    dateDebut: loan.dateDebut,
+                    dateDebut: pret.dateDebut,
                     notes: "",
                     createdAt: today,
                     updatedAt: today,

@@ -2,20 +2,21 @@ import type { DonneesApp } from '@/types';
 import { putBlob, getBlob } from './blobstore';
 import { extractAllDocuments, dataUriToBytes } from './doc-extract';
 
-const STORAGE_KEY = 'sci-immobilier-data';
+const STORAGE_KEY = 'haussmann-data';
+const LEGACY_STORAGE_KEY = 'sci-immobilier-data';
 
 function getDefaultData(): DonneesApp {
   return {
-    properties: [],
-    expenses: [],
-    incomes: [],
-    loans: [],
+    biens: [],
+    depenses: [],
+    revenus: [],
+    prets: [],
     interventions: [],
     contacts: [],
     documents: [],
     lots: [],
-    rentTracking: [],
-    chargePayments: [],
+    suiviLoyers: [],
+    paiementsCharges: [],
     settings: {
       regimeFiscal: 'IR',
       nomSCI: 'Ma SCI',
@@ -27,8 +28,72 @@ function getDefaultData(): DonneesApp {
   };
 }
 
+/**
+ * Renomme les anciens noms de cles top-level (propres a l'avant-refactor FR
+ * de 2026) vers leurs equivalents francais. Operation idempotente : si les
+ * nouvelles cles existent deja, les anciennes sont juste ignorees.
+ *
+ * Ancien        → Nouveau
+ * properties    → biens
+ * expenses      → depenses
+ * incomes       → revenus
+ * loans         → prets
+ * rentTracking  → suiviLoyers
+ * chargePayments → paiementsCharges
+ *
+ * Egalement les champs propertyId → bienId et expenseId → depenseId sur
+ * toutes les entites concernees.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function migrateLegacyKeys(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+  const data = { ...raw };
+  // Top-level renames
+  const TOPLEVEL_RENAMES: Array<[string, string]> = [
+    ['properties', 'biens'],
+    ['expenses', 'depenses'],
+    ['incomes', 'revenus'],
+    ['loans', 'prets'],
+    ['rentTracking', 'suiviLoyers'],
+    ['chargePayments', 'paiementsCharges'],
+  ];
+  for (const [oldKey, newKey] of TOPLEVEL_RENAMES) {
+    if (data[oldKey] !== undefined && data[newKey] === undefined) {
+      data[newKey] = data[oldKey];
+      delete data[oldKey];
+    }
+  }
+  // Per-entity field renames : propertyId → bienId
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const renamePropertyId = (arr: any[] | undefined) => (arr ?? []).map((it) => {
+    if (it && typeof it === 'object' && 'propertyId' in it && !('bienId' in it)) {
+      const { propertyId, ...rest } = it;
+      return { ...rest, bienId: propertyId };
+    }
+    return it;
+  });
+  data.depenses = renamePropertyId(data.depenses);
+  data.revenus = renamePropertyId(data.revenus);
+  data.prets = renamePropertyId(data.prets);
+  data.interventions = renamePropertyId(data.interventions);
+  data.contacts = renamePropertyId(data.contacts);
+  data.documents = renamePropertyId(data.documents);
+  data.lots = renamePropertyId(data.lots);
+  data.suiviLoyers = renamePropertyId(data.suiviLoyers);
+  data.paiementsCharges = renamePropertyId(data.paiementsCharges);
+  // expenseId → depenseId on PaiementCharge
+  data.paiementsCharges = (data.paiementsCharges ?? []).map((p: Record<string, unknown>) => {
+    if ('expenseId' in p && !('depenseId' in p)) {
+      const { expenseId, ...rest } = p;
+      return { ...rest, depenseId: expenseId };
+    }
+    return p;
+  });
+  return data;
+}
+
 function migrateData(data: DonneesApp): DonneesApp {
-  data.properties = (data.properties ?? []).map((p) => {
+  data.biens = (data.biens ?? []).map((p) => {
     const migrated = { ...p };
     if (migrated.fraisAgence == null) migrated.fraisAgence = 0;
     if (migrated.fraisDossier == null) migrated.fraisDossier = 0;
@@ -44,8 +109,8 @@ function migrateData(data: DonneesApp): DonneesApp {
   data.interventions = data.interventions ?? [];
   data.contacts = data.contacts ?? [];
   data.documents = data.documents ?? [];
-  data.rentTracking = data.rentTracking ?? [];
-  data.chargePayments = data.chargePayments ?? [];
+  data.suiviLoyers = data.suiviLoyers ?? [];
+  data.paiementsCharges = data.paiementsCharges ?? [];
   data.lots = (data.lots ?? []).map((l) => {
     const migrated = { ...l };
     if (!migrated.historiqueLoyers) {
@@ -81,7 +146,7 @@ function extractBlobs(data: DonneesApp): BlobRef[] {
   const refs: BlobRef[] = [];
 
   // Bien statusDocs
-  for (const p of data.properties) {
+  for (const p of data.biens) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
       if (!doc || !isDataUri(doc.data)) continue;
@@ -98,11 +163,11 @@ function extractBlobs(data: DonneesApp): BlobRef[] {
   }
 
   // Loan documents
-  for (const loan of (data.loans ?? [])) {
-    for (let i = 0; i < (loan.documents ?? []).length; i++) {
-      const d = loan.documents![i];
+  for (const pret of (data.prets ?? [])) {
+    for (let i = 0; i < (pret.documents ?? []).length; i++) {
+      const d = pret.documents![i];
       if (!isDataUri(d.data)) continue;
-      const key = `loan:${loan.id}:doc:${i}`;
+      const key = `pret:${pret.id}:doc:${i}`;
       refs.push({ key, data: d.data, writePlaceholder: () => { d.data = BLOB_PLACEHOLDER + key; } });
     }
   }
@@ -127,15 +192,15 @@ async function restoreBlobs(data: DonneesApp): Promise<void> {
     }
   };
 
-  for (const p of data.properties) {
+  for (const p of data.biens) {
     if (!p.statusDocs) continue;
     for (const doc of Object.values(p.statusDocs)) {
       if (doc) await restore(doc);
     }
   }
   for (const doc of (data.documents ?? [])) { await restore(doc); }
-  for (const loan of (data.loans ?? [])) {
-    for (const d of (loan.documents ?? [])) { await restore(d); }
+  for (const pret of (data.prets ?? [])) {
+    for (const d of (pret.documents ?? [])) { await restore(d); }
   }
   for (const inter of (data.interventions ?? [])) {
     if (inter.pieceJointe) await restore(inter.pieceJointe);
@@ -147,9 +212,27 @@ async function restoreBlobs(data: DonneesApp): Promise<void> {
 export function loadData(): DonneesApp {
   if (typeof window === 'undefined') return getDefaultData();
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return getDefaultData();
-    return migrateData({ ...getDefaultData(), ...JSON.parse(raw) });
+    let raw = localStorage.getItem(STORAGE_KEY);
+    let fromLegacy = false;
+    if (!raw) {
+      // Migration de l'ancienne cle 'sci-immobilier-data' (avant le rebrand
+      // Haussmann + refactor FR de 2026). On lit l'ancienne, on convertit,
+      // on sauve sous la nouvelle cle, on nettoie l'ancienne.
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (!raw) return getDefaultData();
+      fromLegacy = true;
+    }
+    const parsed = JSON.parse(raw);
+    const renamed = migrateLegacyKeys(parsed);
+    const data = migrateData({ ...getDefaultData(), ...renamed });
+    if (fromLegacy) {
+      // One-shot : ecrit sous la nouvelle cle, supprime l'ancienne.
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.removeItem(LEGACY_STORAGE_KEY);
+      } catch { /* best effort */ }
+    }
+    return data;
   } catch {
     return getDefaultData();
   }

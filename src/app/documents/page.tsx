@@ -8,7 +8,7 @@ import { listAllDocuments, formatFileSize, type DocumentListEntry } from "@/lib/
 
 /**
  * Delete a document by its key. The key encodes source + location:
- *   phase:propId:phaseName | doc:docId | loan:loanId:index | inter:interId
+ *   phase:propId:phaseName | doc:docId | pret:loanId:index | inter:interId
  */
 function deleteDocByKey(key: string, setData: (fn: (prev: DonneesApp) => DonneesApp) => void) {
   const parts = key.split(":");
@@ -19,7 +19,7 @@ function deleteDocByKey(key: string, setData: (fn: (prev: DonneesApp) => Donnees
     const phase = parts.slice(2).join(":");
     setData((prev) => ({
       ...prev,
-      properties: prev.properties.map((p) => {
+      biens: prev.biens.map((p) => {
         if (p.id !== propId || !p.statusDocs) return p;
         const { [phase]: _, ...rest } = p.statusDocs as Record<string, unknown>;
         return { ...p, statusDocs: rest as typeof p.statusDocs };
@@ -31,12 +31,12 @@ function deleteDocByKey(key: string, setData: (fn: (prev: DonneesApp) => Donnees
       ...prev,
       documents: (prev.documents ?? []).filter((d) => d.id !== docId),
     }));
-  } else if (src === "loan" && parts.length >= 3) {
+  } else if (src === "pret" && parts.length >= 3) {
     const loanId = parts[1];
     const idx = Number(parts[2]);
     setData((prev) => ({
       ...prev,
-      loans: prev.loans.map((l) => {
+      prets: prev.prets.map((l) => {
         if (l.id !== loanId) return l;
         return { ...l, documents: (l.documents ?? []).filter((_, i) => i !== idx) };
       }),

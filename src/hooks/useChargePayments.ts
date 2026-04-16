@@ -7,17 +7,17 @@ import { generateId, now } from "@/lib/utils";
 export function useChargePayments(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string,
+  bienId?: string,
 ) {
-  const allEntries = data?.chargePayments ?? [];
+  const allEntries = data?.paiementsCharges ?? [];
   const entries = useMemo(
-    () => (propertyId ? allEntries.filter((e) => e.propertyId === propertyId) : allEntries),
-    [allEntries, propertyId],
+    () => (bienId ? allEntries.filter((e) => e.bienId === bienId) : allEntries),
+    [allEntries, bienId],
   );
 
   const getEntry = useCallback(
-    (expenseId: string, periode: string): PaiementCharge | undefined => {
-      return entries.find((e) => e.expenseId === expenseId && e.periode === periode);
+    (depenseId: string, periode: string): PaiementCharge | undefined => {
+      return entries.find((e) => e.depenseId === depenseId && e.periode === periode);
     },
     [entries],
   );
@@ -25,27 +25,27 @@ export function useChargePayments(
   const upsertEntry = useCallback(
     (
       propId: string,
-      expenseId: string,
+      depenseId: string,
       periode: string,
-      updates: Partial<Omit<PaiementCharge, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
+      updates: Partial<Omit<PaiementCharge, "id" | "bienId" | "depenseId" | "periode" | "createdAt" | "updatedAt">>,
     ) => {
       const timestamp = now();
       setData((prev) => {
-        const existing = (prev.chargePayments ?? []).find(
-          (e) => e.expenseId === expenseId && e.periode === periode,
+        const existing = (prev.paiementsCharges ?? []).find(
+          (e) => e.depenseId === depenseId && e.periode === periode,
         );
         if (existing) {
           return {
             ...prev,
-            chargePayments: (prev.chargePayments ?? []).map((e) =>
+            paiementsCharges: (prev.paiementsCharges ?? []).map((e) =>
               e.id === existing.id ? { ...e, ...updates, updatedAt: timestamp } : e,
             ),
           };
         }
         const newEntry: PaiementCharge = {
           id: generateId(),
-          expenseId,
-          propertyId: propId,
+          depenseId,
+          bienId: propId,
           periode,
           montantAttendu: 0,
           montantPaye: 0,
@@ -56,7 +56,7 @@ export function useChargePayments(
         };
         return {
           ...prev,
-          chargePayments: [...(prev.chargePayments ?? []), newEntry],
+          paiementsCharges: [...(prev.paiementsCharges ?? []), newEntry],
         };
       });
     },
@@ -67,7 +67,7 @@ export function useChargePayments(
     (id: string) => {
       setData((prev) => ({
         ...prev,
-        chargePayments: (prev.chargePayments ?? []).filter((e) => e.id !== id),
+        paiementsCharges: (prev.paiementsCharges ?? []).filter((e) => e.id !== id),
       }));
     },
     [setData],

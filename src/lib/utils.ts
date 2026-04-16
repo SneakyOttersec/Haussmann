@@ -65,12 +65,12 @@ export function coutTotalBien(p: {
   allocationCredit?: { bien: number; travaux: number; notaire: number; agence: number; dossier?: number; garantie?: number; mobilier?: number; autre: number };
 }): number {
   // When the user has customized the allocation buckets, those become the
-  // source of truth for the project cost — the static property fields are
+  // source of truth for the project cost — the static bien fields are
   // only historical defaults.
   if (p.allocationCredit) {
     const a = p.allocationCredit;
     // Backfill mobilier : bucket ajoute en 2026, les allocations plus
-    // anciennes ne l'ont pas. On fallback sur property.montantMobilier
+    // anciennes ne l'ont pas. On fallback sur bien.montantMobilier
     // pour que le cout total reste coherent tant que l'utilisateur n'a
     // pas explicitement edite son allocation.
     const mobilier = a.mobilier ?? p.montantMobilier ?? 0;
@@ -85,35 +85,35 @@ export function coutTotalBien(p: {
  * Sinon → dateDebut du pret + differeMois (la duree du differe).
  * Si pas de differe → null (pas de fenetre par defaut).
  */
-export function enveloppeTravauxFinDate(loan: {
+export function enveloppeTravauxFinDate(pret: {
   dateDebut: string;
   differeMois?: number;
   enveloppeTravauxFinDate?: string;
 }): string | null {
-  if (loan.enveloppeTravauxFinDate) return loan.enveloppeTravauxFinDate;
-  const dM = loan.differeMois ?? 0;
+  if (pret.enveloppeTravauxFinDate) return pret.enveloppeTravauxFinDate;
+  const dM = pret.differeMois ?? 0;
   if (dM <= 0) return null;
-  const d = new Date(loan.dateDebut);
+  const d = new Date(pret.dateDebut);
   if (isNaN(d.getTime())) return null;
   d.setMonth(d.getMonth() + dM);
   return d.toISOString().slice(0, 10);
 }
 
 /** True si l'enveloppe travaux est encore ouverte aujourd'hui. */
-export function estEnveloppeTravauxOuverte(loan: {
+export function estEnveloppeTravauxOuverte(pret: {
   dateDebut: string;
   differeMois?: number;
   enveloppeTravauxFinDate?: string;
 }): boolean {
-  const fin = enveloppeTravauxFinDate(loan);
+  const fin = enveloppeTravauxFinDate(pret);
   if (!fin) return true; // pas de fenetre = toujours ouvert
   return new Date().toISOString().slice(0, 10) <= fin;
 }
 
 /**
- * Returns the effective acquisition date of a property.
+ * Returns the effective acquisition date of a bien.
  * Priority: statusDates.acte > earliest statusDate > dateSaisie > createdAt
- * dateSaisie is the date the property was entered in the app (not the real purchase date).
+ * dateSaisie is the date the bien was entered in the app (not the real purchase date).
  */
 /**
  * Facteur pro-rata (0..1) pour l'annee d'acquisition d'un bien.

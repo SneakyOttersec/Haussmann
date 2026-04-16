@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { crdAuMois, interetsAnneePret, totalMensualitesAnnee, dureeTotaleMoisPret } from "@/lib/calculs/pret";
 
 interface LoanAmortizationTableProps {
-  loan: Pret;
+  pret: Pret;
 }
 
 interface AmortRow {
@@ -22,22 +22,22 @@ interface AmortRow {
   differeType?: "partiel" | "total";
 }
 
-function buildAmortization(loan: Pret): AmortRow[] {
+function buildAmortization(pret: Pret): AmortRow[] {
   const rows: AmortRow[] = [];
-  const totalMois = dureeTotaleMoisPret(loan);
+  const totalMois = dureeTotaleMoisPret(pret);
   const dureeReelleAnnees = Math.ceil(totalMois / 12);
-  const dM = Math.max(0, loan.differeMois ?? 0);
+  const dM = Math.max(0, pret.differeMois ?? 0);
 
   for (let annee = 1; annee <= dureeReelleAnnees; annee++) {
     const moisDebutAnnee = (annee - 1) * 12;
     const moisFinAnnee = Math.min(annee * 12 - 1, totalMois - 1);
 
-    const crdDebut = annee === 1 ? loan.montantEmprunte : crdAuMois(loan, moisDebutAnnee - 1);
-    const crdFin = crdAuMois(loan, moisFinAnnee);
+    const crdDebut = annee === 1 ? pret.montantEmprunte : crdAuMois(pret, moisDebutAnnee - 1);
+    const crdFin = crdAuMois(pret, moisFinAnnee);
     const capitalRembourse = Math.max(0, crdDebut - crdFin);
-    const totalMensualites = totalMensualitesAnnee(loan, annee);
-    const interets = interetsAnneePret(loan, annee);
-    const assurance = loan.assuranceAnnuelle;
+    const totalMensualites = totalMensualitesAnnee(pret, annee);
+    const interets = interetsAnneePret(pret, annee);
+    const assurance = pret.assuranceAnnuelle;
     const totalPaye = totalMensualites + assurance;
 
     // Year overlaps the defer window if any of its months sit before `dM`.
@@ -52,22 +52,22 @@ function buildAmortization(loan: Pret): AmortRow[] {
       totalPaye,
       crdFin,
       isDiffere,
-      differeType: isDiffere ? loan.differeType : undefined,
+      differeType: isDiffere ? pret.differeType : undefined,
     });
   }
 
   return rows;
 }
 
-export function TableauAmortissementPret({ loan }: LoanAmortizationTableProps) {
+export function TableauAmortissementPret({ pret }: LoanAmortizationTableProps) {
   const [open, setOpen] = useState(false);
-  const rows = buildAmortization(loan);
+  const rows = buildAmortization(pret);
 
   const totalInterets = rows.reduce((s, r) => s + r.interets, 0);
   const totalAssurance = rows.reduce((s, r) => s + r.assurance, 0);
   const totalPaye = rows.reduce((s, r) => s + r.totalPaye, 0);
   const totalCapitalRembourse = rows.reduce((s, r) => s + r.capital, 0);
-  const coutCredit = totalPaye - loan.montantEmprunte;
+  const coutCredit = totalPaye - pret.montantEmprunte;
 
   return (
     <div className="mt-3">
@@ -126,7 +126,7 @@ export function TableauAmortissementPret({ loan }: LoanAmortizationTableProps) {
             <tfoot>
               <tr className="border-t border-dashed border-muted-foreground/20 bg-muted/30 font-bold">
                 <td className="py-2 px-3">Total</td>
-                <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(loan.montantEmprunte)}</td>
+                <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(pret.montantEmprunte)}</td>
                 <td className="py-2 px-3 text-right tabular-nums text-destructive">{formatCurrency(totalInterets)}</td>
                 <td className="py-2 px-3 text-right tabular-nums">{formatCurrency(totalCapitalRembourse)}</td>
                 <td className="py-2 px-3 text-right tabular-nums text-muted-foreground">{formatCurrency(totalAssurance)}</td>

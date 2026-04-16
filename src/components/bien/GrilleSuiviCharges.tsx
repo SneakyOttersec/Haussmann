@@ -10,16 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface Props {
-  propertyId: string;
-  expenses: Depense[];
+  bienId: string;
+  depenses: Depense[];
   /** Bien acquisition date — extends year range */
   dateSaisie?: string;
   entries: PaiementCharge[];
   onUpsert: (
-    propertyId: string,
-    expenseId: string,
+    bienId: string,
+    depenseId: string,
     periode: string,
-    updates: Partial<Omit<PaiementCharge, "id" | "propertyId" | "expenseId" | "periode" | "createdAt" | "updatedAt">>,
+    updates: Partial<Omit<PaiementCharge, "id" | "bienId" | "depenseId" | "periode" | "createdAt" | "updatedAt">>,
   ) => void;
   onDelete: (id: string) => void;
 }
@@ -66,8 +66,8 @@ function periodeLabel(periode: string): string {
 /* ── Cell editor (portal) ── */
 
 interface CellEditorProps {
-  propertyId: string;
-  expenseId: string;
+  bienId: string;
+  depenseId: string;
   periode: string;
   montantAttendu: number;
   entry: PaiementCharge | undefined;
@@ -78,7 +78,7 @@ interface CellEditorProps {
 }
 
 function CellEditor({
-  propertyId, expenseId, periode, montantAttendu, entry, anchorRect, onUpsert, onDelete, onClose,
+  bienId, depenseId, periode, montantAttendu, entry, anchorRect, onUpsert, onDelete, onClose,
 }: CellEditorProps) {
   const [statut, setStatut] = useState<StatutPaiementCharge>(entry?.statut ?? "paye");
   const [montantPaye, setMontantPaye] = useState(String(entry?.montantPaye ?? montantAttendu));
@@ -86,7 +86,7 @@ function CellEditor({
 
   const handleSave = () => {
     const paye = statut === "en_attente" ? 0 : Number(montantPaye) || 0;
-    onUpsert(propertyId, expenseId, periode, {
+    onUpsert(bienId, depenseId, periode, {
       statut,
       montantAttendu,
       montantPaye: paye,
@@ -177,10 +177,10 @@ function CellEditor({
 /* ── Single cell ── */
 
 function Cell({
-  propertyId, expenseId, periode, montantAttendu, entry, onUpsert, onDelete, colSpan,
+  bienId, depenseId, periode, montantAttendu, entry, onUpsert, onDelete, colSpan,
 }: {
-  propertyId: string;
-  expenseId: string;
+  bienId: string;
+  depenseId: string;
   periode: string;
   montantAttendu: number;
   entry: PaiementCharge | undefined;
@@ -230,8 +230,8 @@ function Cell({
       </button>
       {anchorRect && (
         <CellEditor
-          propertyId={propertyId}
-          expenseId={expenseId}
+          bienId={bienId}
+          depenseId={depenseId}
           periode={periode}
           montantAttendu={montantAttendu}
           entry={entry}
@@ -247,14 +247,14 @@ function Cell({
 
 /* ── Main grid ── */
 
-export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, onDelete, dateSaisie }: Props) {
+export function GrilleSuiviCharges({ bienId, depenses, entries, onUpsert, onDelete, dateSaisie }: Props) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  // Only recurring (non-ponctuel, non-credit) expenses
+  // Only recurring (non-ponctuel, non-credit) depenses
   const recurringExpenses = useMemo(
-    () => expenses.filter((e) => e.frequence !== "ponctuel" && e.categorie !== "credit"),
-    [expenses],
+    () => depenses.filter((e) => e.frequence !== "ponctuel" && e.categorie !== "credit"),
+    [depenses],
   );
 
   // Year options: from acquisition year to current year
@@ -268,12 +268,12 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
         for (let y = achatYear; y <= currentYear; y++) ys.add(y);
       }
     }
-    for (const e of expenses) {
+    for (const e of depenses) {
       const y = new Date(e.dateDebut).getFullYear();
       if (!isNaN(y) && y >= 2000) ys.add(y);
     }
     return Array.from(ys).sort((a, b) => a - b);
-  }, [expenses, currentYear, dateSaisie]);
+  }, [depenses, currentYear, dateSaisie]);
 
   // KPIs
   const kpis = useMemo(() => {
@@ -307,7 +307,7 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
       const montant = obtenirMontantCourant(exp);
       for (const p of periods) {
         totalAttendu += montant;
-        const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
+        const entry = entries.find((e) => e.depenseId === exp.id && e.periode === p);
         if (entry) {
           totalPaye += entry.montantPaye;
         } else if (isPast(p)) {
@@ -324,7 +324,7 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
     return <p className="text-xs text-muted-foreground italic">Aucune depense recurrente a suivre.</p>;
   }
 
-  // Column headers (12 months — all expenses share the same header grid)
+  // Column headers (12 months — all depenses share the same header grid)
   const monthHeaders = Array.from({ length: 12 }, (_, i) => MONTH_LABELS[i]);
 
   return (
@@ -424,12 +424,12 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
                       <div className="text-[9px] text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[exp.categorie]} · {formatCurrency(montant)}/mois</div>
                     </td>
                     {periods.map((p) => {
-                      const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
+                      const entry = entries.find((e) => e.depenseId === exp.id && e.periode === p);
                       return (
                         <Cell
                           key={p}
-                          propertyId={propertyId}
-                          expenseId={exp.id}
+                          bienId={bienId}
+                          depenseId={exp.id}
                           periode={p}
                           montantAttendu={montant}
                           entry={entry}
@@ -451,12 +451,12 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
                     </td>
                     {QUARTER_LABELS.map((q, qi) => {
                       const p = `${selectedYear}-${q}`;
-                      const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
+                      const entry = entries.find((e) => e.depenseId === exp.id && e.periode === p);
                       return (
                         <Cell
                           key={p}
-                          propertyId={propertyId}
-                          expenseId={exp.id}
+                          bienId={bienId}
+                          depenseId={exp.id}
                           periode={p}
                           montantAttendu={montant}
                           entry={entry}
@@ -472,7 +472,7 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
 
               if (exp.frequence === "annuel") {
                 const p = `${selectedYear}`;
-                const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
+                const entry = entries.find((e) => e.depenseId === exp.id && e.periode === p);
                 return (
                   <tr key={exp.id}>
                     <td className="py-2 pl-3 pr-2 text-xs font-medium border-r border-dashed border-muted-foreground/10 sticky left-0 bg-background z-10">
@@ -480,8 +480,8 @@ export function GrilleSuiviCharges({ propertyId, expenses, entries, onUpsert, on
                       <div className="text-[9px] text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[exp.categorie]} · {formatCurrency(montant)}/an</div>
                     </td>
                     <Cell
-                      propertyId={propertyId}
-                      expenseId={exp.id}
+                      bienId={bienId}
+                      depenseId={exp.id}
                       periode={p}
                       montantAttendu={montant}
                       entry={entry}

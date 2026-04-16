@@ -7,16 +7,16 @@ import { formatCurrency, annualiserMontant } from "@/lib/utils";
 import { getMontantForYear } from "@/lib/revisionsDepenses";
 
 interface Props {
-  expenses: Depense[];
+  depenses: Depense[];
   years: number[];
 }
 
-export function ExpenseEvolutionTable({ expenses, years }: Props) {
+export function ExpenseEvolutionTable({ depenses, years }: Props) {
   const sortedYears = [...years].sort((a, b) => a - b);
 
-  // Row = expense, Columns = years, Cell = annualized effective montant
+  // Row = depense, Columns = years, Cell = annualized effective montant
   const rows = useMemo(() => {
-    return expenses
+    return depenses
       .filter((e) => e.frequence !== "ponctuel")
       .map((e) => {
         const values = sortedYears.map((y) => {
@@ -27,9 +27,9 @@ export function ExpenseEvolutionTable({ expenses, years }: Props) {
         const first = values[0] || 0;
         const last = values[values.length - 1] || 0;
         const deltaPct = first > 0 ? ((last - first) / first) * 100 : 0;
-        return { expense: e, values, deltaPct };
+        return { depense: e, values, deltaPct };
       });
-  }, [expenses, sortedYears]);
+  }, [depenses, sortedYears]);
 
   // Totals per year
   const totals = useMemo(() => {
@@ -63,12 +63,12 @@ export function ExpenseEvolutionTable({ expenses, years }: Props) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ expense, values, deltaPct }) => (
-            <tr key={expense.id} className="hover:bg-muted/20 transition-colors border-b border-dashed border-muted-foreground/10">
+          {rows.map(({ depense, values, deltaPct }) => (
+            <tr key={depense.id} className="hover:bg-muted/20 transition-colors border-b border-dashed border-muted-foreground/10">
               <td className="py-1.5 pl-3 pr-4 sticky left-0 bg-background">
-                <div className="font-medium truncate max-w-[160px]">{expense.label}</div>
+                <div className="font-medium truncate max-w-[160px]">{depense.label}</div>
                 <div className="text-[9px] text-muted-foreground">
-                  {CATEGORIE_DEPENSE_LABELS[expense.categorie]}
+                  {CATEGORIE_DEPENSE_LABELS[depense.categorie]}
                 </div>
               </td>
               {values.map((v, idx) => {

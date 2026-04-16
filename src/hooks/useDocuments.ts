@@ -7,12 +7,12 @@ import { generateId } from "@/lib/utils";
 export function useDocuments(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
   const all = data?.documents ?? [];
   const documents = useMemo(
-    () => propertyId ? all.filter((d) => d.propertyId === propertyId) : all,
-    [all, propertyId]
+    () => bienId ? all.filter((d) => d.bienId === bienId) : all,
+    [all, bienId]
   );
 
   const ajouterDocument = useCallback(

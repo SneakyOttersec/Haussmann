@@ -17,12 +17,12 @@ import {
 } from "recharts";
 
 interface CashFlowChartProps {
-  property: Bien;
-  incomes: Revenu[];
-  expenses: Depense[];
-  rentEntries: SuiviMensuelLoyer[];
-  /** Optional loan — when provided, monthly credit is computed from the loan schedule (handles defer). */
-  loan?: Pret | null;
+  bien: Bien;
+  revenus: Revenu[];
+  depenses: Depense[];
+  suiviLoyers: SuiviMensuelLoyer[];
+  /** Optional pret — when provided, monthly credit is computed from the pret schedule (handles defer). */
+  pret?: Pret | null;
 }
 
 const fmtEur = (v: number) =>
@@ -71,8 +71,8 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export function GraphFluxMensuels({ property, incomes, expenses, rentEntries, loan }: CashFlowChartProps) {
-  const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan);
+export function GraphFluxMensuels({ bien, revenus, depenses, suiviLoyers, pret }: CashFlowChartProps) {
+  const monthly = buildMonthlyFlow(bien, revenus, depenses, suiviLoyers, pret);
 
   if (monthly.length === 0) {
     return (

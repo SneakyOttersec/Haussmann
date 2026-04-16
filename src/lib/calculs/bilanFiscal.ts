@@ -15,7 +15,7 @@ export interface ChargesDetail {
 }
 
 export interface BilanPropertyRow {
-  propertyId: string;
+  bienId: string;
   propertyNom: string;
   revenusLocatifs: number;
   chargesDeductibles: number;
@@ -75,40 +75,40 @@ export function computeBilanFiscal(data: DonneesApp, annee: number): BilanFiscal
   const regime = data.settings.regimeFiscal;
   const tmi = 0.30; // default TMI
 
-  // Pre-index rent tracking by property+year
+  // Pre-index rent tracking by bien+year
   const rentByPropYear = new Map<string, number>();
-  for (const e of (data.rentTracking ?? [])) {
+  for (const e of (data.suiviLoyers ?? [])) {
     if (e.yearMonth.startsWith(String(annee))) {
-      const key = e.propertyId;
+      const key = e.bienId;
       rentByPropYear.set(key, (rentByPropYear.get(key) ?? 0) + e.loyerPercu);
     }
   }
 
-  // Pre-index charge payments by expense+year.
+  // Pre-index charge payments by depense+year.
   // Track both the sum AND the count of payment entries so we can detect
   // incomplete tracking and fall back to projection when needed.
   const chargePaidByExp = new Map<string, { total: number; count: number }>();
-  for (const cp of (data.chargePayments ?? [])) {
+  for (const cp of (data.paiementsCharges ?? [])) {
     if (cp.periode.startsWith(String(annee))) {
-      const prev = chargePaidByExp.get(cp.expenseId) ?? { total: 0, count: 0 };
+      const prev = chargePaidByExp.get(cp.depenseId) ?? { total: 0, count: 0 };
       prev.total += cp.montantPaye;
       prev.count += 1;
-      chargePaidByExp.set(cp.expenseId, prev);
+      chargePaidByExp.set(cp.depenseId, prev);
     }
   }
 
-  const rows: BilanPropertyRow[] = data.properties.map((p) => {
-    // Revenus: use rent tracking (actual) for loyers, incomes for other revenue
+  const rows: BilanPropertyRow[] = data.biens.map((p) => {
+    // Revenus: use rent tracking (actual) for loyers, revenus for other revenue
     const loyersReels = rentByPropYear.get(p.id) ?? 0;
-    const autresRevenus = data.incomes
-      .filter((i) => i.propertyId === p.id && i.categorie !== "loyer" && isActiveInYear(i.dateDebut, i.dateFin, annee) && i.frequence !== "ponctuel")
+    const autresRevenus = data.revenus
+      .filter((i) => i.bienId === p.id && i.categorie !== "loyer" && isActiveInYear(i.dateDebut, i.dateFin, annee) && i.frequence !== "ponctuel")
       .reduce((s, i) => s + annualiserMontant(i.montant, i.frequence), 0);
     const revenus = loyersReels + autresRevenus;
 
     // Charges deductibles (hors credit) — with category breakdown
     // Use real payments when tracked, fallback to projection
-    const propExpenses = data.expenses
-      .filter((e) => e.propertyId === p.id && e.categorie !== "credit" && isActiveInYear(e.dateDebut, e.dateFin, annee) && e.frequence !== "ponctuel");
+    const propExpenses = data.depenses
+      .filter((e) => e.bienId === p.id && e.categorie !== "credit" && isActiveInYear(e.dateDebut, e.dateFin, annee) && e.frequence !== "ponctuel");
 
     const chargesDetail: ChargesDetail = { taxeFonciere: 0, assurancePNO: 0, travauxEntretien: 0, fraisGestion: 0, copropriete: 0, autresCharges: 0 };
     for (const e of propExpenses) {
@@ -146,17 +146,17 @@ export function computeBilanFiscal(data: DonneesApp, annee: number): BilanFiscal
       + chargesDetail.fraisGestion + chargesDetail.copropriete + chargesDetail.autresCharges;
 
     // Interets & assurance emprunt
-    const loan = data.loans.find((l) => l.propertyId === p.id);
+    const pret = data.prets.find((l) => l.bienId === p.id);
     let interets = 0, assurance = 0;
-    if (loan) {
-      const loanStartYear = parseInt(loan.dateDebut.slice(0, 4));
+    if (pret) {
+      const loanStartYear = parseInt(pret.dateDebut.slice(0, 4));
       const loanAnnee = annee - loanStartYear + 1;
-      const dureeReelleAnnees = Math.ceil(dureeTotaleMoisPret(loan) / 12);
+      const dureeReelleAnnees = Math.ceil(dureeTotaleMoisPret(pret) / 12);
       if (loanAnnee >= 1 && loanAnnee <= dureeReelleAnnees) {
         // Use the differe-aware helper: during a "differe total", interest is
         // capitalized (not paid → not deductible that year).
-        interets = interetsAnneePret(loan, loanAnnee);
-        assurance = loan.assuranceAnnuelle;
+        interets = interetsAnneePret(pret, loanAnnee);
+        assurance = pret.assuranceAnnuelle;
       }
     }
 
@@ -171,7 +171,7 @@ export function computeBilanFiscal(data: DonneesApp, annee: number): BilanFiscal
       : calculerImpotIS(Math.max(0, resultat));
 
     return {
-      propertyId: p.id,
+      bienId: p.id,
       propertyNom: p.nom,
       revenusLocatifs: Math.round(revenus),
       chargesDeductibles: Math.round(charges),
@@ -194,7 +194,7 @@ export function computeBilanFiscal(data: DonneesApp, annee: number): BilanFiscal
 
   const sumDetail = (key: keyof ChargesDetail) => rows.reduce((s, r) => s + r.chargesDetail[key], 0);
   const totaux: BilanPropertyRow = {
-    propertyId: "",
+    bienId: "",
     propertyNom: "TOTAL",
     revenusLocatifs: rows.reduce((s, r) => s + r.revenusLocatifs, 0),
     chargesDeductibles: rows.reduce((s, r) => s + r.chargesDeductibles, 0),
@@ -225,7 +225,7 @@ export function getAvailableYears(data: DonneesApp): number[] {
   const now = new Date().getFullYear();
   const years = new Set<number>();
 
-  for (const p of data.properties) {
+  for (const p of data.biens) {
     // Use acquisition date (resolves statusDates > dateSaisie > createdAt)
     const acqYear = parseInt(getPropertyAcquisitionDate(p).slice(0, 4));
     if (acqYear > 2000 && acqYear <= now) years.add(acqYear);
@@ -236,16 +236,16 @@ export function getAvailableYears(data: DonneesApp): number[] {
       }
     }
   }
-  for (const i of data.incomes) {
+  for (const i of data.revenus) {
     const y = parseInt(i.dateDebut.slice(0, 4));
     if (y > 2000 && y <= now) years.add(y);
   }
   // Include years with rent tracking or charge payment data
-  for (const r of (data.rentTracking ?? [])) {
+  for (const r of (data.suiviLoyers ?? [])) {
     const y = parseInt(r.yearMonth.slice(0, 4));
     if (y > 2000 && y <= now) years.add(y);
   }
-  for (const c of (data.chargePayments ?? [])) {
+  for (const c of (data.paiementsCharges ?? [])) {
     const y = parseInt(c.periode.slice(0, 4));
     if (y > 2000 && y <= now) years.add(y);
   }

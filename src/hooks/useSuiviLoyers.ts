@@ -19,17 +19,17 @@ function deriveLotStatus(lotEntries: SuiviMensuelLoyer[]): LotStatut | null {
 
 /**
  * Hook for managing rent tracking entries.
- * Entries are keyed by (propertyId, lotId, yearMonth) — upsert semantics.
+ * Entries are keyed by (bienId, lotId, yearMonth) — upsert semantics.
  */
 export function useSuiviLoyers(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string,
+  bienId?: string,
 ) {
-  const allEntries = data?.rentTracking ?? [];
+  const allEntries = data?.suiviLoyers ?? [];
   const entries = useMemo(
-    () => (propertyId ? allEntries.filter((e) => e.propertyId === propertyId) : allEntries),
-    [allEntries, propertyId],
+    () => (bienId ? allEntries.filter((e) => e.bienId === bienId) : allEntries),
+    [allEntries, bienId],
   );
 
   /** Find entry for a given lot + month. */
@@ -50,22 +50,22 @@ export function useSuiviLoyers(
       propId: string,
       lotId: string,
       yearMonth: string,
-      updates: Partial<Omit<SuiviMensuelLoyer, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
+      updates: Partial<Omit<SuiviMensuelLoyer, "id" | "bienId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
     ) => {
       const timestamp = now();
       setData((prev) => {
-        const existing = (prev.rentTracking ?? []).find(
+        const existing = (prev.suiviLoyers ?? []).find(
           (e) => e.lotId === lotId && e.yearMonth === yearMonth,
         );
         let nextRentTracking: SuiviMensuelLoyer[];
         if (existing) {
-          nextRentTracking = (prev.rentTracking ?? []).map((e) =>
+          nextRentTracking = (prev.suiviLoyers ?? []).map((e) =>
             e.id === existing.id ? { ...e, ...updates, updatedAt: timestamp } : e,
           );
         } else {
           const newEntry: SuiviMensuelLoyer = {
             id: generateId(),
-            propertyId: propId,
+            bienId: propId,
             lotId,
             yearMonth,
             loyerAttendu: 0,
@@ -75,7 +75,7 @@ export function useSuiviLoyers(
             createdAt: timestamp,
             updatedAt: timestamp,
           };
-          nextRentTracking = [...(prev.rentTracking ?? []), newEntry];
+          nextRentTracking = [...(prev.suiviLoyers ?? []), newEntry];
         }
 
         // Sync lot status based on the latest entry for this lot
@@ -85,7 +85,7 @@ export function useSuiviLoyers(
           ? (prev.lots ?? []).map((l) => (l.id === lotId ? { ...l, statut: derived } : l))
           : prev.lots;
 
-        return { ...prev, rentTracking: nextRentTracking, lots: nextLots };
+        return { ...prev, suiviLoyers: nextRentTracking, lots: nextLots };
       });
     },
     [setData],
@@ -94,8 +94,8 @@ export function useSuiviLoyers(
   const deleteEntry = useCallback(
     (id: string) => {
       setData((prev) => {
-        const removed = (prev.rentTracking ?? []).find((e) => e.id === id);
-        const nextRentTracking = (prev.rentTracking ?? []).filter((e) => e.id !== id);
+        const removed = (prev.suiviLoyers ?? []).find((e) => e.id === id);
+        const nextRentTracking = (prev.suiviLoyers ?? []).filter((e) => e.id !== id);
 
         // Recompute lot status from remaining entries
         let nextLots = prev.lots;
@@ -107,7 +107,7 @@ export function useSuiviLoyers(
           }
         }
 
-        return { ...prev, rentTracking: nextRentTracking, lots: nextLots };
+        return { ...prev, suiviLoyers: nextRentTracking, lots: nextLots };
       });
     },
     [setData],

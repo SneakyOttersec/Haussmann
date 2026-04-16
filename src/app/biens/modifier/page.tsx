@@ -17,8 +17,8 @@ function ModifierBienContent() {
 
   if (!data || !id) return null;
 
-  const property = obtenirBien(id);
-  if (!property) {
+  const bien = obtenirBien(id);
+  if (!bien) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Bien introuvable.</p>
@@ -34,10 +34,10 @@ function ModifierBienContent() {
       <Link href={`/biens?id=${id}`} className="text-sm text-muted-foreground hover:text-primary transition-colors">
         ← Retour au bien
       </Link>
-      <h1 className="mt-4 mb-6">Modifier : {property.nom}</h1>
+      <h1 className="mt-4 mb-6">Modifier : {bien.nom}</h1>
       <div className="border border-dotted rounded-md p-6">
         <FormulaireBien
-          initialData={property}
+          initialData={bien}
           submitLabel="Enregistrer"
           onSubmit={(formData) => {
             mettreAJourBien(id, formData);

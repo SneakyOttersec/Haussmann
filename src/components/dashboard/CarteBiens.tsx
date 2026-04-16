@@ -5,11 +5,11 @@ import type { Bien } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface PropertyMapProps {
-  properties: Bien[];
+  biens: Bien[];
 }
 
 interface GeocodedProperty {
-  property: Bien;
+  bien: Bien;
   lat: number;
   lng: number;
 }
@@ -46,16 +46,16 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   return null;
 }
 
-export function CarteBiens({ properties }: PropertyMapProps) {
+export function CarteBiens({ biens }: PropertyMapProps) {
   const [geocoded, setGeocoded] = useState<GeocodedProperty[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const mapRef = useRef<HTMLDivElement>(null);
   const leafletMapRef = useRef<L.Map | null>(null);
   const markersRef = useRef<L.Marker[]>([]);
 
-  // Geocode properties
+  // Geocode biens
   useEffect(() => {
-    if (properties.length === 0) return;
+    if (biens.length === 0) return;
     const cache = loadCache();
     let cancelled = false;
 
@@ -63,13 +63,13 @@ export function CarteBiens({ properties }: PropertyMapProps) {
       const results: GeocodedProperty[] = [];
       let cacheUpdated = false;
 
-      for (const p of properties) {
+      for (const p of biens) {
         if (!p.adresse) continue;
         if (cancelled) break;
 
         const cached = cache[p.adresse];
         if (cached) {
-          results.push({ property: p, ...cached });
+          results.push({ bien: p, ...cached });
           continue;
         }
 
@@ -79,7 +79,7 @@ export function CarteBiens({ properties }: PropertyMapProps) {
         if (coords && !cancelled) {
           cache[p.adresse] = coords;
           cacheUpdated = true;
-          results.push({ property: p, ...coords });
+          results.push({ bien: p, ...coords });
         }
       }
 
@@ -91,7 +91,7 @@ export function CarteBiens({ properties }: PropertyMapProps) {
 
     geocodeAll();
     return () => { cancelled = true; };
-  }, [properties]);
+  }, [biens]);
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -149,7 +149,7 @@ export function CarteBiens({ properties }: PropertyMapProps) {
       geocoded.forEach((g) => {
         const marker = L.marker([g.lat, g.lng])
           .addTo(map)
-          .bindPopup(`<strong>${g.property.nom}</strong><br/><span style="font-size:11px;color:#666">${g.property.adresse}</span>`);
+          .bindPopup(`<strong>${g.bien.nom}</strong><br/><span style="font-size:11px;color:#666">${g.bien.adresse}</span>`);
         markersRef.current.push(marker);
       });
 
@@ -161,7 +161,7 @@ export function CarteBiens({ properties }: PropertyMapProps) {
     });
   }, [geocoded, mapReady]);
 
-  if (properties.length === 0 || properties.every((p) => !p.adresse)) return null;
+  if (biens.length === 0 || biens.every((p) => !p.adresse)) return null;
 
   return (
     <Card className="border-dotted overflow-hidden">

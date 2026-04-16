@@ -13,11 +13,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
 interface PropertyCardProps {
-  property: Bien;
-  expenses: Depense[];
-  incomes: Revenu[];
-  rentEntries: SuiviMensuelLoyer[];
-  loan?: Pret | null;
+  bien: Bien;
+  depenses: Depense[];
+  revenus: Revenu[];
+  suiviLoyers: SuiviMensuelLoyer[];
+  pret?: Pret | null;
   onDelete?: (id: string) => void;
 }
 
@@ -31,20 +31,20 @@ function isEnLocation(statut?: StatutBien): boolean {
   return STATUT_BIEN_ORDER.indexOf(statut) >= STATUT_BIEN_ORDER.indexOf("location");
 }
 
-export function PropertyCard({ property, expenses, incomes, rentEntries, loan, onDelete }: PropertyCardProps) {
+export function PropertyCard({ bien, depenses, revenus, suiviLoyers, pret, onDelete }: PropertyCardProps) {
   const router = useRouter();
-  const postActe = estPostActe(property.statut);
-  const enLocation = isEnLocation(property.statut);
+  const postActe = estPostActe(bien.statut);
+  const enLocation = isEnLocation(bien.statut);
 
   const stats = useMemo(() => {
     if (!postActe) return { global: 0, lastMonth: 0, last6Months: null, nbMois: 0 };
-    const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
+    const monthly = buildMonthlyFlow(bien, revenus, depenses, suiviLoyers, pret ?? null);
     return computeCashflowStats(monthly);
-  }, [property, incomes, expenses, rentEntries, loan, postActe]);
+  }, [bien, revenus, depenses, suiviLoyers, pret, postActe]);
 
   const cfTheorique = useMemo(
-    () => computeTheoreticalMonthlyCashflow(incomes, expenses),
-    [incomes, expenses],
+    () => computeTheoreticalMonthlyCashflow(revenus, depenses),
+    [revenus, depenses],
   );
 
   // Breakdown for tooltip
@@ -55,31 +55,31 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
       if (freq === "annuel") return montant / 12;
       return 0;
     };
-    const rev = incomes.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
-    const dep = expenses.filter(e => e.categorie !== "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
-    const cred = expenses.filter(e => e.categorie === "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
+    const rev = revenus.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
+    const dep = depenses.filter(e => e.categorie !== "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
+    const cred = depenses.filter(e => e.categorie === "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
     return { revenusMensuel: rev, depensesMensuel: dep, creditMensuel: cred };
-  }, [incomes, expenses]);
+  }, [revenus, depenses]);
 
   const cfClass = (v: number) => (v >= 0 ? "text-green-600" : "text-destructive");
 
   return (
-    <Link href={`/biens?id=${property.id}`}>
+    <Link href={`/biens?id=${bien.id}`}>
       <Card className="group border border-muted-foreground/20 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer">
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-2">
-            <h3 className="font-bold text-sm group-hover:text-primary transition-colors">{property.nom}</h3>
+            <h3 className="font-bold text-sm group-hover:text-primary transition-colors">{bien.nom}</h3>
             <div className="flex items-center gap-1.5">
-              {property.statut && property.statut !== "exploitation" && (
-                <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[property.statut]}</Badge>
+              {bien.statut && bien.statut !== "exploitation" && (
+                <Badge variant="outline" className="text-[10px]">{STATUT_BIEN_LABELS[bien.statut]}</Badge>
               )}
-              <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[property.type]}</Badge>
+              <Badge variant="secondary" className="text-xs">{TYPE_BIEN_LABELS[bien.type]}</Badge>
               {onDelete && (
                 <button
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    onDelete(property.id);
+                    onDelete(bien.id);
                   }}
                   className="text-destructive/30 hover:text-destructive text-sm transition-colors"
                   title="Supprimer ce bien"
@@ -90,7 +90,7 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
             </div>
           </div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs text-muted-foreground truncate">{property.adresse}</p>
+            <p className="text-xs text-muted-foreground truncate">{bien.adresse}</p>
             <span className="text-[10px] text-muted-foreground/0 group-hover:text-primary transition-colors ml-2 shrink-0">Voir →</span>
           </div>
           <div className={`grid ${postActe ? 'grid-cols-4' : 'grid-cols-1'} gap-2 text-xs mb-3`}>
@@ -135,7 +135,7 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                router.push(`/loyers?propertyId=${property.id}`);
+                router.push(`/loyers?bienId=${bien.id}`);
               }}
               className="text-[11px] text-muted-foreground hover:text-primary border-t border-dashed border-muted-foreground/15 pt-2 -mx-4 px-4 transition-colors text-left w-full block"
             >

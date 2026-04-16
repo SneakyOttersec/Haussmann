@@ -11,7 +11,7 @@ export default function Corbeille() {
   const { data, setData } = useDonnees();
   const { biensSupprimes, restaurerBien, supprimerDefinitivementBien } = useBiens(data, setData);
 
-  // Two-step confirmation for permanent deletion: the user must type the property name.
+  // Two-step confirmation for permanent deletion: the user must type the bien name.
   const [purgeTarget, setPurgeTarget] = useState<{ id: string; nom: string } | null>(null);
   const [purgeConfirm, setPurgeConfirm] = useState("");
 

@@ -15,7 +15,7 @@ interface Props {
   onAdd: (data: Omit<Lot, "id">) => void;
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
-  propertyId: string;
+  bienId: string;
   propertyStatut?: StatutBien;
   /** Optional override for the section card title (defaults to "Lots"). */
   title?: string;
@@ -62,7 +62,7 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
   const handleStatutToggle = () => {
     const idx = LOT_STATUT_CYCLE.indexOf(l.statut);
     const next = LOT_STATUT_CYCLE[(idx + 1) % LOT_STATUT_CYCLE.length];
-    // Warn if the property is in "travaux" and user tries to move lot AWAY from travaux
+    // Warn if the bien is in "travaux" and user tries to move lot AWAY from travaux
     if (propertyStatut === "travaux" && l.statut === "travaux" && next !== "travaux") {
       setConfirmOverride(next);
     } else {
@@ -200,7 +200,7 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
         </DialogContent>
       </Dialog>
 
-      {/* Warning popup: forcing a lot out of "travaux" while property is in travaux */}
+      {/* Warning popup: forcing a lot out of "travaux" while bien is in travaux */}
       {confirmOverride && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setConfirmOverride(null)}>
           <div className="absolute inset-0 bg-black/30" />
@@ -341,7 +341,7 @@ function VacanceGlobaleEditor({
   );
 }
 
-export function SectionLots({ lots, onAdd, onUpdate, onDelete, propertyId, propertyStatut, title, tauxVacanceGlobal, onUpdateTauxVacanceGlobal }: Props) {
+export function SectionLots({ lots, onAdd, onUpdate, onDelete, bienId, propertyStatut, title, tauxVacanceGlobal, onUpdateTauxVacanceGlobal }: Props) {
   const enLocation = isEnLocation(propertyStatut);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut, tauxVacancePct: 0 });
@@ -352,7 +352,7 @@ export function SectionLots({ lots, onAdd, onUpdate, onDelete, propertyId, prope
     const { tauxVacancePct, ...rest } = form;
     onAdd({
       ...rest,
-      propertyId,
+      bienId,
       surface: form.surface || undefined,
       etage: form.etage || undefined,
       tauxVacance: tauxVacancePct > 0 ? tauxVacancePct / 100 : undefined,

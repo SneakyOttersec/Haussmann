@@ -24,15 +24,15 @@ import { loanSchema, validateForm, type ValidationErrors } from "@/lib/validatio
 type LoanFormData = Omit<Pret, "id">;
 
 interface LoanFormProps {
-  propertyId: string;
+  bienId: string;
   initialData?: LoanFormData;
   onSubmit: (data: LoanFormData) => void;
 }
 
-export function FormulairePret({ propertyId, initialData, onSubmit }: LoanFormProps) {
+export function FormulairePret({ bienId, initialData, onSubmit }: LoanFormProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<LoanFormData>({
-    propertyId,
+    bienId,
     type: initialData?.type ?? "amortissable",
     montantEmprunte: initialData?.montantEmprunte ?? 0,
     tauxAnnuel: initialData?.tauxAnnuel ?? 0.035,

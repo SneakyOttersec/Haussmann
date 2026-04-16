@@ -15,7 +15,7 @@ interface Props {
   onAdd: (data: Omit<Contact, "id" | "createdAt" | "updatedAt">) => void;
   onUpdate: (id: string, updates: Partial<Contact>) => void;
   onDelete: (id: string) => void;
-  propertyId: string;
+  bienId: string;
 }
 
 function ContactRow({ contact: c, onUpdate, onDelete }: {
@@ -97,18 +97,18 @@ function ContactRow({ contact: c, onUpdate, onDelete }: {
   );
 }
 
-export function SectionContacts({ contacts, onAdd, onUpdate, onDelete, propertyId }: Props) {
+export function SectionContacts({ contacts, onAdd, onUpdate, onDelete, bienId }: Props) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nom: "", role: "autre" as RoleContact, telephone: "", email: "", notes: "" });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onAdd({ ...form, propertyId });
+    onAdd({ ...form, bienId });
     setOpen(false);
     setForm({ nom: "", role: "autre", telephone: "", email: "", notes: "" });
   };
 
-  const propertyContacts = contacts.filter(c => c.propertyId === propertyId);
+  const propertyContacts = contacts.filter(c => c.bienId === bienId);
 
   return (
     <Card className="border-dotted">

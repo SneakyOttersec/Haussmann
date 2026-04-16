@@ -111,9 +111,9 @@ function detectMissingData(data: DonneesApp, bilan: ReturnType<typeof computeBil
   if (!data.settings.siren) missing.push("SIREN");
   if (!data.settings.adresseSiege) missing.push("Adresse du siege");
   if (bilan.totaux.revenusLocatifs === 0) missing.push("Revenus locatifs");
-  if (data.properties.filter(p => !p.deletedAt).length === 0) missing.push("Aucun bien");
+  if (data.biens.filter(p => !p.deletedAt).length === 0) missing.push("Aucun bien");
   if ((data.settings.associes ?? []).length === 0) missing.push("Associes");
-  const hasLoan = data.loans.length > 0;
+  const hasLoan = data.prets.length > 0;
   if (hasLoan && bilan.totaux.interetsEmprunt === 0) missing.push("Interets d'emprunt");
   return missing;
 }
@@ -142,7 +142,7 @@ function applyWatermark(doc: jsPDF) {
 export async function generateLiasse2072(data: DonneesApp, annee: number): Promise<void> {
   const { settings } = data;
   const bilan = computeBilanFiscal(data, annee);
-  const properties = data.properties.filter(p => !p.deletedAt);
+  const biens = data.biens.filter(p => !p.deletedAt);
   const missingData = detectMissingData(data, bilan);
 
   const { default: JsPDF } = await import("jspdf");
@@ -179,7 +179,7 @@ export async function generateLiasse2072(data: DonneesApp, annee: number): Promi
   ];
   y = tableHeader(doc, y, propCols);
 
-  for (const p of properties) {
+  for (const p of biens) {
     if (y > PH - 30) { pageFooter(doc, 1, totalPages, settings.nomSCI); doc.addPage(); pageHeader(doc, settings.nomSCI, annee); y = 22; }
     y = tableRow(doc, y, [
       { value: p.nom, x: M, w: 60, bold: true },

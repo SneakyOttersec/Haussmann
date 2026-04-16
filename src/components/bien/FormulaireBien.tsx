@@ -24,7 +24,7 @@ interface PropertyFormProps {
   initialData?: Partial<PropertyFormData>;
   onSubmit: (data: PropertyFormData, loanData?: LoanFormData) => void;
   submitLabel?: string;
-  /** Show the Financement section (for new property creation). */
+  /** Show the Financement section (for new bien creation). */
   showFinancement?: boolean;
 }
 
@@ -48,9 +48,9 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
     dpe: initialData?.dpe,
   });
 
-  // Optional loan state — only when showFinancement
+  // Optional pret state — only when showFinancement
   const [withLoan, setWithLoan] = useState(false);
-  const [loan, setPret] = useState({
+  const [pret, setPret] = useState({
     apport: 0,
     montantEmprunte: 0,
     type: "amortissable" as TypePret,
@@ -82,23 +82,23 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
     }
     setErrors({});
 
-    if (showFinancement && withLoan && loan.montantEmprunte > 0) {
-      const assurance = loan.assuranceMode === "pct"
-        ? loan.montantEmprunte * loan.assurancePct
-        : loan.assuranceAnnuelle;
+    if (showFinancement && withLoan && pret.montantEmprunte > 0) {
+      const assurance = pret.assuranceMode === "pct"
+        ? pret.montantEmprunte * pret.assurancePct
+        : pret.assuranceAnnuelle;
       onSubmit(
-        { ...form, apport: loan.apport || undefined },
+        { ...form, apport: pret.apport || undefined },
         {
-          propertyId: "", // will be replaced by caller
-          type: loan.type,
-          montantEmprunte: loan.montantEmprunte,
-          tauxAnnuel: loan.tauxAnnuel,
-          dureeAnnees: loan.dureeAnnees,
+          bienId: "", // will be replaced by caller
+          type: pret.type,
+          montantEmprunte: pret.montantEmprunte,
+          tauxAnnuel: pret.tauxAnnuel,
+          dureeAnnees: pret.dureeAnnees,
           dateDebut: form.dateSaisie || new Date().toISOString().slice(0, 10),
           assuranceAnnuelle: assurance,
-          differeMois: loan.differeMois || undefined,
-          differeType: loan.differeMois ? loan.differeType : undefined,
-          differeInclus: loan.differeMois ? loan.differeInclus : undefined,
+          differeMois: pret.differeMois || undefined,
+          differeType: pret.differeMois ? pret.differeType : undefined,
+          differeInclus: pret.differeMois ? pret.differeInclus : undefined,
         },
       );
     } else {
@@ -306,7 +306,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
         />
       </div>
 
-      {/* Financement (opt-in, new property only) */}
+      {/* Financement (opt-in, new bien only) */}
       {showFinancement && form.prixAchat > 0 && (
         <div className="border border-dotted rounded-lg p-5 space-y-4">
           <div className="flex items-center justify-between">
@@ -317,7 +317,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
                 checked={withLoan}
                 onChange={(e) => {
                   setWithLoan(e.target.checked);
-                  if (e.target.checked && loan.montantEmprunte === 0) {
+                  if (e.target.checked && pret.montantEmprunte === 0) {
                     setPret((prev) => ({ ...prev, montantEmprunte: Math.round(coutTotal) }));
                   }
                 }}
@@ -347,16 +347,16 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Apport personnel (EUR)</Label>
-                  <Input type="number" min={0} value={loan.apport || ""} onChange={(e) => handleApportChange(Number(e.target.value))} />
+                  <Input type="number" min={0} value={pret.apport || ""} onChange={(e) => handleApportChange(Number(e.target.value))} />
                 </div>
                 <div className="space-y-2">
                   <Label>Montant emprunte (EUR)</Label>
-                  <Input type="number" min={0} value={loan.montantEmprunte || ""} onChange={(e) => setPret((prev) => ({ ...prev, montantEmprunte: Number(e.target.value) }))} />
+                  <Input type="number" min={0} value={pret.montantEmprunte || ""} onChange={(e) => setPret((prev) => ({ ...prev, montantEmprunte: Number(e.target.value) }))} />
                 </div>
               </div>
 
               {(() => {
-                const totalFinance = loan.montantEmprunte + loan.apport;
+                const totalFinance = pret.montantEmprunte + pret.apport;
                 const ecart = totalFinance - coutTotal;
                 if (Math.abs(ecart) > 1) {
                   return (
@@ -371,7 +371,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Type de pret</Label>
-                  <Select value={loan.type} onValueChange={(v) => setPret((prev) => ({ ...prev, type: v as TypePret }))}>
+                  <Select value={pret.type} onValueChange={(v) => setPret((prev) => ({ ...prev, type: v as TypePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="amortissable">Amortissable</SelectItem>
@@ -381,26 +381,26 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
                 </div>
                 <div className="space-y-2">
                   <Label>Taux nominal (%)</Label>
-                  <Input type="number" min={0} step="0.01" value={loan.tauxAnnuel ? (loan.tauxAnnuel * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, tauxAnnuel: Number(e.target.value) / 100 }))} />
+                  <Input type="number" min={0} step="0.01" value={pret.tauxAnnuel ? (pret.tauxAnnuel * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, tauxAnnuel: Number(e.target.value) / 100 }))} />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Duree (annees)</Label>
-                  <Input type="number" min={1} max={30} value={loan.dureeAnnees || ""} onChange={(e) => setPret((prev) => ({ ...prev, dureeAnnees: Number(e.target.value) }))} />
+                  <Input type="number" min={1} max={30} value={pret.dureeAnnees || ""} onChange={(e) => setPret((prev) => ({ ...prev, dureeAnnees: Number(e.target.value) }))} />
                 </div>
                 <div className="space-y-2">
                   <Label>Differe (mois)</Label>
-                  <Input type="number" min={0} max={60} value={loan.differeMois || ""} onChange={(e) => setPret((prev) => ({ ...prev, differeMois: Number(e.target.value) || 0 }))} />
+                  <Input type="number" min={0} max={60} value={pret.differeMois || ""} onChange={(e) => setPret((prev) => ({ ...prev, differeMois: Number(e.target.value) || 0 }))} />
                 </div>
               </div>
 
-              {loan.differeMois > 0 && (
+              {pret.differeMois > 0 && (
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Type de differe</Label>
-                    <Select value={loan.differeType} onValueChange={(v) => setPret((prev) => ({ ...prev, differeType: v as TypeDiffere }))}>
+                    <Select value={pret.differeType} onValueChange={(v) => setPret((prev) => ({ ...prev, differeType: v as TypeDiffere }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="min-w-[260px]">
                         <SelectItem value="partiel">Partiel (interets seulement)</SelectItem>
@@ -410,7 +410,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
                   </div>
                   <div className="space-y-2">
                     <Label>Differe</Label>
-                    <Select value={loan.differeInclus ? "inclus" : "en_plus"} onValueChange={(v) => setPret((prev) => ({ ...prev, differeInclus: v === "inclus" }))}>
+                    <Select value={pret.differeInclus ? "inclus" : "en_plus"} onValueChange={(v) => setPret((prev) => ({ ...prev, differeInclus: v === "inclus" }))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent className="min-w-[260px]">
                         <SelectItem value="inclus">Inclus dans la duree</SelectItem>
@@ -424,7 +424,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Assurance pret</Label>
-                  <Select value={loan.assuranceMode} onValueChange={(v) => setPret((prev) => ({ ...prev, assuranceMode: v as ModeAssurancePret }))}>
+                  <Select value={pret.assuranceMode} onValueChange={(v) => setPret((prev) => ({ ...prev, assuranceMode: v as ModeAssurancePret }))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="eur">EUR/an</SelectItem>
@@ -432,39 +432,39 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
                     </SelectContent>
                   </Select>
                 </div>
-                {loan.assuranceMode === "eur" ? (
+                {pret.assuranceMode === "eur" ? (
                   <div className="space-y-2">
                     <Label>Assurance (EUR/an)</Label>
-                    <Input type="number" min={0} value={loan.assuranceAnnuelle || ""} onChange={(e) => setPret((prev) => ({ ...prev, assuranceAnnuelle: Number(e.target.value) }))} />
+                    <Input type="number" min={0} value={pret.assuranceAnnuelle || ""} onChange={(e) => setPret((prev) => ({ ...prev, assuranceAnnuelle: Number(e.target.value) }))} />
                   </div>
                 ) : (
                   <div className="space-y-2">
                     <Label>Taux assurance (%)</Label>
-                    <Input type="number" min={0} step="0.01" value={loan.assurancePct ? (loan.assurancePct * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, assurancePct: Number(e.target.value) / 100 }))} />
+                    <Input type="number" min={0} step="0.01" value={pret.assurancePct ? (pret.assurancePct * 100).toFixed(2) : ""} onChange={(e) => setPret((prev) => ({ ...prev, assurancePct: Number(e.target.value) / 100 }))} />
                   </div>
                 )}
               </div>
 
               {/* Recap mensualite */}
-              {loan.montantEmprunte > 0 && loan.dureeAnnees > 0 && (() => {
-                const assAn = loan.assuranceMode === "pct" ? loan.montantEmprunte * loan.assurancePct : loan.assuranceAnnuelle;
-                const dM = loan.differeMois;
-                const dureeAmortMois = loan.differeInclus
-                  ? loan.dureeAnnees * 12 - dM
-                  : loan.dureeAnnees * 12;
-                const t = loan.tauxAnnuel / 12;
+              {pret.montantEmprunte > 0 && pret.dureeAnnees > 0 && (() => {
+                const assAn = pret.assuranceMode === "pct" ? pret.montantEmprunte * pret.assurancePct : pret.assuranceAnnuelle;
+                const dM = pret.differeMois;
+                const dureeAmortMois = pret.differeInclus
+                  ? pret.dureeAnnees * 12 - dM
+                  : pret.dureeAnnees * 12;
+                const t = pret.tauxAnnuel / 12;
                 const mens = dureeAmortMois > 0 && t > 0
-                  ? calculerMensualiteAmortissable(loan.montantEmprunte, loan.tauxAnnuel, dureeAmortMois / 12)
-                  : loan.montantEmprunte / Math.max(1, dureeAmortMois);
+                  ? calculerMensualiteAmortissable(pret.montantEmprunte, pret.tauxAnnuel, dureeAmortMois / 12)
+                  : pret.montantEmprunte / Math.max(1, dureeAmortMois);
                 const mensTotale = mens + assAn / 12;
-                const intDiffere = loan.montantEmprunte * t;
+                const intDiffere = pret.montantEmprunte * t;
                 return (
                   <div className="border-t border-dashed border-muted-foreground/15 pt-3 text-sm space-y-1">
                     {dM > 0 && (
                       <div className="flex justify-between text-muted-foreground">
                         <span>Mensualite pendant differe ({dM}m)</span>
                         <span className="tabular-nums font-medium text-foreground">
-                          {formatCurrency(loan.differeType === "total" ? assAn / 12 : intDiffere + assAn / 12, true)}/m
+                          {formatCurrency(pret.differeType === "total" ? assAn / 12 : intDiffere + assAn / 12, true)}/m
                         </span>
                       </div>
                     )}

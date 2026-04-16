@@ -181,16 +181,16 @@ function pageFooter(doc: jsPDF, date: string) {
 // ─────────────────────────────────────────────────────────────────────────────
 // LOAN / AMORT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
-function buildAmortRows(loan: Pret): Array<[string, string, string, string, string]> {
-  const totalMois = dureeTotaleMoisPret(loan);
+function buildAmortRows(pret: Pret): Array<[string, string, string, string, string]> {
+  const totalMois = dureeTotaleMoisPret(pret);
   const totalAnnees = Math.ceil(totalMois / 12);
   const rows: Array<[string, string, string, string, string]> = [];
   for (let a = 1; a <= totalAnnees; a++) {
-    const mensAnnee = totalMensualitesAnnee(loan, a);
-    const interets = interetsAnneePret(loan, a);
-    const mensHorsAss = Math.max(0, mensAnnee - loan.assuranceAnnuelle);
+    const mensAnnee = totalMensualitesAnnee(pret, a);
+    const interets = interetsAnneePret(pret, a);
+    const mensHorsAss = Math.max(0, mensAnnee - pret.assuranceAnnuelle);
     const capitalRembAnnee = Math.max(0, mensHorsAss - interets);
-    const crdFin = crdEnFinAnnee(loan, a);
+    const crdFin = crdEnFinAnnee(pret, a);
     rows.push([`A${a}`, eur(mensAnnee), eur(interets), eur(capitalRembAnnee), eur(crdFin)]);
   }
   const totalMens = rows.reduce((s, r) => s + parseNum(r[1]), 0);
@@ -203,8 +203,8 @@ function parseNum(s: string): number {
   return parseFloat(s.replace(/[^\d.,\-]/g, "").replace(",", ".")) || 0;
 }
 
-function computeAnnualCharges(expenses: Depense[]): number {
-  return expenses
+function computeAnnualCharges(depenses: Depense[]): number {
+  return depenses
     .filter((e) => !EXCLUDED_EXPENSE_CATS.has(e.categorie))
     .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 }
@@ -243,17 +243,17 @@ const MODE_CONFIG: Record<ReportMode, {
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
 export async function exporterRapportBien(params: {
-  property: Bien;
+  bien: Bien;
   lots: Lot[];
-  expenses: Depense[];
-  incomes: Revenu[];
-  loan: Pret | null;
+  depenses: Depense[];
+  revenus: Revenu[];
+  pret: Pret | null;
   interventions: Intervention[];
   montantEmprunteEffectif: number;
   breakEvenMarge: number | null;
   mode: ReportMode;
 }): Promise<void> {
-  const { property, lots, expenses, incomes, loan, interventions, montantEmprunteEffectif, breakEvenMarge, mode } = params;
+  const { bien, lots, depenses, revenus, pret, interventions, montantEmprunteEffectif, breakEvenMarge, mode } = params;
   const cfg = MODE_CONFIG[mode];
 
   const { default: JsPDF } = await import("jspdf");
@@ -264,18 +264,18 @@ export async function exporterRapportBien(params: {
 
   // ── Derived figures ──
   const loyerMensuelCible = lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0);
-  const vacanceGlobale = property.tauxVacanceGlobal ?? 0;
+  const vacanceGlobale = bien.tauxVacanceGlobal ?? 0;
   const loyerMensuelAvecVac = lots.reduce((s, l) => {
-    const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
+    const vac = bien.tauxVacanceGlobal != null ? bien.tauxVacanceGlobal : (l.tauxVacance ?? 0);
     return s + (l.loyerMensuel ?? 0) * (1 - vac);
   }, 0);
   const loyerAnnuelCible = loyerMensuelCible * 12;
   const loyerAnnuelAvecVac = loyerMensuelAvecVac * 12;
-  const chargesAnnuelles = computeAnnualCharges(expenses);
-  const mensualiteMens = loan ? mensualiteAmortissement(loan) + loan.assuranceAnnuelle / 12 : 0;
+  const chargesAnnuelles = computeAnnualCharges(depenses);
+  const mensualiteMens = pret ? mensualiteAmortissement(pret) + pret.assuranceAnnuelle / 12 : 0;
   const mensualiteAnnuelle = mensualiteMens * 12;
-  const coutTotal = coutTotalBien(property);
-  const apport = property.apport ?? Math.max(0, coutTotal - (loan?.montantEmprunte ?? 0));
+  const coutTotal = coutTotalBien(bien);
+  const apport = bien.apport ?? Math.max(0, coutTotal - (pret?.montantEmprunte ?? 0));
   const rendementBrut = coutTotal > 0 ? loyerAnnuelCible / coutTotal : 0;
   const rendementNet = coutTotal > 0 ? (loyerAnnuelAvecVac - chargesAnnuelles) / coutTotal : 0;
   const capitalUtilise = Math.max(0, coutTotal - loyerAnnuelAvecVac); // pour suivi
@@ -284,7 +284,7 @@ export async function exporterRapportBien(params: {
   const cfAnnuel = cfMensuel * 12;
 
   // Pour la KPI "Patrimoine net A10" sur la page Le bien.
-  const valeurBien = property.prixAchat + (property.montantTravaux ?? 0) + (property.montantMobilier ?? 0);
+  const valeurBien = bien.prixAchat + (bien.montantTravaux ?? 0) + (bien.montantMobilier ?? 0);
   // Part du loyer consommée par le crédit (mensualité / loyer mensuel).
   // Affichée dans les "Indicateurs de performance" de la page Exploitation.
   const partLoyerCredit = loyerMensuelAvecVac > 0 ? mensualiteMens / loyerMensuelAvecVac : 0;
@@ -293,11 +293,11 @@ export async function exporterRapportBien(params: {
 
   // Regime fiscal vient de la simulation associee (s'il y en a une).
   let regimeFiscal: string | null = null;
-  if (property.simulationId) {
+  if (bien.simulationId) {
     try {
       const { chargerSimulations, hydraterSimulation } = await import("./simulations");
       const sims = chargerSimulations();
-      const sim = sims.find((s) => s.id === property.simulationId);
+      const sim = sims.find((s) => s.id === bien.simulationId);
       if (sim) {
         const hydrated = await hydraterSimulation(sim);
         regimeFiscal = hydrated.regimeFiscal ?? null;
@@ -310,20 +310,20 @@ export async function exporterRapportBien(params: {
   // ═══════════════════════════════════════════════════════════════════════════
   // PAGE 1 — COVER
   // ═══════════════════════════════════════════════════════════════════════════
-  renderCover(doc, property, cfg, today);
+  renderCover(doc, bien, cfg, today);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // PAGE 2 — LE BIEN (avec KPIs chiffres clés en tête)
   // ═══════════════════════════════════════════════════════════════════════════
   doc.addPage();
-  pageHeader(doc, property.nom || "—", cfg.dossierShort, 2, 99);
+  pageHeader(doc, bien.nom || "—", cfg.dossierShort, 2, 99);
   let y = 22;
   y = sectionTitle(doc, y, "Le bien");
 
   // 4 KPI boxes — vue d'ensemble en tête de page
   const kpiW = (CW - 3 * 4) / 4;
   const kpiH = 20;
-  const crdA10 = loan ? crdEnFinAnnee(loan, 10) : 0;
+  const crdA10 = pret ? crdEnFinAnnee(pret, 10) : 0;
   const valeurA10 = valeurBien * Math.pow(1.02, 10); // +2%/an par défaut
   const patrimoineA10 = valeurA10 - crdA10;
   kpiBox(doc, M + 0 * (kpiW + 4), y, kpiW, kpiH, "Coût total", eur(coutTotal));
@@ -339,17 +339,17 @@ export async function exporterRapportBien(params: {
   const charW = (CW - 8) / 2;
   let yL = y, yR = y;
   yL = subsectionTitle(doc, yL, "Caractéristiques", charL);
-  yL = kvRow(doc, yL, "Type", TYPE_BIEN_LABELS[property.type] ?? property.type, { x: charL, w: charW });
-  if (property.ville) yL = kvRow(doc, yL, "Ville", property.ville, { x: charL, w: charW });
-  if (property.surfaceM2) yL = kvRow(doc, yL, "Surface", `${property.surfaceM2} m²`, { x: charL, w: charW });
-  if (property.surfaceM2 && property.prixAchat) yL = kvRow(doc, yL, "Prix au m²", eur(Math.round(property.prixAchat / property.surfaceM2)) + "/m²", { x: charL, w: charW });
-  if (property.anneeConstruction) yL = kvRow(doc, yL, "Année de construction", String(property.anneeConstruction), { x: charL, w: charW });
-  if (property.dpe) {
-    const dpeLabel = property.dpe === "VIERGE" ? "Non réalisé" : property.dpe;
+  yL = kvRow(doc, yL, "Type", TYPE_BIEN_LABELS[bien.type] ?? bien.type, { x: charL, w: charW });
+  if (bien.ville) yL = kvRow(doc, yL, "Ville", bien.ville, { x: charL, w: charW });
+  if (bien.surfaceM2) yL = kvRow(doc, yL, "Surface", `${bien.surfaceM2} m²`, { x: charL, w: charW });
+  if (bien.surfaceM2 && bien.prixAchat) yL = kvRow(doc, yL, "Prix au m²", eur(Math.round(bien.prixAchat / bien.surfaceM2)) + "/m²", { x: charL, w: charW });
+  if (bien.anneeConstruction) yL = kvRow(doc, yL, "Année de construction", String(bien.anneeConstruction), { x: charL, w: charW });
+  if (bien.dpe) {
+    const dpeLabel = bien.dpe === "VIERGE" ? "Non réalisé" : bien.dpe;
     const dpeColor: readonly [number, number, number] | undefined =
-      property.dpe === "F" || property.dpe === "G" ? C.red :
-      property.dpe === "E" ? C.amber :
-      property.dpe === "A" || property.dpe === "B" ? C.green : undefined;
+      bien.dpe === "F" || bien.dpe === "G" ? C.red :
+      bien.dpe === "E" ? C.amber :
+      bien.dpe === "A" || bien.dpe === "B" ? C.green : undefined;
     yL = kvRow(doc, yL, "DPE", dpeLabel, { x: charL, w: charW, color: dpeColor });
   }
   yL = kvRow(doc, yL, "Nombre de lots", `${lots.length}`, { x: charL, w: charW });
@@ -361,15 +361,15 @@ export async function exporterRapportBien(params: {
       : regimeFiscal;
     yL = kvRow(doc, yL, "Régime fiscal", regimeLabel, { x: charL, w: charW });
   }
-  yL = kvRow(doc, yL, "Statut", property.statut ? STATUT_BIEN_LABELS[property.statut] : "—", { x: charL, w: charW });
+  yL = kvRow(doc, yL, "Statut", bien.statut ? STATUT_BIEN_LABELS[bien.statut] : "—", { x: charL, w: charW });
 
   // Jalons : uniquement pour suivi_interne / refinancement. Pour une demande
   // de prêt, le bien n'est pas encore acquis — afficher "Détenu depuis X ans"
   // ou la date d'acte serait contradictoire avec le contexte.
   if (mode !== "demande_pret") {
     yR = subsectionTitle(doc, yR, "Jalons", charR);
-    const dateActe = property.statusDates?.acte;
-    const dateLocation = property.statusDates?.location;
+    const dateActe = bien.statusDates?.acte;
+    const dateLocation = bien.statusDates?.location;
     if (dateActe) yR = kvRow(doc, yR, "Acte d'acquisition", dateFR(dateActe), { x: charR, w: charW });
     if (dateLocation && dateLocation !== dateActe) yR = kvRow(doc, yR, "Mise en location", dateFR(dateLocation), { x: charR, w: charW });
     if (dateActe) {
@@ -377,8 +377,8 @@ export async function exporterRapportBien(params: {
       const label = ans < 1 ? `${Math.round(ans * 12)} mois` : `${ans.toFixed(1)} ans`;
       yR = kvRow(doc, yR, "Détenu depuis", label, { x: charR, w: charW });
     }
-    if (!dateActe && property.dateSaisie) {
-      yR = kvRow(doc, yR, "Saisie au dossier", dateFR(property.dateSaisie), { x: charR, w: charW });
+    if (!dateActe && bien.dateSaisie) {
+      yR = kvRow(doc, yR, "Saisie au dossier", dateFR(bien.dateSaisie), { x: charR, w: charW });
     }
   }
 
@@ -418,13 +418,13 @@ export async function exporterRapportBien(params: {
   }
 
   // Notes / commentaire libre (si rempli)
-  if (property.notes && property.notes.trim().length > 0) {
+  if (bien.notes && bien.notes.trim().length > 0) {
     y += 3;
     y = subsectionTitle(doc, y, "Commentaire");
     doc.setFont("helvetica", "italic");
     doc.setFontSize(9);
     setColor(doc, C.text, "text");
-    const noteLines = doc.splitTextToSize(property.notes, CW);
+    const noteLines = doc.splitTextToSize(bien.notes, CW);
     doc.text(noteLines, M, y);
     y += noteLines.length * 4.5;
   }
@@ -433,19 +433,19 @@ export async function exporterRapportBien(params: {
   // PAGE 4 — PLAN DE FINANCEMENT
   // ═══════════════════════════════════════════════════════════════════════════
   doc.addPage();
-  pageHeader(doc, property.nom || "—", cfg.dossierShort, 4, 99);
+  pageHeader(doc, bien.nom || "—", cfg.dossierShort, 4, 99);
   y = 22;
   y = sectionTitle(doc, y, "Plan de financement");
 
   // Ventilation coût
   y = subsectionTitle(doc, y, "Coût total du projet");
-  y = kvRow(doc, y, "Prix d'achat", eur(property.prixAchat));
-  if (property.fraisNotaire) y = kvRow(doc, y, "Frais de notaire", eur(property.fraisNotaire));
-  if (property.fraisAgence) y = kvRow(doc, y, "Frais d'agence", eur(property.fraisAgence));
-  if (property.fraisDossier) y = kvRow(doc, y, "Frais de dossier", eur(property.fraisDossier));
-  if (property.fraisCourtage) y = kvRow(doc, y, "Frais de courtage", eur(property.fraisCourtage));
-  if (property.montantTravaux) y = kvRow(doc, y, "Enveloppe travaux", eur(property.montantTravaux));
-  if (property.montantMobilier) y = kvRow(doc, y, "Mobilier", eur(property.montantMobilier));
+  y = kvRow(doc, y, "Prix d'achat", eur(bien.prixAchat));
+  if (bien.fraisNotaire) y = kvRow(doc, y, "Frais de notaire", eur(bien.fraisNotaire));
+  if (bien.fraisAgence) y = kvRow(doc, y, "Frais d'agence", eur(bien.fraisAgence));
+  if (bien.fraisDossier) y = kvRow(doc, y, "Frais de dossier", eur(bien.fraisDossier));
+  if (bien.fraisCourtage) y = kvRow(doc, y, "Frais de courtage", eur(bien.fraisCourtage));
+  if (bien.montantTravaux) y = kvRow(doc, y, "Enveloppe travaux", eur(bien.montantTravaux));
+  if (bien.montantMobilier) y = kvRow(doc, y, "Mobilier", eur(bien.montantMobilier));
   hLine(doc, y - 3.5);
   y = kvRow(doc, y, "Coût total", eur(coutTotal), { bold: true });
   y += 2;
@@ -453,26 +453,26 @@ export async function exporterRapportBien(params: {
   // Financement
   y = subsectionTitle(doc, y, "Sources de financement");
   y = kvRow(doc, y, `Apport personnel (${pct(coutTotal > 0 ? (apport / coutTotal) * 100 : 0, 1)})`, eur(apport));
-  if (loan) y = kvRow(doc, y, `Crédit bancaire (${pct(coutTotal > 0 ? (loan.montantEmprunte / coutTotal) * 100 : 0, 1)})`, eur(loan.montantEmprunte));
+  if (pret) y = kvRow(doc, y, `Crédit bancaire (${pct(coutTotal > 0 ? (pret.montantEmprunte / coutTotal) * 100 : 0, 1)})`, eur(pret.montantEmprunte));
   hLine(doc, y - 3.5);
-  y = kvRow(doc, y, "Total sources", eur(apport + (loan?.montantEmprunte ?? 0)), { bold: true });
+  y = kvRow(doc, y, "Total sources", eur(apport + (pret?.montantEmprunte ?? 0)), { bold: true });
   y += 4;
 
   // Crédit caractéristiques
-  if (loan) {
+  if (pret) {
     y = subsectionTitle(doc, y, "Caractéristiques du crédit");
-    if (loan.banque) y = kvRow(doc, y, "Établissement", loan.banque);
-    y = kvRow(doc, y, "Capital emprunté", eur(loan.montantEmprunte));
-    if (montantEmprunteEffectif > 0 && Math.round(montantEmprunteEffectif) !== Math.round(loan.montantEmprunte)) {
+    if (pret.banque) y = kvRow(doc, y, "Établissement", pret.banque);
+    y = kvRow(doc, y, "Capital emprunté", eur(pret.montantEmprunte));
+    if (montantEmprunteEffectif > 0 && Math.round(montantEmprunteEffectif) !== Math.round(pret.montantEmprunte)) {
       y = kvRow(doc, y, "Capital tiré à date", eur(montantEmprunteEffectif));
     }
-    y = kvRow(doc, y, "Taux nominal", pct(loan.tauxAnnuel * 100, 2));
-    y = kvRow(doc, y, "Durée", `${loan.dureeAnnees} ans`);
-    if ((loan.differeMois ?? 0) > 0) {
-      y = kvRow(doc, y, "Différé", `${loan.differeMois} mois (${loan.differeType ?? "partiel"}${loan.differeInclus === false ? ", en plus" : ", inclus"})`);
+    y = kvRow(doc, y, "Taux nominal", pct(pret.tauxAnnuel * 100, 2));
+    y = kvRow(doc, y, "Durée", `${pret.dureeAnnees} ans`);
+    if ((pret.differeMois ?? 0) > 0) {
+      y = kvRow(doc, y, "Différé", `${pret.differeMois} mois (${pret.differeType ?? "partiel"}${pret.differeInclus === false ? ", en plus" : ", inclus"})`);
     }
-    y = kvRow(doc, y, "Type de prêt", loan.type === "in_fine" ? "In fine" : "Amortissable");
-    if (loan.assuranceAnnuelle) y = kvRow(doc, y, "Assurance prêt", `${eur(loan.assuranceAnnuelle)}/an`);
+    y = kvRow(doc, y, "Type de prêt", pret.type === "in_fine" ? "In fine" : "Amortissable");
+    if (pret.assuranceAnnuelle) y = kvRow(doc, y, "Assurance prêt", `${eur(pret.assuranceAnnuelle)}/an`);
     y = kvRow(doc, y, "Mensualité totale (hors différé)", `${eur(mensualiteMens)}/mois`, { bold: true });
     y += 2;
     if (breakEvenMarge != null) {
@@ -487,7 +487,7 @@ export async function exporterRapportBien(params: {
   // PAGE 5 — EXPLOITATION
   // ═══════════════════════════════════════════════════════════════════════════
   doc.addPage();
-  pageHeader(doc, property.nom || "—", cfg.dossierShort, 5, 99);
+  pageHeader(doc, bien.nom || "—", cfg.dossierShort, 5, 99);
   y = 22;
   y = sectionTitle(doc, y, "Exploitation");
 
@@ -502,7 +502,7 @@ export async function exporterRapportBien(params: {
   // Charges
   y = subsectionTitle(doc, y, "Charges d'exploitation annuelles");
   const byCat = new Map<string, number>();
-  for (const e of expenses) {
+  for (const e of depenses) {
     if (EXCLUDED_EXPENSE_CATS.has(e.categorie)) continue;
     const annuel = annualiserMontant(obtenirMontantCourant(e), e.frequence);
     if (annuel === 0) continue;
@@ -521,7 +521,7 @@ export async function exporterRapportBien(params: {
   y = subsectionTitle(doc, y, "Cash flow");
   y = kvRow(doc, y, "Revenus locatifs nets", eur(loyerAnnuelAvecVac));
   y = kvRow(doc, y, "Charges d'exploitation", `-${eur(chargesAnnuelles)}`);
-  if (loan) y = kvRow(doc, y, "Service de la dette", `-${eur(mensualiteAnnuelle)}`);
+  if (pret) y = kvRow(doc, y, "Service de la dette", `-${eur(mensualiteAnnuelle)}`);
   hLine(doc, y - 3.5);
   y = kvRow(doc, y, "Cash flow annuel avant impôt", eur(cfAnnuel), { bold: true, color: cfAnnuel >= 0 ? C.green : C.red });
   y = kvRow(doc, y, "Cash flow mensuel équivalent", `${eur(cfMensuel)}/mois`, { color: cfMensuel >= 0 ? C.green : C.red });
@@ -539,20 +539,20 @@ export async function exporterRapportBien(params: {
   // ═══════════════════════════════════════════════════════════════════════════
   // ANNEXES — AMORTISSEMENT
   // ═══════════════════════════════════════════════════════════════════════════
-  if (loan) {
+  if (pret) {
     doc.addPage();
-    pageHeader(doc, property.nom || "—", cfg.dossierShort, 7, 99);
+    pageHeader(doc, bien.nom || "—", cfg.dossierShort, 7, 99);
     y = 22;
     y = sectionTitle(doc, y, "Annexe — Tableau d'amortissement");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     setColor(doc, C.muted, "text");
-    doc.text(`Capital ${eur(loan.montantEmprunte)}  ·  Taux ${pct(loan.tauxAnnuel * 100, 2)}  ·  Durée ${loan.dureeAnnees} ans${(loan.differeMois ?? 0) > 0 ? `  ·  Différé ${loan.differeMois} mois` : ""}`, M, y);
+    doc.text(`Capital ${eur(pret.montantEmprunte)}  ·  Taux ${pct(pret.tauxAnnuel * 100, 2)}  ·  Durée ${pret.dureeAnnees} ans${(pret.differeMois ?? 0) > 0 ? `  ·  Différé ${pret.differeMois} mois` : ""}`, M, y);
     y += 5;
     autoTable(doc, {
       startY: y,
       head: [["Année", "Mensualités", "Intérêts", "Capital remboursé", "CRD fin d'année"]],
-      body: buildAmortRows(loan),
+      body: buildAmortRows(pret),
       theme: "plain",
       styles: { font: "helvetica", fontSize: 8, cellPadding: 1.5, halign: "right", textColor: C.text as unknown as [number, number, number] },
       columnStyles: { 0: { halign: "left" } },
@@ -567,19 +567,19 @@ export async function exporterRapportBien(params: {
       },
     });
 
-    if (montantEmprunteEffectif > 0 && Math.round(montantEmprunteEffectif) !== Math.round(loan.montantEmprunte)) {
+    if (montantEmprunteEffectif > 0 && Math.round(montantEmprunteEffectif) !== Math.round(pret.montantEmprunte)) {
       doc.addPage();
-      pageHeader(doc, property.nom || "—", cfg.dossierShort, 8, 99);
+      pageHeader(doc, bien.nom || "—", cfg.dossierShort, 8, 99);
       y = 22;
       y = sectionTitle(doc, y, "Annexe — Amortissement sur capital consommé");
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       setColor(doc, C.muted, "text");
-      doc.text(`Capital tiré ${eur(montantEmprunteEffectif)} (vs ${eur(loan.montantEmprunte)} total)  ·  Taux ${pct(loan.tauxAnnuel * 100, 2)}  ·  Durée ${loan.dureeAnnees} ans`, M, y);
+      doc.text(`Capital tiré ${eur(montantEmprunteEffectif)} (vs ${eur(pret.montantEmprunte)} total)  ·  Taux ${pct(pret.tauxAnnuel * 100, 2)}  ·  Durée ${pret.dureeAnnees} ans`, M, y);
       y += 4;
       y = footnote(doc, y, "Hypothèse : amortissement calculé sur le capital effectivement tiré à ce jour, sans tirage ultérieur de l'enveloppe travaux.", M, CW);
       y += 2;
-      const loanEff: Pret = { ...loan, montantEmprunte: montantEmprunteEffectif };
+      const loanEff: Pret = { ...pret, montantEmprunte: montantEmprunteEffectif };
       autoTable(doc, {
         startY: y,
         head: [["Année", "Mensualités", "Intérêts", "Capital remboursé", "CRD fin d'année"]],
@@ -612,15 +612,15 @@ export async function exporterRapportBien(params: {
       // Need to clear old header first : draw white over it
       setColor(doc, C.white, "fill");
       doc.rect(0, 0, PW, 15, "F");
-      pageHeader(doc, property.nom || "—", cfg.dossierShort, p, totalPages);
+      pageHeader(doc, bien.nom || "—", cfg.dossierShort, p, totalPages);
     }
     pageFooter(doc, today);
   }
 
   // Unused — kept for future enrichment (autres revenus).
-  void incomes;
+  void revenus;
 
-  const safeName = (property.nom || "bien")
+  const safeName = (bien.nom || "bien")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .toLowerCase();
@@ -631,7 +631,7 @@ export async function exporterRapportBien(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 // COVER PAGE
 // ─────────────────────────────────────────────────────────────────────────────
-function renderCover(doc: jsPDF, property: Bien, cfg: typeof MODE_CONFIG[ReportMode], today: string) {
+function renderCover(doc: jsPDF, bien: Bien, cfg: typeof MODE_CONFIG[ReportMode], today: string) {
   // Full-width navy band top (60mm)
   setColor(doc, C.navy, "fill");
   doc.rect(0, 0, PW, 60, "F");
@@ -670,7 +670,7 @@ function renderCover(doc: jsPDF, property: Bien, cfg: typeof MODE_CONFIG[ReportM
   setColor(doc, C.navy, "text");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(26);
-  const nameLines = doc.splitTextToSize(property.nom || "Bien immobilier", PW - 2 * M);
+  const nameLines = doc.splitTextToSize(bien.nom || "Bien immobilier", PW - 2 * M);
   doc.text(nameLines, PW / 2, 80, { align: "center" });
 
   let coverY = 80 + nameLines.length * 11;
@@ -678,8 +678,8 @@ function renderCover(doc: jsPDF, property: Bien, cfg: typeof MODE_CONFIG[ReportM
   setColor(doc, C.muted, "text");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(11);
-  if (property.adresse) {
-    const adresseLines = doc.splitTextToSize(property.adresse, PW - 2 * M);
+  if (bien.adresse) {
+    const adresseLines = doc.splitTextToSize(bien.adresse, PW - 2 * M);
     doc.text(adresseLines, PW / 2, coverY, { align: "center" });
     coverY += adresseLines.length * 6;
   }
@@ -709,8 +709,8 @@ function renderCover(doc: jsPDF, property: Bien, cfg: typeof MODE_CONFIG[ReportM
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   const chipParts: string[] = [];
-  chipParts.push(TYPE_BIEN_LABELS[property.type] ?? property.type);
-  if (property.surfaceM2) chipParts.push(`${property.surfaceM2} m²`);
+  chipParts.push(TYPE_BIEN_LABELS[bien.type] ?? bien.type);
+  if (bien.surfaceM2) chipParts.push(`${bien.surfaceM2} m²`);
   doc.text(chipParts.join("  ·  "), PW / 2, coverY, { align: "center" });
   coverY += 8;
 

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 
 interface IncomeListProps {
-  incomes: Revenu[];
+  revenus: Revenu[];
   onDelete: (id: string) => void;
   onUpdate?: (id: string, updates: Partial<Revenu>) => void;
 }
@@ -104,8 +104,8 @@ function FrequencyChips({
   );
 }
 
-export function ListeRevenus({ incomes, onDelete, onUpdate }: IncomeListProps) {
-  if (incomes.length === 0) {
+export function ListeRevenus({ revenus, onDelete, onUpdate }: IncomeListProps) {
+  if (revenus.length === 0) {
     return <p className="text-sm text-muted-foreground py-4">Aucun revenu enregistre.</p>;
   }
 
@@ -122,45 +122,45 @@ export function ListeRevenus({ incomes, onDelete, onUpdate }: IncomeListProps) {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {incomes.map((income) => (
-          <TableRow key={income.id}>
+        {revenus.map((revenu) => (
+          <TableRow key={revenu.id}>
             <TableCell className="font-medium">
               {onUpdate ? (
                 <EditableCell
-                  value={income.label}
-                  onSave={(v) => onUpdate(income.id, { label: String(v) })}
+                  value={revenu.label}
+                  onSave={(v) => onUpdate(revenu.id, { label: String(v) })}
                 />
-              ) : income.label}
+              ) : revenu.label}
             </TableCell>
-            <TableCell className="text-muted-foreground">{CATEGORIE_REVENU_LABELS[income.categorie]}</TableCell>
+            <TableCell className="text-muted-foreground">{CATEGORIE_REVENU_LABELS[revenu.categorie]}</TableCell>
             <TableCell className="text-right">
               {onUpdate ? (
                 <EditableCell
-                  value={income.montant}
+                  value={revenu.montant}
                   type="number"
-                  onSave={(v) => onUpdate(income.id, { montant: Number(v) })}
+                  onSave={(v) => onUpdate(revenu.id, { montant: Number(v) })}
                   className="text-right"
                 />
-              ) : formatCurrency(income.montant)}
+              ) : formatCurrency(revenu.montant)}
             </TableCell>
             <TableCell>
               {onUpdate ? (
                 <FrequencyChips
-                  value={income.frequence}
-                  onChange={(v) => onUpdate(income.id, { frequence: v })}
+                  value={revenu.frequence}
+                  onChange={(v) => onUpdate(revenu.id, { frequence: v })}
                 />
-              ) : FREQUENCY_LABELS[income.frequence]}
+              ) : FREQUENCY_LABELS[revenu.frequence]}
             </TableCell>
             <TableCell className="text-right">
-              {income.frequence !== "ponctuel"
-                ? formatCurrency(annualiserMontant(income.montant, income.frequence))
+              {revenu.frequence !== "ponctuel"
+                ? formatCurrency(annualiserMontant(revenu.montant, revenu.frequence))
                 : "—"}
             </TableCell>
             <TableCell>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => onDelete(income.id)}
+                onClick={() => onDelete(revenu.id)}
                 className="text-destructive hover:text-destructive"
               >
                 ×

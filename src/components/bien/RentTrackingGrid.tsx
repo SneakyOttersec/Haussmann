@@ -9,16 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 interface Props {
-  propertyId: string;
+  bienId: string;
   lots: Lot[];
   entries: SuiviMensuelLoyer[];
   /** Date d'acquisition / exploitation (YYYY-MM-DD). Cells before this month are locked. */
   dateExploitation?: string;
   onUpsert: (
-    propertyId: string,
+    bienId: string,
     lotId: string,
     yearMonth: string,
-    updates: Partial<Omit<SuiviMensuelLoyer, "id" | "propertyId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
+    updates: Partial<Omit<SuiviMensuelLoyer, "id" | "bienId" | "lotId" | "yearMonth" | "createdAt" | "updatedAt">>,
   ) => void;
   onDelete: (id: string) => void;
 }
@@ -87,7 +87,7 @@ function statusColor(status: StatutSuiviMensuelLoyer): { bg: string; border: str
 }
 
 interface CellEditorProps {
-  propertyId: string;
+  bienId: string;
   lotId: string;
   yearMonth: string;
   loyerAttendu: number;
@@ -99,7 +99,7 @@ interface CellEditorProps {
 }
 
 function CellEditor({
-  propertyId,
+  bienId,
   lotId,
   yearMonth,
   loyerAttendu,
@@ -118,7 +118,7 @@ function CellEditor({
 
   const handleSave = () => {
     const percu = statut === "vacant" || statut === "impaye" || statut === "travaux" ? 0 : Number(loyerPercu) || 0;
-    onUpsert(propertyId, lotId, yearMonth, {
+    onUpsert(bienId, lotId, yearMonth, {
       statut,
       loyerAttendu,
       loyerPercu: percu,
@@ -269,7 +269,7 @@ function CellEditor({
 }
 
 interface CellProps {
-  propertyId: string;
+  bienId: string;
   lot: Lot;
   yearMonth: string;
   entry: SuiviMensuelLoyer | undefined;
@@ -278,7 +278,7 @@ interface CellProps {
   onDelete: Props["onDelete"];
 }
 
-function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete }: CellProps) {
+function Cell({ bienId, lot, yearMonth, entry, isLocked, onUpsert, onDelete }: CellProps) {
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -333,7 +333,7 @@ function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete 
       </button>
       {anchorRect && (
         <CellEditor
-          propertyId={propertyId}
+          bienId={bienId}
           lotId={lot.id}
           yearMonth={yearMonth}
           loyerAttendu={lot.loyerMensuel}
@@ -348,7 +348,7 @@ function Cell({ propertyId, lot, yearMonth, entry, isLocked, onUpsert, onDelete 
   );
 }
 
-export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, onUpsert, onDelete }: Props) {
+export function RentTrackingGrid({ bienId, lots, entries, dateExploitation, onUpsert, onDelete }: Props) {
   const now = new Date();
   const currentYM = toYM(now);
   const { minYM, maxYM } = editableRange(dateExploitation);
@@ -508,7 +508,7 @@ export function RentTrackingGrid({ propertyId, lots, entries, dateExploitation, 
                   return (
                     <Cell
                       key={ym}
-                      propertyId={propertyId}
+                      bienId={bienId}
                       lot={lot}
                       yearMonth={ym}
                       entry={entry}

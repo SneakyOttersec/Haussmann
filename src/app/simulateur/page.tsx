@@ -325,7 +325,7 @@ function SimulateurContent() {
                 variant="outline"
                 onClick={async () => {
                   // Garantit que la simulation est sauvegardee AVANT de creer
-                  // le bien — sinon property.simulationId reste undefined et
+                  // le bien — sinon bien.simulationId reste undefined et
                   // le "Snapshot simulation initiale" ne peut pas s'afficher.
                   let simId = activeSimId;
                   let inputsWithId = inputs;

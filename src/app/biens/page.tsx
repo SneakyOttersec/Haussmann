@@ -71,14 +71,14 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import type { PieceJointePret } from "@/types";
 
-function LoanExtras({ loan, onUpdate }: {
-  loan: Pret;
+function LoanExtras({ pret, onUpdate }: {
+  pret: Pret;
   onUpdate: (updates: Partial<Pret>) => void;
 }) {
   const [editBanque, setEditBanque] = useState(false);
-  const [banqueDraft, setBanqueDraft] = useState(loan.banque || "");
+  const [banqueDraft, setBanqueDraft] = useState(pret.banque || "");
   const fileRef = useRef<HTMLInputElement>(null);
-  const docs = loan.documents ?? [];
+  const docs = pret.documents ?? [];
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -132,13 +132,13 @@ function LoanExtras({ loan, onUpdate }: {
           />
         ) : (
           <button
-            onClick={() => { setBanqueDraft(loan.banque || ""); setEditBanque(true); }}
+            onClick={() => { setBanqueDraft(pret.banque || ""); setEditBanque(true); }}
             title="Cliquer pour modifier"
             className="inline-flex items-center gap-1.5 text-sm px-2 py-0.5 rounded border border-dashed border-muted-foreground/40 hover:border-primary/60 hover:bg-primary/5 hover:text-primary transition-colors"
           >
-            {loan.banque ? (
+            {pret.banque ? (
               <>
-                <span>{loan.banque}</span>
+                <span>{pret.banque}</span>
                 <span className="text-[10px] opacity-60">✎</span>
               </>
             ) : (
@@ -171,19 +171,19 @@ function LoanExtras({ loan, onUpdate }: {
 }
 
 /**
- * Compute the credit allocation for a property + loan. Uses the stored
+ * Compute the credit allocation for a bien + pret. Uses the stored
  * allocationCredit when available; otherwise derives a default that
  * covers the full project cost (credit + apport). Shared by
  * AllocationSection (display) and the SectionInterventions call site
  * (enveloppe travaux).
  */
-function calculerAllocationCredit(property: Bien, loan: Pret): AllocationCredit {
+function calculerAllocationCredit(bien: Bien, pret: Pret): AllocationCredit {
   // Backfill dossier/garantie/mobilier on older allocations that predate those buckets.
-  if (property.allocationCredit) {
-    const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie" | "mobilier">;
+  if (bien.allocationCredit) {
+    const a = bien.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie" | "mobilier">;
     // Mobilier absent de l'allocation mais present sur la propriete : on le
     // backfill automatiquement pour que le cout total soit coherent.
-    const mobilier = a.mobilier ?? property.montantMobilier ?? 0;
+    const mobilier = a.mobilier ?? bien.montantMobilier ?? 0;
     return {
       ...a,
       dossier: a.dossier ?? 0,
@@ -194,30 +194,30 @@ function calculerAllocationCredit(property: Bien, loan: Pret): AllocationCredit 
   // Default = full project cost split across buckets; user can then
   // redistribute to match the credit+apport financing.
   return {
-    bien: property.prixAchat,
-    travaux: property.montantTravaux,
-    notaire: property.fraisNotaire,
-    agence: property.fraisAgence,
-    dossier: property.fraisDossier ?? 0,
+    bien: bien.prixAchat,
+    travaux: bien.montantTravaux,
+    notaire: bien.fraisNotaire,
+    agence: bien.fraisAgence,
+    dossier: bien.fraisDossier ?? 0,
     garantie: 0,
-    mobilier: property.montantMobilier ?? 0,
-    autre: property.fraisCourtage ?? 0,
+    mobilier: bien.montantMobilier ?? 0,
+    autre: bien.fraisCourtage ?? 0,
   };
 }
 
-function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
-  property: Bien;
-  loan: Pret;
+function ApportSection({ bien, pret, onUpdateApport, onUpdateEmprunt }: {
+  bien: Bien;
+  pret: Pret;
   onUpdateApport: (v: number | undefined) => void;
   onUpdateEmprunt: (v: number) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const coutTotal = coutTotalBien(property);
-  const apportDerive = Math.max(0, coutTotal - loan.montantEmprunte);
-  const apport = property.apport ?? apportDerive;
+  const coutTotal = coutTotalBien(bien);
+  const apportDerive = Math.max(0, coutTotal - pret.montantEmprunte);
+  const apport = bien.apport ?? apportDerive;
   const [draft, setDraft] = useState(String(apport));
-  const isCustom = property.apport != null;
-  const totalFinance = loan.montantEmprunte + apport;
+  const isCustom = bien.apport != null;
+  const totalFinance = pret.montantEmprunte + apport;
   const ecartProjet = totalFinance - coutTotal;
 
   const handleSave = () => {
@@ -246,7 +246,7 @@ function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
       </div>
       <div className="flex justify-between text-sm">
         <span className="text-muted-foreground">Emprunt</span>
-        <span className="font-medium tabular-nums">{formatCurrency(loan.montantEmprunte)}</span>
+        <span className="font-medium tabular-nums">{formatCurrency(pret.montantEmprunte)}</span>
       </div>
       <div className="flex justify-between text-sm font-bold items-center">
         <span>Apport personnel</span>
@@ -303,18 +303,18 @@ function ApportSection({ property, loan, onUpdateApport, onUpdateEmprunt }: {
   );
 }
 
-function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan }: {
-  loan: Pret;
-  property: Bien;
+function AllocationSection({ pret, bien, interventions, onSave, onUpdateLoan }: {
+  pret: Pret;
+  bien: Bien;
   interventions: Intervention[];
   onSave: (alloc: AllocationCredit) => void;
   onUpdateLoan: (updates: Partial<Pret>) => void;
 }) {
-  const defaultAlloc = calculerAllocationCredit(property, loan);
+  const defaultAlloc = calculerAllocationCredit(bien, pret);
   const [editOpen, setEditOpen] = useState(false);
   const [edit, setEdit] = useState(defaultAlloc);
 
-  // Travaux funded by the loan envelope — drives the small "x € sur y € utilises" hint
+  // Travaux funded by the pret envelope — drives the small "x € sur y € utilises" hint
   // displayed right under the Travaux row.
   const travauxFinances = interventions
     .filter((i) => (i.interventionType ?? "intervention") === "travaux" && i.financeParCredit)
@@ -324,8 +324,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
   const travauxOverflow = travauxFinances > travauxEnveloppe;
 
   // Note: this list is rendered manually so we can interleave the travaux usage hint.
-  const enveloppeFinDate = enveloppeTravauxFinDate(loan);
-  const enveloppeOuverte = estEnveloppeTravauxOuverte(loan);
+  const enveloppeFinDate = enveloppeTravauxFinDate(pret);
+  const enveloppeOuverte = estEnveloppeTravauxOuverte(pret);
 
   const allocations: { key: keyof AllocationCredit; label: string; value: number }[] = [
     { key: "bien", label: "Bien immobilier", value: defaultAlloc.bien },
@@ -340,8 +340,8 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
   const totalAlloue = allocations.reduce((s, a) => s + a.value, 0);
   // L'allocation doit couvrir le financement total = apport + credit, pas
   // uniquement le credit.
-  const apport = property.apport ?? 0;
-  const financementTotal = loan.montantEmprunte + apport;
+  const apport = bien.apport ?? 0;
+  const financementTotal = pret.montantEmprunte + apport;
   const ecart = financementTotal - totalAlloue;
 
   const handleSave = (e: React.FormEvent) => {
@@ -403,7 +403,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
                       {enveloppeOuverte && enveloppeFinDate && (
                         <span className="text-green-600">ouverte</span>
                       )}
-                      {loan.enveloppeTravauxFinDate && (
+                      {pret.enveloppeTravauxFinDate && (
                         <button
                           onClick={() => onUpdateLoan({ enveloppeTravauxFinDate: undefined })}
                           className="text-muted-foreground/50 hover:text-primary text-[9px]"
@@ -425,7 +425,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
             </span>
           </div>
           <p className="text-[10px] text-muted-foreground/80 mt-0.5">
-            ↳ credit {formatCurrency(loan.montantEmprunte)} + apport {formatCurrency(apport)}
+            ↳ credit {formatCurrency(pret.montantEmprunte)} + apport {formatCurrency(apport)}
           </p>
           {ecart !== 0 && (
             <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -482,7 +482,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
                 </span>
               </div>
               <p className="text-[10px] text-muted-foreground/80 mt-0.5 text-right">
-                credit {formatCurrency(loan.montantEmprunte)} + apport {formatCurrency(apport)}
+                credit {formatCurrency(pret.montantEmprunte)} + apport {formatCurrency(apport)}
               </p>
             </div>
             <Button type="submit" className="w-full">Enregistrer</Button>
@@ -507,18 +507,18 @@ function PropertyDetailContent() {
   const { data, setData } = useDonnees();
   const router = useRouter();
   const { obtenirBien, mettreAJourBien, supprimerBien } = useBiens(data, setData);
-  const { expenses, ajouterDepense, mettreAJourDepense, supprimerDepense } = useDepenses(data, setData, id ?? undefined);
-  const { incomes, ajouterRevenu, mettreAJourRevenu, supprimerRevenu } = useRevenus(data, setData, id ?? undefined);
-  const { loan, setPret, supprimerPret } = usePrets(data, setData, id ?? undefined);
+  const { depenses, ajouterDepense, mettreAJourDepense, supprimerDepense } = useDepenses(data, setData, id ?? undefined);
+  const { revenus, ajouterRevenu, mettreAJourRevenu, supprimerRevenu } = useRevenus(data, setData, id ?? undefined);
+  const { pret, setPret, supprimerPret } = usePrets(data, setData, id ?? undefined);
   const { interventions, ajouterIntervention, mettreAJourIntervention, supprimerIntervention } = useInterventions(data, setData, id ?? undefined);
   const { contacts, ajouterContact, mettreAJourContact, supprimerContact } = useContacts(data, setData, id ?? undefined);
   const { documents, ajouterDocument, supprimerDocument } = useDocuments(data, setData, id ?? undefined);
   const { lots, ajouterLot, mettreAJourLot, supprimerLot } = useLots(data, setData, id ?? undefined);
-  const { entries: rentEntries } = useSuiviLoyers(data, setData, id ?? undefined);
+  const { entries: suiviLoyers } = useSuiviLoyers(data, setData, id ?? undefined);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   // Tracks whether we've already auto-synced lots for the current "travaux" session.
-  // Reset when the property leaves "travaux", so re-entering triggers a new sync.
+  // Reset when the bien leaves "travaux", so re-entering triggers a new sync.
   const travauxSyncedRef = useRef(false);
   // Snapshot "Projection actuelle" A1 remonte par SectionReelVsSimule —
   // source de verite partagee avec le graph pour la marge travaux / CF negatif.
@@ -529,8 +529,8 @@ function PropertyDetailContent() {
 
   if (!data || !id) return null;
 
-  const property = obtenirBien(id);
-  if (!property) {
+  const bien = obtenirBien(id);
+  if (!bien) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">Bien introuvable.</p>
@@ -542,11 +542,11 @@ function PropertyDetailContent() {
   }
 
   // ── Auto-sync lots to "travaux" on first detection ──
-  // Runs once per "travaux session": syncs desynced lots when the property
-  // enters travaux (or when the page loads with property already in travaux).
+  // Runs once per "travaux session": syncs desynced lots when the bien
+  // enters travaux (or when the page loads with bien already in travaux).
   // After the one-time sync, user overrides via the force-confirmation dialog
-  // are respected — no re-sync until the property leaves then re-enters travaux.
-  if (property.statut === "travaux") {
+  // are respected — no re-sync until the bien leaves then re-enters travaux.
+  if (bien.statut === "travaux") {
     if (!travauxSyncedRef.current) {
       const desyncedLots = lots.filter((l) => l.statut !== "travaux");
       if (desyncedLots.length > 0) {
@@ -564,34 +564,34 @@ function PropertyDetailContent() {
   }
 
   // Mensualite shown in the credit card = post-defer amortization payment.
-  // For pre-acte loans with a defer, this is what the user will pay starting
+  // For pre-acte prets with a defer, this is what the user will pay starting
   // month N+1 — it's the most informative number for the validation tickbox.
-  const mensualiteCredit = loan ? mensualiteAmortissement(loan) : 0;
-  const dM = loan?.differeMois ?? 0;
-  const mensualiteDifferee = loan && dM > 0 ? mensualitePendantDiffere(loan) : 0;
+  const mensualiteCredit = pret ? mensualiteAmortissement(pret) : 0;
+  const dM = pret?.differeMois ?? 0;
+  const mensualiteDifferee = pret && dM > 0 ? mensualitePendantDiffere(pret) : 0;
 
   // ── Travaux envelope consumption → effective principal & monthly payment ──
   //
   // Real-life French banks release the travaux envelope progressively as the
   // borrower presents invoices. The effective amount drawn at any point in time
-  // equals the loan total minus the unspent portion of the travaux envelope.
+  // equals the pret total minus the unspent portion of the travaux envelope.
   // We recompute the mensualite on this effective principal so the user sees
   // what they actually pay today vs. what they'll pay once the envelope is
   // fully consumed.
-  const travauxEnveloppeCredit = property.allocationCredit?.travaux ?? 0;
+  const travauxEnveloppeCredit = bien.allocationCredit?.travaux ?? 0;
   const travauxFinancesParCredit = interventions
     .filter((i) => (i.interventionType ?? "intervention") === "travaux" && i.financeParCredit)
     .reduce((s, i) => s + i.montant, 0);
-  const travauxNonTires = loan
+  const travauxNonTires = pret
     ? Math.max(0, travauxEnveloppeCredit - travauxFinancesParCredit)
     : 0;
-  const montantEmprunteEffectif = loan ? Math.max(0, loan.montantEmprunte - travauxNonTires) : 0;
-  // Synthetic loan with the effective principal — drives both the mensualite
+  const montantEmprunteEffectif = pret ? Math.max(0, pret.montantEmprunte - travauxNonTires) : 0;
+  // Synthetic pret with the effective principal — drives both the mensualite
   // amortization phase and the differe-period interest payment.
-  const loanEffectif = loan ? { ...loan, montantEmprunte: montantEmprunteEffectif } : null;
+  const loanEffectif = pret ? { ...pret, montantEmprunte: montantEmprunteEffectif } : null;
   const mensualiteEffective = loanEffectif ? mensualiteAmortissement(loanEffectif) : 0;
   const mensualiteDifferEffective = loanEffectif && dM > 0 ? mensualitePendantDiffere(loanEffectif) : 0;
-  const showEffectif = loan != null && travauxNonTires > 0;
+  const showEffectif = pret != null && travauxNonTires > 0;
 
   // ── Marge travaux avant CF negatif ──
   // Principal P* qui fait basculer le CF annuel a 0 en regime post-differe :
@@ -601,39 +601,39 @@ function PropertyDetailContent() {
   // kEff vient de `mensualiteAmortissement(loanEffectif) / montantEmprunteEffectif`
   // — gere correctement differeInclus + differe partiel/total (capitalisation).
   const breakEvenMarge: number | null = (() => {
-    if (!loan || !loanEffectif || !actuelSnapshot) return null;
+    if (!pret || !loanEffectif || !actuelSnapshot) return null;
     if (montantEmprunteEffectif <= 0 || mensualiteEffective <= 0) return null;
     const { loyerNetAnnuel, chargesAnnuelles } = actuelSnapshot;
-    const disponibleAvantCredit = loyerNetAnnuel - chargesAnnuelles - loan.assuranceAnnuelle;
+    const disponibleAvantCredit = loyerNetAnnuel - chargesAnnuelles - pret.assuranceAnnuelle;
     const kEff = mensualiteEffective / montantEmprunteEffectif;
     if (kEff <= 0) return null;
     const pStar = disponibleAvantCredit / (kEff * 12);
     return pStar - montantEmprunteEffectif;
   })();
 
-  // Pre-acte = the property is still being prospected/negotiated. While in this
+  // Pre-acte = the bien is still being prospected/negotiated. While in this
   // state, financial values are projections — we color each price green when the
   // user has validated it against a real contract/offer, orange otherwise. Once
-  // the property is post-acte, prices are real and stay in the default colour.
-  const isPreActe = !estPostActe(property.statut);
-  const creditValide = !!loan?.offerValidated;
+  // the bien is post-acte, prices are real and stay in the default colour.
+  const isPreActe = !estPostActe(bien.statut);
+  const creditValide = !!pret?.offerValidated;
   const priceClass = (validated: boolean): string =>
     isPreActe ? (validated ? "text-green-600" : "text-amber-600") : "";
 
   const handleSetLoan = (loanData: Parameters<typeof setPret>[0]) => {
     setPret(loanData);
-    // The auto-created "credit" expense holds the post-defer monthly payment.
+    // The auto-created "credit" depense holds the post-defer monthly payment.
     // The Cash Flow chart and fiscal bilan compute the real per-month cost
-    // from the loan helpers, so they correctly handle the defer phase.
+    // from the pret helpers, so they correctly handle the defer phase.
     const mensualite = mensualiteAmortissement(loanData);
     const assuranceMensuelle = loanData.assuranceAnnuelle / 12;
     const montantTotal = Math.round((mensualite + assuranceMensuelle) * 100) / 100;
-    const creditExpense = expenses.find((e) => e.categorie === "credit");
+    const creditExpense = depenses.find((e) => e.categorie === "credit");
     if (creditExpense) {
       mettreAJourDepense(creditExpense.id, { montant: montantTotal, dateDebut: loanData.dateDebut });
     } else {
       ajouterDepense({
-        propertyId: id,
+        bienId: id,
         categorie: "credit",
         label: "Mensualite credit",
         montant: montantTotal,
@@ -646,17 +646,17 @@ function PropertyDetailContent() {
 
   const handleDeleteLoan = (loanId: string) => {
     supprimerPret(loanId);
-    const creditExpense = expenses.find((e) => e.categorie === "credit");
+    const creditExpense = depenses.find((e) => e.categorie === "credit");
     if (creditExpense) {
       supprimerDepense(creditExpense.id);
     }
   };
 
-  // Lot → Revenu sync: each lot creates/updates a matching income entry
+  // Lot → Revenu sync: each lot creates/updates a matching revenu entry
   const handleAddLot = (lotData: Parameters<typeof ajouterLot>[0]) => {
     ajouterLot(lotData);
     ajouterRevenu({
-      propertyId: id,
+      bienId: id,
       categorie: "loyer",
       label: lotData.nom || "Loyer",
       montant: lotData.loyerMensuel,
@@ -670,7 +670,7 @@ function PropertyDetailContent() {
     mettreAJourLot(lotId, updates);
     const lot = lots.find((l) => l.id === lotId);
     if (!lot) return;
-    const matchingIncome = incomes.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
+    const matchingIncome = revenus.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
     if (matchingIncome) {
       const incUpdates: Record<string, unknown> = {};
       if (updates.loyerMensuel !== undefined) incUpdates.montant = updates.loyerMensuel;
@@ -686,7 +686,7 @@ function PropertyDetailContent() {
     const lot = lots.find((l) => l.id === lotId);
     supprimerLot(lotId);
     if (lot) {
-      const matchingIncome = incomes.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
+      const matchingIncome = revenus.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
       if (matchingIncome) supprimerRevenu(matchingIncome.id);
     }
   };
@@ -703,7 +703,7 @@ function PropertyDetailContent() {
       if (oldDoc) supprimerDocument(oldDoc.id);
       // Add new linked doc
       ajouterDocument({
-        propertyId: id,
+        bienId: id,
         nom: `[${typeLabel}] ${label} — ${updates.pieceJointe.nom}`,
         categorie: "devis",
         data: updates.pieceJointe.data,
@@ -729,7 +729,7 @@ function PropertyDetailContent() {
   };
 
   const handleDelete = () => {
-    if (deleteConfirmText === property.nom) {
+    if (deleteConfirmText === bien.nom) {
       supprimerBien(id);
       router.push("/");
     }
@@ -745,19 +745,19 @@ function PropertyDetailContent() {
         <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mt-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="break-words">{property.nom}</h1>
-              <Badge variant="secondary">{TYPE_BIEN_LABELS[property.type]}</Badge>
+              <h1 className="break-words">{bien.nom}</h1>
+              <Badge variant="secondary">{TYPE_BIEN_LABELS[bien.type]}</Badge>
             </div>
-            <p className="text-muted-foreground mt-1 break-words">{property.adresse}</p>
+            <p className="text-muted-foreground mt-1 break-words">{bien.adresse}</p>
             <p className="text-sm text-muted-foreground">
-              Achat : {formatCurrency(property.prixAchat)} — {property.dateSaisie}
-              {property.surfaceM2 ? ` — ${property.surfaceM2} m²` : ""}
+              Achat : {formatCurrency(bien.prixAchat)} — {bien.dateSaisie}
+              {bien.surfaceM2 ? ` — ${bien.surfaceM2} m²` : ""}
             </p>
           </div>
           <div className="flex items-center gap-1.5 flex-wrap md:justify-end">
             {/* Navigation : vues rattachees au bien */}
             <Link
-              href={`/loyers?propertyId=${id}`}
+              href={`/loyers?bienId=${id}`}
               className="px-2.5 py-1 text-xs rounded-md border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
               title="Ouvrir le suivi des loyers de ce bien"
             >
@@ -770,9 +770,9 @@ function PropertyDetailContent() {
             >
               Simuler
             </Link>
-            {property.simulationId && (
+            {bien.simulationId && (
               <Link
-                href={`/simulateur?simId=${property.simulationId}`}
+                href={`/simulateur?simId=${bien.simulationId}`}
                 className="px-2.5 py-1 text-xs rounded-md border border-dotted border-muted-foreground/40 text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
                 title="Ouvrir la simulation initiale dont ce bien est issu"
               >
@@ -854,11 +854,11 @@ function PropertyDetailContent() {
                   setExportPdfOpen(false);
                   const { exporterRapportBien } = await import("@/lib/rapportBien");
                   await exporterRapportBien({
-                    property,
+                    bien,
                     lots,
-                    expenses,
-                    incomes,
-                    loan,
+                    depenses,
+                    revenus,
+                    pret,
                     interventions,
                     montantEmprunteEffectif,
                     breakEvenMarge,
@@ -881,18 +881,18 @@ function PropertyDetailContent() {
             className="relative border border-destructive/30 rounded-lg p-6 bg-background shadow-lg space-y-4 w-full max-w-md mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="font-bold text-sm">Supprimer {property.nom}</h3>
+            <h3 className="font-bold text-sm">Supprimer {bien.nom}</h3>
             <p className="text-sm text-muted-foreground">
               Toutes les donnees associees seront supprimees : depenses, revenus, credit, lots, interventions, contacts et documents.
             </p>
             <p className="text-sm text-muted-foreground">
-              Tapez <strong className="text-foreground">{property.nom}</strong> pour confirmer :
+              Tapez <strong className="text-foreground">{bien.nom}</strong> pour confirmer :
             </p>
             <Input
               autoFocus
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder={property.nom}
+              placeholder={bien.nom}
               onKeyDown={(e) => { if (e.key === "Enter") handleDelete(); if (e.key === "Escape") setDeleteOpen(false); }}
             />
             <div className="flex gap-2">
@@ -900,7 +900,7 @@ function PropertyDetailContent() {
               <Button
                 variant="destructive"
                 className="flex-1"
-                disabled={deleteConfirmText !== property.nom}
+                disabled={deleteConfirmText !== bien.nom}
                 onClick={handleDelete}
               >
                 Supprimer definitivement
@@ -912,15 +912,15 @@ function PropertyDetailContent() {
 
       {/* Status bar */}
       <BarreStatutBien
-        statut={property.statut ?? "exploitation"}
-        statusDates={property.statusDates}
-        statusDocs={property.statusDocs}
+        statut={bien.statut ?? "exploitation"}
+        statusDates={bien.statusDates}
+        statusDocs={bien.statusDocs}
         onChange={(s: StatutBien) => {
           const today = new Date().toISOString().slice(0, 10);
-          const prevDates = property.statusDates ?? {};
+          const prevDates = bien.statusDates ?? {};
           const nextDates = prevDates[s] ? prevDates : { ...prevDates, [s]: today };
           mettreAJourBien(id, { statut: s, statusDates: nextDates });
-          // When the property enters "travaux", automatically set every lot
+          // When the bien enters "travaux", automatically set every lot
           // to statut "travaux" — no rent is expected during renovation.
           if (s === "travaux") {
             for (const lot of lots) {
@@ -929,19 +929,19 @@ function PropertyDetailContent() {
           }
         }}
         onDateChange={(s, date) => {
-          const prevDates = property.statusDates ?? {};
+          const prevDates = bien.statusDates ?? {};
           mettreAJourBien(id, { statusDates: { ...prevDates, [s]: date } });
           // Also sync lots when the user interacts with the travaux date —
           // covers the case where the status was already "travaux" and the
           // user is just setting / adjusting dates.
-          if (s === "travaux" && property.statut === "travaux") {
+          if (s === "travaux" && bien.statut === "travaux") {
             for (const lot of lots) {
               if (lot.statut !== "travaux") mettreAJourLot(lot.id, { statut: "travaux" });
             }
           }
         }}
         onDocChange={(s, doc) => {
-          const prevDocs = property.statusDocs ?? {};
+          const prevDocs = bien.statusDocs ?? {};
           if (doc) {
             mettreAJourBien(id, { statusDocs: { ...prevDocs, [s]: doc } });
           } else {
@@ -953,23 +953,23 @@ function PropertyDetailContent() {
 
       {/* KPIs */}
       <ResumeBien
-        property={property}
-        expenses={expenses}
-        incomes={incomes}
-        loan={loan}
-        capitalUtiliseActuel={loan ? coutTotalBien(property) - travauxNonTires : undefined}
+        bien={bien}
+        depenses={depenses}
+        revenus={revenus}
+        pret={pret}
+        capitalUtiliseActuel={pret ? coutTotalBien(bien) - travauxNonTires : undefined}
         revenuMensuelTheorique={lots.reduce((s, l) => {
-          const vac = property.tauxVacanceGlobal != null ? property.tauxVacanceGlobal : (l.tauxVacance ?? 0);
+          const vac = bien.tauxVacanceGlobal != null ? bien.tauxVacanceGlobal : (l.tauxVacance ?? 0);
           return s + (l.loyerMensuel ?? 0) * (1 - vac);
         }, 0)}
         revenuMensuelMax={lots.reduce((s, l) => s + (l.loyerMensuel ?? 0), 0)}
         creditApresDiffereSurUtilise={
-          loan && showEffectif
-            ? mensualiteEffective + loan.assuranceAnnuelle / 12
+          pret && showEffectif
+            ? mensualiteEffective + pret.assuranceAnnuelle / 12
             : undefined
         }
         lots={lots}
-        rentEntries={rentEntries}
+        suiviLoyers={suiviLoyers}
       />
 
       <Separator className="border-dashed" />
@@ -979,9 +979,9 @@ function PropertyDetailContent() {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3">
             <h2>Credit</h2>
-            {isPreActe && loan && (
+            {isPreActe && pret && (
               <button
-                onClick={() => setPret({ ...loan, offerValidated: !creditValide })}
+                onClick={() => setPret({ ...pret, offerValidated: !creditValide })}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] transition-colors ${
                   creditValide
                     ? "bg-green-500/15 text-green-700 font-medium"
@@ -992,39 +992,39 @@ function PropertyDetailContent() {
               </button>
             )}
           </div>
-          <FormulairePret propertyId={id} initialData={loan ?? undefined} onSubmit={handleSetLoan} />
+          <FormulairePret bienId={id} initialData={pret ?? undefined} onSubmit={handleSetLoan} />
         </div>
-        {loan ? (
+        {pret ? (
           <Card className="border-dotted">
             <CardContent className="p-4">
-              {loan.banque && (
-                <p className="text-xs text-muted-foreground mb-3">🏦 {loan.banque}</p>
+              {pret.banque && (
+                <p className="text-xs text-muted-foreground mb-3">🏦 {pret.banque}</p>
               )}
               {(() => {
-                const assurMensuelle = loan.assuranceAnnuelle / 12;
+                const assurMensuelle = pret.assuranceAnnuelle / 12;
                 const dureeLabel = (() => {
-                  if (dM <= 0) return `${loan.dureeAnnees} ans`;
-                  if (loan.differeInclus === false) {
-                    const t = loan.dureeAnnees * 12 + dM;
+                  if (dM <= 0) return `${pret.dureeAnnees} ans`;
+                  if (pret.differeInclus === false) {
+                    const t = pret.dureeAnnees * 12 + dM;
                     const a = Math.floor(t / 12);
                     const m = t % 12;
                     return `${a} ans${m > 0 ? ` ${m} mois` : ""}`;
                   }
-                  return `${loan.dureeAnnees} ans`;
+                  return `${pret.dureeAnnees} ans`;
                 })();
                 const dureeDetail = dM > 0
-                  ? loan.differeInclus === false
-                    ? `${dM} mois de differe ${loan.differeType === "total" ? "total" : "partiel"} + ${loan.dureeAnnees} ans d'amortissement`
-                    : `dont ${dM} mois de differe ${loan.differeType === "total" ? "total" : "partiel"}`
+                  ? pret.differeInclus === false
+                    ? `${dM} mois de differe ${pret.differeType === "total" ? "total" : "partiel"} + ${pret.dureeAnnees} ans d'amortissement`
+                    : `dont ${dM} mois de differe ${pret.differeType === "total" ? "total" : "partiel"}`
                   : null;
 
                 return (
                   <>
-                    {/* Row 1: core loan params */}
+                    {/* Row 1: core pret params */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Capital emprunte</p>
-                        <p className="font-bold tabular-nums">{formatCurrency(loan.montantEmprunte)}</p>
+                        <p className="font-bold tabular-nums">{formatCurrency(pret.montantEmprunte)}</p>
                         {showEffectif && (
                           <p className="text-[10px] text-muted-foreground mt-1">
                             Tire : <span className="tabular-nums font-medium text-foreground">{formatCurrency(montantEmprunteEffectif)}</span>
@@ -1059,7 +1059,7 @@ function PropertyDetailContent() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Taux nominal</p>
-                        <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(loan.tauxAnnuel * 100).toFixed(2)} %</p>
+                        <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(pret.tauxAnnuel * 100).toFixed(2)} %</p>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Duree totale</p>
@@ -1074,8 +1074,8 @@ function PropertyDetailContent() {
                     {(() => {
                       // Split capital / interet de la 1ere mensualite d'amortissement
                       // (representative du debut de la phase d'amortissement).
-                      const crdStart = capitalApresDiffere(loan);
-                      const interetM1 = crdStart * loan.tauxAnnuel / 12;
+                      const crdStart = capitalApresDiffere(pret);
+                      const interetM1 = crdStart * pret.tauxAnnuel / 12;
                       const capitalM1 = Math.max(0, mensualiteCredit - interetM1);
                       // Pendant le differe :
                       // - partiel : 100% interets (mensualiteDifferee = montantEmprunte × taux/12)
@@ -1101,7 +1101,7 @@ function PropertyDetailContent() {
                           : []),
                         { separator: true as const, label: "", value: "" },
                         { label: "Total", value: `${formatCurrency(mensualiteDifferee + assurMensuelle, true)}/m`, bold: true },
-                        ...(loan.differeType === "total"
+                        ...(pret.differeType === "total"
                           ? [
                               { separator: true as const, label: "", value: "" },
                               { label: "Interets capitalises au capital", value: "" },
@@ -1153,28 +1153,28 @@ function PropertyDetailContent() {
               })()}
               {/* Apport + warning financement */}
               <ApportSection
-                property={property}
-                loan={loan}
+                bien={bien}
+                pret={pret}
                 onUpdateApport={(v) => mettreAJourBien(id, { apport: v })}
-                onUpdateEmprunt={(v) => setPret({ ...loan, montantEmprunte: v })}
+                onUpdateEmprunt={(v) => setPret({ ...pret, montantEmprunte: v })}
               />
               {/* Allocation du credit */}
               <AllocationSection
-                loan={loan}
-                property={property}
+                pret={pret}
+                bien={bien}
                 interventions={interventions}
                 onSave={(alloc) => mettreAJourBien(id, { allocationCredit: alloc })}
-                onUpdateLoan={(updates) => setPret({ ...loan, ...updates })}
+                onUpdateLoan={(updates) => setPret({ ...pret, ...updates })}
               />
               {/* Banque + Documents credit */}
-              <LoanExtras loan={loan} onUpdate={(updates) => setPret({ ...loan, ...updates })} />
+              <LoanExtras pret={pret} onUpdate={(updates) => setPret({ ...pret, ...updates })} />
               <button
-                onClick={() => handleDeleteLoan(loan.id)}
+                onClick={() => handleDeleteLoan(pret.id)}
                 className="text-xs text-destructive hover:underline mt-3"
               >
                 Supprimer le credit
               </button>
-              <TableauAmortissementPret loan={loan} />
+              <TableauAmortissementPret pret={pret} />
             </CardContent>
           </Card>
         ) : (
@@ -1189,10 +1189,10 @@ function PropertyDetailContent() {
         <Card className="border-dotted">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base">Depenses</CardTitle>
-            <FormulaireDepense propertyId={id} onSubmit={ajouterDepense} />
+            <FormulaireDepense bienId={id} onSubmit={ajouterDepense} />
           </CardHeader>
           <CardContent>
-            <ListeDepenses expenses={expenses} onDelete={supprimerDepense} onUpdate={mettreAJourDepense} colorByValidation={isPreActe} />
+            <ListeDepenses depenses={depenses} onDelete={supprimerDepense} onUpdate={mettreAJourDepense} colorByValidation={isPreActe} />
             <p className="text-[11px] text-amber-700 italic mt-3">
               ⚠ Donnees non utilisees dans les graphiques, seules les charges dans &quot;Loyer et charges&quot; le sont.
             </p>
@@ -1207,39 +1207,39 @@ function PropertyDetailContent() {
           onAdd={handleAddLot}
           onUpdate={handleUpdateLot}
           onDelete={handleDeleteLot}
-          propertyId={id}
-          propertyStatut={property.statut}
-          tauxVacanceGlobal={property.tauxVacanceGlobal}
+          bienId={id}
+          propertyStatut={bien.statut}
+          tauxVacanceGlobal={bien.tauxVacanceGlobal}
           onUpdateTauxVacanceGlobal={(v) => mettreAJourBien(id, { tauxVacanceGlobal: v })}
         />
       </section>
 
 
-      {/* Flux mensuels — only for post-acte properties */}
-      {estPostActe(property.statut) && (
+      {/* Flux mensuels — only for post-acte biens */}
+      {estPostActe(bien.statut) && (
         <section data-pdf-chart="fluxMensuels" data-pdf-chart-label="Flux mensuels depuis l'acquisition">
           <Card className="border-dotted">
             <CardHeader className="pb-3">
               <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
             </CardHeader>
             <CardContent>
-              <GraphFluxMensuels property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} loan={loan} />
+              <GraphFluxMensuels bien={bien} revenus={revenus} depenses={depenses} suiviLoyers={suiviLoyers} pret={pret} />
             </CardContent>
           </Card>
         </section>
       )}
 
       {/* Cash flow annuel (Reel vs Simule) */}
-      {property.simulationId && (
+      {bien.simulationId && (
         <section data-pdf-chart="cashFlowAnnuel" data-pdf-chart-label="Cash flow annuel">
           <SectionReelVsSimule
-            property={property}
-            incomes={incomes}
-            expenses={expenses}
-            rentEntries={rentEntries}
-            loan={loan}
+            bien={bien}
+            revenus={revenus}
+            depenses={depenses}
+            suiviLoyers={suiviLoyers}
+            pret={pret}
             onUpdateProperty={(updates) => mettreAJourBien(id, updates)}
-            montantEmprunteConsomme={loan ? montantEmprunteEffectif : undefined}
+            montantEmprunteConsomme={pret ? montantEmprunteEffectif : undefined}
             lots={lots}
             onActuelSnapshot={setActuelSnapshot}
           />
@@ -1254,12 +1254,12 @@ function PropertyDetailContent() {
           </CardHeader>
           <CardContent>
             <GraphRendementMensuel
-              property={property}
-              incomes={incomes}
-              expenses={expenses}
-              rentEntries={rentEntries}
-              loan={loan}
-              chargePayments={(data?.chargePayments ?? []).filter((c) => c.propertyId === id)}
+              bien={bien}
+              revenus={revenus}
+              depenses={depenses}
+              suiviLoyers={suiviLoyers}
+              pret={pret}
+              paiementsCharges={(data?.paiementsCharges ?? []).filter((c) => c.bienId === id)}
             />
           </CardContent>
         </Card>
@@ -1274,22 +1274,22 @@ function PropertyDetailContent() {
           onAdd={ajouterIntervention}
           onUpdate={handleUpdateIntervention}
           onDelete={supprimerIntervention}
-          propertyId={id}
+          bienId={id}
           filterType="travaux"
           lots={lots}
-          enveloppeCredit={loan ? calculerAllocationCredit(property, loan).travaux : 0}
-          enveloppeOuverte={loan ? estEnveloppeTravauxOuverte(loan) : true}
+          enveloppeCredit={pret ? calculerAllocationCredit(bien, pret).travaux : 0}
+          enveloppeOuverte={pret ? estEnveloppeTravauxOuverte(pret) : true}
         />
       </section>
 
       {/* Interventions */}
       <section>
-        <SectionInterventions interventions={interventions} onAdd={ajouterIntervention} onUpdate={handleUpdateIntervention} onDelete={supprimerIntervention} propertyId={id} filterType="intervention" lots={lots} />
+        <SectionInterventions interventions={interventions} onAdd={ajouterIntervention} onUpdate={handleUpdateIntervention} onDelete={supprimerIntervention} bienId={id} filterType="intervention" lots={lots} />
       </section>
 
       {/* Contacts */}
       <section>
-        <SectionContacts contacts={contacts} onAdd={ajouterContact} onUpdate={mettreAJourContact} onDelete={supprimerContact} propertyId={id} />
+        <SectionContacts contacts={contacts} onAdd={ajouterContact} onUpdate={mettreAJourContact} onDelete={supprimerContact} bienId={id} />
       </section>
 
       {/* Documents */}
@@ -1298,34 +1298,34 @@ function PropertyDetailContent() {
           documents={documents}
           onAdd={ajouterDocument}
           onDelete={handleDeleteDocument}
-          propertyId={id}
+          bienId={id}
           linkedDocs={(() => {
             const ld: import("@/components/bien/SectionDocuments").LinkedDoc[] = [];
             // Timeline phase docs (statusDocs)
-            if (property.statusDocs) {
-              for (const [phase, doc] of Object.entries(property.statusDocs)) {
+            if (bien.statusDocs) {
+              for (const [phase, doc] of Object.entries(bien.statusDocs)) {
                 if (!doc || !doc.data) continue;
                 ld.push({
                   key: `phase:${phase}`,
                   sourceLabel: `Phase ${STATUT_BIEN_LABELS[phase as keyof typeof STATUT_BIEN_LABELS] ?? phase}`,
                   fileName: doc.nom,
                   fileSize: doc.taille,
-                  date: property.statusDates?.[phase as keyof typeof property.statusDates] ?? "",
+                  date: bien.statusDates?.[phase as keyof typeof bien.statusDates] ?? "",
                   dataUri: doc.data,
                 });
               }
             }
             // Loan docs
-            if (loan?.documents) {
-              for (let i = 0; i < loan.documents.length; i++) {
-                const doc = loan.documents[i];
+            if (pret?.documents) {
+              for (let i = 0; i < pret.documents.length; i++) {
+                const doc = pret.documents[i];
                 if (!doc.data) continue;
                 ld.push({
-                  key: `loan:${i}`,
+                  key: `pret:${i}`,
                   sourceLabel: "Credit",
                   fileName: doc.nom,
                   fileSize: doc.taille,
-                  date: doc.ajouteLe ?? loan.dateDebut,
+                  date: doc.ajouteLe ?? pret.dateDebut,
                   dataUri: doc.data,
                 });
               }

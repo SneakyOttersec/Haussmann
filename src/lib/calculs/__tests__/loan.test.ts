@@ -137,85 +137,85 @@ const baseLoan: PretLike = {
 };
 
 describe('differe partiel — 12 mois', () => {
-  const loan: PretLike = { ...baseLoan, differeMois: 12, differeType: 'partiel' };
+  const pret: PretLike = { ...baseLoan, differeMois: 12, differeType: 'partiel' };
 
   it('capital effectif inchange apres differe partiel', () => {
-    expect(capitalApresDiffere(loan)).toBe(200_000);
+    expect(capitalApresDiffere(pret)).toBe(200_000);
   });
 
   it('mensualite pendant le differe = interets seulement', () => {
     // 200_000 * 0.036 / 12 = 600
-    expect(mensualitePendantDiffere(loan)).toBeCloseTo(600, 2);
-    expect(mensualiteAuMois(loan, 0)).toBeCloseTo(600, 2);
-    expect(mensualiteAuMois(loan, 11)).toBeCloseTo(600, 2);
+    expect(mensualitePendantDiffere(pret)).toBeCloseTo(600, 2);
+    expect(mensualiteAuMois(pret, 0)).toBeCloseTo(600, 2);
+    expect(mensualiteAuMois(pret, 11)).toBeCloseTo(600, 2);
   });
 
   it('mensualite apres differe est calculee sur 19 ans (228 mois)', () => {
-    const m = mensualiteAmortissement(loan);
+    const m = mensualiteAmortissement(pret);
     // 200_000 sur 228 mois @ 3.6%/an
     const expected = calculerMensualiteAmortissable(200_000, 0.036, 19);
     expect(m).toBeCloseTo(expected, 2);
-    expect(mensualiteAuMois(loan, 12)).toBeCloseTo(expected, 2);
+    expect(mensualiteAuMois(pret, 12)).toBeCloseTo(expected, 2);
   });
 
   it('CRD constant pendant le differe partiel', () => {
-    expect(crdAuMois(loan, 0)).toBe(200_000);
-    expect(crdAuMois(loan, 11)).toBe(200_000);
+    expect(crdAuMois(pret, 0)).toBe(200_000);
+    expect(crdAuMois(pret, 11)).toBe(200_000);
   });
 
   it('CRD = 0 a la fin de la duree totale', () => {
-    expect(crdAuMois(loan, 240 - 1)).toBeCloseTo(0, 0);
-    expect(crdEnFinAnnee(loan, 20)).toBeCloseTo(0, 0);
+    expect(crdAuMois(pret, 240 - 1)).toBeCloseTo(0, 0);
+    expect(crdEnFinAnnee(pret, 20)).toBeCloseTo(0, 0);
   });
 
   it('interets de l annee 1 = 12 * (capital * t/12)', () => {
-    const i1 = interetsAnneePret(loan, 1);
+    const i1 = interetsAnneePret(pret, 1);
     expect(i1).toBeCloseTo(7200, 0); // 12 * 600
   });
 
   it('total mensualites annee 1 = 12 * 600', () => {
-    expect(totalMensualitesAnnee(loan, 1)).toBeCloseTo(7200, 0);
+    expect(totalMensualitesAnnee(pret, 1)).toBeCloseTo(7200, 0);
   });
 
   it('total mensualites annee 2 = 12 * mensualite amortissement', () => {
-    const m = mensualiteAmortissement(loan);
-    expect(totalMensualitesAnnee(loan, 2)).toBeCloseTo(m * 12, 0);
+    const m = mensualiteAmortissement(pret);
+    expect(totalMensualitesAnnee(pret, 2)).toBeCloseTo(m * 12, 0);
   });
 });
 
 describe('differe total — 12 mois', () => {
-  const loan: PretLike = { ...baseLoan, differeMois: 12, differeType: 'total' };
+  const pret: PretLike = { ...baseLoan, differeMois: 12, differeType: 'total' };
 
   it('capital apres differe = capital * (1+t)^12', () => {
     const expected = 200_000 * Math.pow(1 + 0.036 / 12, 12);
-    expect(capitalApresDiffere(loan)).toBeCloseTo(expected, 2);
+    expect(capitalApresDiffere(pret)).toBeCloseTo(expected, 2);
   });
 
   it('mensualite pendant le differe = 0', () => {
-    expect(mensualitePendantDiffere(loan)).toBe(0);
-    expect(mensualiteAuMois(loan, 0)).toBe(0);
-    expect(mensualiteAuMois(loan, 11)).toBe(0);
+    expect(mensualitePendantDiffere(pret)).toBe(0);
+    expect(mensualiteAuMois(pret, 0)).toBe(0);
+    expect(mensualiteAuMois(pret, 11)).toBe(0);
   });
 
   it('CRD croit pendant le differe total', () => {
     const t = 0.036 / 12;
-    expect(crdAuMois(loan, 0)).toBeCloseTo(200_000 * (1 + t), 2);
-    expect(crdAuMois(loan, 11)).toBeCloseTo(200_000 * Math.pow(1 + t, 12), 2);
+    expect(crdAuMois(pret, 0)).toBeCloseTo(200_000 * (1 + t), 2);
+    expect(crdAuMois(pret, 11)).toBeCloseTo(200_000 * Math.pow(1 + t, 12), 2);
   });
 
   it('mensualite apres differe sur capital inflate', () => {
-    const capital = capitalApresDiffere(loan);
-    const m = mensualiteAmortissement(loan);
+    const capital = capitalApresDiffere(pret);
+    const m = mensualiteAmortissement(pret);
     const expected = calculerMensualiteAmortissable(capital, 0.036, 19);
     expect(m).toBeCloseTo(expected, 2);
   });
 
   it('interets payes annee 1 = 0 (capitalises)', () => {
-    expect(interetsAnneePret(loan, 1)).toBe(0);
+    expect(interetsAnneePret(pret, 1)).toBe(0);
   });
 
   it('CRD ≈ 0 a la fin', () => {
-    expect(crdAuMois(loan, 240 - 1)).toBeCloseTo(0, 0);
+    expect(crdAuMois(pret, 240 - 1)).toBeCloseTo(0, 0);
   });
 });
 
@@ -251,7 +251,7 @@ describe('differeInclus = false (differe en plus de la duree)', () => {
 
   it('mensualite amort avec "en plus" est calculee sur 20 ans complets', () => {
     const m = mensualiteAmortissement(loanEnPlus);
-    // Pure 20 ans amort on 200k → same as standard 20-year loan
+    // Pure 20 ans amort on 200k → same as standard 20-year pret
     const expected = calculerMensualiteAmortissable(200_000, 0.036, 20);
     expect(m).toBeCloseTo(expected, 2);
   });
@@ -291,35 +291,35 @@ describe('differeInclus = false (differe en plus de la duree)', () => {
 });
 
 describe('differe partiel — 6 mois (annee 1 mixte)', () => {
-  const loan: PretLike = { ...baseLoan, differeMois: 6, differeType: 'partiel' };
+  const pret: PretLike = { ...baseLoan, differeMois: 6, differeType: 'partiel' };
   const t = 0.036 / 12;
   const interetMensuelDiffere = 200_000 * t; // 600
 
   it('mensualite des 6 premiers mois = interets seulement', () => {
     for (let m = 0; m < 6; m++) {
-      expect(mensualiteAuMois(loan, m)).toBeCloseTo(interetMensuelDiffere, 2);
+      expect(mensualiteAuMois(pret, m)).toBeCloseTo(interetMensuelDiffere, 2);
     }
   });
 
   it('mensualite des 6 mois suivants = amortissement', () => {
-    const mAmort = mensualiteAmortissement(loan);
+    const mAmort = mensualiteAmortissement(pret);
     for (let m = 6; m < 12; m++) {
-      expect(mensualiteAuMois(loan, m)).toBeCloseTo(mAmort, 2);
+      expect(mensualiteAuMois(pret, m)).toBeCloseTo(mAmort, 2);
     }
   });
 
   it('CRD constant pendant les 6 premiers mois', () => {
     for (let m = 0; m < 6; m++) {
-      expect(crdAuMois(loan, m)).toBe(200_000);
+      expect(crdAuMois(pret, m)).toBe(200_000);
     }
   });
 
   it('CRD diminue au mois 6 (debut amortissement)', () => {
-    expect(crdAuMois(loan, 6)).toBeLessThan(200_000);
+    expect(crdAuMois(pret, 6)).toBeLessThan(200_000);
   });
 
   it('interets annee 1 = 6 mois d interets + 6 mois d interets amort', () => {
-    const i1 = interetsAnneePret(loan, 1);
+    const i1 = interetsAnneePret(pret, 1);
     // First 6 months: 6 * 600 = 3600 (interest only)
     // Next 6 months: some amortization-phase interest (less than 600/m because capital decreases)
     // Total must be > 3600 (the amort phase still has interest) but < 7200 (which would be 12 * 600)
@@ -328,15 +328,15 @@ describe('differe partiel — 6 mois (annee 1 mixte)', () => {
   });
 
   it('total mensualites annee 1 = 6 * differe + 6 * amort', () => {
-    const total = totalMensualitesAnnee(loan, 1);
-    const mAmort = mensualiteAmortissement(loan);
+    const total = totalMensualitesAnnee(pret, 1);
+    const mAmort = mensualiteAmortissement(pret);
     const expected = 6 * interetMensuelDiffere + 6 * mAmort;
     expect(total).toBeCloseTo(expected, 0);
   });
 });
 
 describe('in_fine + differe total — 6 mois', () => {
-  const loan: PretLike = {
+  const pret: PretLike = {
     montantEmprunte: 200_000,
     tauxAnnuel: 0.036,
     dureeAnnees: 20,
@@ -347,24 +347,24 @@ describe('in_fine + differe total — 6 mois', () => {
 
   it('mensualite = 0 pendant le differe', () => {
     for (let m = 0; m < 6; m++) {
-      expect(mensualiteAuMois(loan, m)).toBe(0);
+      expect(mensualiteAuMois(pret, m)).toBe(0);
     }
   });
 
   it('mensualite = interets mensuels apres differe', () => {
     const expected = 200_000 * 0.036 / 12; // 600
-    expect(mensualiteAuMois(loan, 6)).toBeCloseTo(expected, 2);
+    expect(mensualiteAuMois(pret, 6)).toBeCloseTo(expected, 2);
   });
 
   it('interets annee 1 = 6 mois seulement (pas les 6 mois de differe total)', () => {
-    const i1 = interetsAnneePret(loan, 1);
+    const i1 = interetsAnneePret(pret, 1);
     // 6 months of total defer → 0 interest paid
     // 6 months of in_fine → 6 * 200k * 0.036/12 = 3600
     expect(i1).toBeCloseTo(3600, 0);
   });
 
   it('interets annee 2 = 12 mois complets', () => {
-    const i2 = interetsAnneePret(loan, 2);
+    const i2 = interetsAnneePret(pret, 2);
     expect(i2).toBeCloseTo(7200, 0);
   });
 });

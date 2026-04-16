@@ -49,11 +49,11 @@ export function extractAllDocuments(data: DonneesApp, rootFolder: string): Extra
   const docs: ExtractedDoc[] = [];
   const docsFolder = 'Documents';
   const propName = (propId: string) => sanitizeName(
-    data.properties.find(p => p.id === propId)?.nom ?? propId,
+    data.biens.find(p => p.id === propId)?.nom ?? propId,
   );
 
   // 1. Bien statusDocs (phases)
-  for (const p of data.properties) {
+  for (const p of data.biens) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
       if (!doc || !isDataUri(doc.data)) continue;
@@ -70,7 +70,7 @@ export function extractAllDocuments(data: DonneesApp, rootFolder: string): Extra
   // 2. PropertyDocuments
   for (const doc of (data.documents ?? [])) {
     if (!isDataUri(doc.data)) continue;
-    const pName = propName(doc.propertyId);
+    const pName = propName(doc.bienId);
     const catLabel = CATEGORIE_DOCUMENT_LABELS[doc.categorie] ?? doc.categorie;
     docs.push({
       folderPath: `${rootFolder}/${docsFolder}/${sanitizeName(pName)} - Documents`,
@@ -80,13 +80,13 @@ export function extractAllDocuments(data: DonneesApp, rootFolder: string): Extra
   }
 
   // 3. Loan documents
-  for (const loan of (data.loans ?? [])) {
-    const pName = propName(loan.propertyId);
-    for (const doc of (loan.documents ?? [])) {
+  for (const pret of (data.prets ?? [])) {
+    const pName = propName(pret.bienId);
+    for (const doc of (pret.documents ?? [])) {
       if (!isDataUri(doc.data)) continue;
       docs.push({
         folderPath: `${rootFolder}/${docsFolder}/${sanitizeName(pName)} - Prets`,
-        fileName: buildFileName({ date: doc.ajouteLe ?? loan.dateDebut, label: 'Pret', propertyName: pName, originalName: doc.nom }),
+        fileName: buildFileName({ date: doc.ajouteLe ?? pret.dateDebut, label: 'Pret', propertyName: pName, originalName: doc.nom }),
         dataUri: doc.data,
       });
     }
@@ -95,7 +95,7 @@ export function extractAllDocuments(data: DonneesApp, rootFolder: string): Extra
   // 4. Intervention PJ
   for (const inter of (data.interventions ?? [])) {
     if (!inter.pieceJointe || !isDataUri(inter.pieceJointe.data)) continue;
-    const pName = propName(inter.propertyId);
+    const pName = propName(inter.bienId);
     docs.push({
       folderPath: `${rootFolder}/${docsFolder}/${sanitizeName(pName)} - Interventions`,
       fileName: buildFileName({ date: inter.date, label: 'Intervention', propertyName: pName, originalName: inter.pieceJointe.nom }),
@@ -117,15 +117,15 @@ export function dataUriToBytes(dataUri: string): Uint8Array {
 
 // ── Metadata-only listing (for UI display) ──
 
-export type DocumentSource = 'phase' | 'document' | 'loan' | 'intervention';
+export type DocumentSource = 'phase' | 'document' | 'pret' | 'intervention';
 
 export interface DocumentListEntry {
   /** Stable unique key for React */
   key: string;
   source: DocumentSource;
   sourceLabel: string;
-  /** Source property (always defined for the 4 known sources) */
-  propertyId: string;
+  /** Source bien (always defined for the 4 known sources) */
+  bienId: string;
   propertyName: string;
   /** Original uploaded filename */
   fileName: string;
@@ -143,7 +143,7 @@ export interface DocumentListEntry {
 
 /**
  * Walks DonneesApp and returns one entry per uploaded file across the 4 sources
- * (property phases, generic documents, loan PJs, intervention PJs).
+ * (bien phases, generic documents, pret PJs, intervention PJs).
  * Metadata is enough for a settings-page listing — we keep dataUri so the
  * caller can build a download link without re-walking the tree.
  */
@@ -154,10 +154,10 @@ function hasDocData(s: unknown): s is string {
 
 export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
   const entries: DocumentListEntry[] = [];
-  const propName = (id: string) => data.properties.find((p) => p.id === id)?.nom ?? id;
+  const propName = (id: string) => data.biens.find((p) => p.id === id)?.nom ?? id;
 
   // 1. Bien statusDocs (phases)
-  for (const p of data.properties) {
+  for (const p of data.biens) {
     if (!p.statusDocs) continue;
     for (const [phase, doc] of Object.entries(p.statusDocs)) {
       if (!doc || !hasDocData(doc.data)) continue;
@@ -167,7 +167,7 @@ export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
         key: `phase:${p.id}:${phase}`,
         source: 'phase',
         sourceLabel: `Phase ${phaseLabel}`,
-        propertyId: p.id,
+        bienId: p.id,
         propertyName: p.nom,
         fileName: doc.nom,
         fileType: doc.type,
@@ -186,8 +186,8 @@ export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
       key: `doc:${doc.id}`,
       source: 'document',
       sourceLabel: catLabel,
-      propertyId: doc.propertyId,
-      propertyName: propName(doc.propertyId),
+      bienId: doc.bienId,
+      propertyName: propName(doc.bienId),
       fileName: doc.nom,
       fileType: doc.type,
       fileSize: doc.taille,
@@ -197,21 +197,21 @@ export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
   }
 
   // 3. Loan documents
-  for (const loan of (data.loans ?? [])) {
-    const docs = loan.documents ?? [];
+  for (const pret of (data.prets ?? [])) {
+    const docs = pret.documents ?? [];
     for (let i = 0; i < docs.length; i++) {
       const doc = docs[i];
       if (!hasDocData(doc.data)) continue;
       entries.push({
-        key: `loan:${loan.id}:${i}`,
-        source: 'loan',
+        key: `pret:${pret.id}:${i}`,
+        source: 'pret',
         sourceLabel: 'Pret',
-        propertyId: loan.propertyId,
-        propertyName: propName(loan.propertyId),
+        bienId: pret.bienId,
+        propertyName: propName(pret.bienId),
         fileName: doc.nom,
         fileType: doc.type,
         fileSize: doc.taille,
-        date: doc.ajouteLe ?? loan.dateDebut,
+        date: doc.ajouteLe ?? pret.dateDebut,
         dataUri: doc.data,
       });
     }
@@ -224,8 +224,8 @@ export function listAllDocuments(data: DonneesApp): DocumentListEntry[] {
       key: `inter:${inter.id}`,
       source: 'intervention',
       sourceLabel: inter.interventionType === 'travaux' ? 'Travaux' : 'Intervention',
-      propertyId: inter.propertyId,
-      propertyName: propName(inter.propertyId),
+      bienId: inter.bienId,
+      propertyName: propName(inter.bienId),
       fileName: inter.pieceJointe.nom,
       fileType: inter.pieceJointe.type,
       fileSize: inter.pieceJointe.taille,

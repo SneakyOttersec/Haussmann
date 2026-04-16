@@ -18,7 +18,7 @@ import { incomeSchema, validateForm, type ValidationErrors } from "@/lib/validat
 type IncomeFormData = Omit<Revenu, "id" | "createdAt" | "updatedAt">;
 
 interface IncomeFormProps {
-  propertyId: string;
+  bienId: string;
   initialData?: Partial<IncomeFormData>;
   onSubmit: (data: IncomeFormData) => void;
   trigger?: React.ReactNode;
@@ -53,10 +53,10 @@ function ChipGroup<T extends string>({
   );
 }
 
-export function FormulaireRevenu({ propertyId, initialData, onSubmit, trigger }: IncomeFormProps) {
+export function FormulaireRevenu({ bienId, initialData, onSubmit, trigger }: IncomeFormProps) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<IncomeFormData>({
-    propertyId,
+    bienId,
     categorie: initialData?.categorie ?? "loyer",
     label: initialData?.label ?? "",
     montant: initialData?.montant ?? 0,
@@ -82,7 +82,7 @@ export function FormulaireRevenu({ propertyId, initialData, onSubmit, trigger }:
     });
     setOpen(false);
     setForm({
-      propertyId,
+      bienId,
       categorie: "loyer",
       label: "",
       montant: 0,

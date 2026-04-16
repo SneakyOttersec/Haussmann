@@ -5,8 +5,8 @@ import type { DonneesApp, Lot, LotStatut, SuiviMensuelLoyer } from "@/types";
 import { generateId } from "@/lib/utils";
 
 /** Derive lot status from the most recent rent entry for this lot */
-export function deriveLotStatut(lotId: string, rentEntries: SuiviMensuelLoyer[]): LotStatut | null {
-  const entries = rentEntries.filter((e) => e.lotId === lotId);
+export function deriveLotStatut(lotId: string, suiviLoyers: SuiviMensuelLoyer[]): LotStatut | null {
+  const entries = suiviLoyers.filter((e) => e.lotId === lotId);
   if (entries.length === 0) return null;
   const sorted = [...entries].sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
   const latest = sorted[0].statut;
@@ -16,12 +16,12 @@ export function deriveLotStatut(lotId: string, rentEntries: SuiviMensuelLoyer[])
 export function useLots(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
   const all = data?.lots ?? [];
   const lots = useMemo(
-    () => propertyId ? all.filter((l) => l.propertyId === propertyId) : all,
-    [all, propertyId]
+    () => bienId ? all.filter((l) => l.bienId === bienId) : all,
+    [all, bienId]
   );
 
   const ajouterLot = useCallback(

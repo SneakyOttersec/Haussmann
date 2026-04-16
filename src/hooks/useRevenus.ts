@@ -7,26 +7,26 @@ import { generateId, now } from "@/lib/utils";
 export function useRevenus(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
-  const allIncomes = data?.incomes ?? [];
+  const allIncomes = data?.revenus ?? [];
 
-  const incomes = useMemo(
-    () => propertyId ? allIncomes.filter((i) => i.propertyId === propertyId) : allIncomes,
-    [allIncomes, propertyId]
+  const revenus = useMemo(
+    () => bienId ? allIncomes.filter((i) => i.bienId === bienId) : allIncomes,
+    [allIncomes, bienId]
   );
 
   const ajouterRevenu = useCallback(
-    (income: Omit<Revenu, "id" | "createdAt" | "updatedAt">) => {
+    (revenu: Omit<Revenu, "id" | "createdAt" | "updatedAt">) => {
       const newIncome: Revenu = {
-        ...income,
+        ...revenu,
         id: generateId(),
         createdAt: now(),
         updatedAt: now(),
       };
       setData((prev) => ({
         ...prev,
-        incomes: [...prev.incomes, newIncome],
+        revenus: [...prev.revenus, newIncome],
       }));
       return newIncome.id;
     },
@@ -37,7 +37,7 @@ export function useRevenus(
     (id: string, updates: Partial<Omit<Revenu, "id" | "createdAt">>) => {
       setData((prev) => ({
         ...prev,
-        incomes: prev.incomes.map((i) =>
+        revenus: prev.revenus.map((i) =>
           i.id === id ? { ...i, ...updates, updatedAt: now() } : i
         ),
       }));
@@ -49,11 +49,11 @@ export function useRevenus(
     (id: string) => {
       setData((prev) => ({
         ...prev,
-        incomes: prev.incomes.filter((i) => i.id !== id),
+        revenus: prev.revenus.filter((i) => i.id !== id),
       }));
     },
     [setData]
   );
 
-  return { incomes, ajouterRevenu, mettreAJourRevenu, supprimerRevenu };
+  return { revenus, ajouterRevenu, mettreAJourRevenu, supprimerRevenu };
 }

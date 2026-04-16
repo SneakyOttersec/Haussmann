@@ -57,17 +57,17 @@ function CurvesInfoTooltip() {
 }
 
 interface Props {
-  property: Bien;
-  incomes: Revenu[];
-  expenses: Depense[];
-  rentEntries: SuiviMensuelLoyer[];
-  loan?: Pret | null;
-  chargePayments?: PaiementCharge[];
+  bien: Bien;
+  revenus: Revenu[];
+  depenses: Depense[];
+  suiviLoyers: SuiviMensuelLoyer[];
+  pret?: Pret | null;
+  paiementsCharges?: PaiementCharge[];
 }
 
 /**
  * Monthly rendement chart based on REAL values (percu/depense from rent tracking
- * + actual expenses). Each point uses a rolling 12-month window ending on that
+ * + actual depenses). Each point uses a rolling 12-month window ending on that
  * month, annualized and divided by coutTotal. We need a rolling window because
  * a single-month slice is too noisy (rent is lumpy, charges are bursty).
  *
@@ -137,7 +137,7 @@ function ChartTooltip({ active, payload, label, showBrutRoll, showNetRoll, showB
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
-export function GraphRendementMensuel({ property, incomes, expenses, rentEntries, loan, chargePayments }: Props) {
+export function GraphRendementMensuel({ bien, revenus, depenses, suiviLoyers, pret, paiementsCharges }: Props) {
   // Toggles par courbe.
   const [showBrutRoll, setShowBrutRoll] = useState(true);
   const [showNetRoll, setShowNetRoll] = useState(true);
@@ -145,20 +145,20 @@ export function GraphRendementMensuel({ property, incomes, expenses, rentEntries
   const [showNetCumul, setShowNetCumul] = useState(true);
   // Detail block (replie par defaut).
   const [detailOpen, setDetailOpen] = useState(false);
-  const coutTotal = coutTotalBien(property);
-  const monthly = buildMonthlyFlow(property, incomes, expenses, rentEntries, loan ?? null);
+  const coutTotal = coutTotalBien(bien);
+  const monthly = buildMonthlyFlow(bien, revenus, depenses, suiviLoyers, pret ?? null);
 
-  // ── Depenses reelles par mois, via chargePayments quand dispo ──
-  // buildMonthlyFlow retourne la projection des expenses. Les charges saisies
-  // reellement (section Charges → chargePayments) doivent les remplacer
-  // poste par poste. Si l'utilisateur a saisi un paiement pour une expense
+  // ── Depenses reelles par mois, via paiementsCharges quand dispo ──
+  // buildMonthlyFlow retourne la projection des depenses. Les charges saisies
+  // reellement (section Charges → paiementsCharges) doivent les remplacer
+  // poste par poste. Si l'utilisateur a saisi un paiement pour une depense
   // mais pas pour un mois donne, on garde la projection pour ce mois-la.
-  const paymentsByExpByYM = new Map<string, Map<string, number>>(); // expenseId → (YYYY-MM → paidThisMonth)
-  for (const p of (chargePayments ?? [])) {
-    const exp = expenses.find((e) => e.id === p.expenseId);
+  const paymentsByExpByYM = new Map<string, Map<string, number>>(); // depenseId → (YYYY-MM → paidThisMonth)
+  for (const p of (paiementsCharges ?? [])) {
+    const exp = depenses.find((e) => e.id === p.depenseId);
     if (!exp || exp.categorie === "credit") continue;
-    let map = paymentsByExpByYM.get(p.expenseId);
-    if (!map) { map = new Map(); paymentsByExpByYM.set(p.expenseId, map); }
+    let map = paymentsByExpByYM.get(p.depenseId);
+    if (!map) { map = new Map(); paymentsByExpByYM.set(p.depenseId, map); }
     if (exp.frequence === "mensuel" && /^\d{4}-\d{2}$/.test(p.periode)) {
       map.set(p.periode, (map.get(p.periode) ?? 0) + p.montantPaye);
     } else if (exp.frequence === "trimestriel") {
@@ -183,23 +183,23 @@ export function GraphRendementMensuel({ property, incomes, expenses, rentEntries
   }
 
   // Recalcule depenses pour chaque mois en sommant, poste par poste :
-  // - paiement reel si dispo pour (expense, mois)
+  // - paiement reel si dispo pour (depense, mois)
   // - sinon monthly projection deja incluse dans monthly[].depenses
   // Approche : pour chaque mois on part de monthly.depenses, puis pour chaque
-  // expense qui a >= 1 paiement enregistre, on SOUSTRAIT sa projection du mois
+  // depense qui a >= 1 paiement enregistre, on SOUSTRAIT sa projection du mois
   // et on AJOUTE le paiement reel (ou 0 si pas de paiement ce mois-la).
   const monthlyEffective = monthly.map((m) => {
-    let depenses = m.depenses;
+    let monthlyDepenses = m.depenses;
     const [yStr, moStr] = m.yearMonth.split("-");
     const cursor = new Date(Number(yStr), Number(moStr) - 1, 1);
     for (const [expId, ymMap] of paymentsByExpByYM) {
-      const exp = expenses.find((e) => e.id === expId);
+      const exp = depenses.find((e) => e.id === expId);
       if (!exp) continue;
       const actual = ymMap.get(m.yearMonth) ?? 0;
-      // Projection de cette expense ce mois-ci (0 si hors periode d'activite).
-      // IMPORTANT : on ajoute toujours l'override `actual`, meme si l'expense
+      // Projection de cette depense ce mois-ci (0 si hors periode d'activite).
+      // IMPORTANT : on ajoute toujours l'override `actual`, meme si l'depense
       // n'etait pas active ce mois-la — l'utilisateur a saisi un paiement
-      // reel via chargePayments, qui couvre la periode meme si la dateDebut
+      // reel via paiementsCharges, qui couvre la periode meme si la dateDebut
       // de la definition est ulterieure.
       const start = new Date(exp.dateDebut);
       const end = exp.dateFin ? new Date(exp.dateFin) : null;
@@ -212,9 +212,9 @@ export function GraphRendementMensuel({ property, incomes, expenses, rentEntries
            : exp.frequence === "annuel" ? exp.montant / 12
            : 0)
         : 0;
-      depenses = depenses - projected + actual;
+      monthlyDepenses = monthlyDepenses - projected + actual;
     }
-    return { ...m, depenses: Math.max(0, Math.round(depenses)) };
+    return { ...m, depenses: Math.max(0, Math.round(monthlyDepenses)) };
   });
 
   if (coutTotal <= 0 || monthlyEffective.length === 0) {
@@ -231,7 +231,7 @@ export function GraphRendementMensuel({ property, incomes, expenses, rentEntries
   // - Rolling 12 mois : fenetre glissante, capte les variations recentes.
   // - Cumul depuis la mise en location : tout l'historique depuis que le bien
   //   est loue, annualise. Plus stable mais lisse les changements.
-  const miseEnLocDate = property.statusDates?.location;
+  const miseEnLocDate = bien.statusDates?.location;
   const miseEnLocYM = miseEnLocDate ? miseEnLocDate.slice(0, 7) : null; // "YYYY-MM"
   // Index du premier mois >= mise en location (ou premier mois avec rent entry
   // en fallback).

@@ -26,7 +26,7 @@ const RendementChartFinances = dynamic(
   { ssr: false, loading: () => <div className="h-[320px] border border-dotted rounded-md" /> }
 );
 
-/** Hard cap so charts stay snappy even when a property has very old prospection dates. */
+/** Hard cap so charts stay snappy even when a bien has very old prospection dates. */
 const MAX_HISTORY_MONTHS = 60;
 
 function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
@@ -34,8 +34,8 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
   const months: MonthlyFinance[] = [];
   let cumul = 0;
 
-  // Determine start month: earliest known date across all properties, capped to MAX_HISTORY_MONTHS back.
-  const allDates = data.properties.map((p) => earliestDate(p));
+  // Determine start month: earliest known date across all biens, capped to MAX_HISTORY_MONTHS back.
+  const allDates = data.biens.map((p) => earliestDate(p));
   const minCap = new Date(now.getFullYear(), now.getMonth() - MAX_HISTORY_MONTHS, 1);
   const earliestRaw = allDates.length > 0
     ? allDates.reduce((min, d) => (d < min ? d : min))
@@ -49,14 +49,14 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
 
   // Pre-index rent tracking entries by YYYY-MM for fast lookup
   const rentByYM = new Map<string, number>();
-  for (const e of (data.rentTracking ?? [])) {
+  for (const e of (data.suiviLoyers ?? [])) {
     rentByYM.set(e.yearMonth, (rentByYM.get(e.yearMonth) ?? 0) + e.loyerPercu);
   }
 
   // Pre-index charge payments by YYYY-MM
   // Trimestriel "YYYY-Q1" → spread across 3 months, Annuel "YYYY" → spread across 12
   const chargeByYM = new Map<string, number>();
-  for (const cp of (data.chargePayments ?? [])) {
+  for (const cp of (data.paiementsCharges ?? [])) {
     if (cp.montantPaye <= 0) continue;
     if (cp.periode.includes("-Q")) {
       // Quarterly: "2025-Q1" → jan, feb, mar
@@ -78,8 +78,8 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
     }
   }
 
-  // Track which expenses have real payment data
-  const expensesWithPayments = new Set((data.chargePayments ?? []).map(cp => cp.expenseId));
+  // Track which depenses have real payment data
+  const expensesWithPayments = new Set((data.paiementsCharges ?? []).map(cp => cp.depenseId));
 
   for (let i = totalMonths - 1; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -89,10 +89,10 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
 
     let revenus = 0, depenses = 0, credit = 0;
 
-    // Revenus: use rent tracking (actual) for loyers, incomes for other revenue
+    // Revenus: use rent tracking (actual) for loyers, revenus for other revenue
     revenus += rentByYM.get(ym) ?? 0;
 
-    for (const inc of data.incomes) {
+    for (const inc of data.revenus) {
       if (inc.categorie === "loyer") continue;
       const start = new Date(inc.dateDebut);
       const end = inc.dateFin ? new Date(inc.dateFin) : null;
@@ -108,8 +108,8 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
     // Add real charge payments for this month
     depenses += chargeByYM.get(ym) ?? 0;
 
-    for (const exp of data.expenses) {
-      if (expensesWithPayments.has(exp.id)) continue; // already counted via chargePayments
+    for (const exp of data.depenses) {
+      if (expensesWithPayments.has(exp.id)) continue; // already counted via paiementsCharges
       const start = new Date(exp.dateDebut);
       const end = exp.dateFin ? new Date(exp.dateFin) : null;
       if (start > monthEnd || (end && end < d)) continue;
@@ -136,8 +136,8 @@ function buildPatrimoine(data: DonneesApp, projectionYears: number): PatrimoineM
   const months: PatrimoineMonth[] = [];
   const now = new Date();
 
-  // Start: earliest known date across all properties, capped to MAX_HISTORY_MONTHS back.
-  const allDates = data.properties.map((p) => earliestDate(p));
+  // Start: earliest known date across all biens, capped to MAX_HISTORY_MONTHS back.
+  const allDates = data.biens.map((p) => earliestDate(p));
   if (allDates.length === 0) return months;
 
   const minCap = new Date(now.getFullYear(), now.getMonth() - MAX_HISTORY_MONTHS, 1);
@@ -156,7 +156,7 @@ function buildPatrimoine(data: DonneesApp, projectionYears: number): PatrimoineM
 
     let totalValeur = 0, totalCRD = 0;
 
-    for (const p of data.properties) {
+    for (const p of data.biens) {
       const achat = new Date(getPropertyAcquisitionDate(p));
       if (isNaN(achat.getTime())) continue;
       // Compare at month granularity — include the acquisition month itself
@@ -170,15 +170,15 @@ function buildPatrimoine(data: DonneesApp, projectionYears: number): PatrimoineM
       totalValeur += valeurInitiale * Math.pow(1 + APPRECIATION_ANNUELLE, yearsSinceAchat);
     }
 
-    for (const loan of data.loans) {
-      const loanStart = new Date(loan.dateDebut);
+    for (const pret of data.prets) {
+      const loanStart = new Date(pret.dateDebut);
       if (isNaN(loanStart.getTime())) continue;
       const loanStartMonth = new Date(loanStart.getFullYear(), loanStart.getMonth(), 1);
-      if (loanStartMonth > d) continue; // loan not yet started
+      if (loanStartMonth > d) continue; // pret not yet started
       const monthsElapsed = (d.getFullYear() - loanStart.getFullYear()) * 12 + (d.getMonth() - loanStart.getMonth());
-      const cappedMonth = Math.min(Math.max(0, monthsElapsed), dureeTotaleMoisPret(loan) - 1);
+      const cappedMonth = Math.min(Math.max(0, monthsElapsed), dureeTotaleMoisPret(pret) - 1);
       // crdAuMois handles defer (partiel/total) correctly.
-      totalCRD += crdAuMois(loan, cappedMonth);
+      totalCRD += crdAuMois(pret, cappedMonth);
     }
 
     months.push({ mois: label, valeurBiens: Math.round(totalValeur), capitalRestantDu: Math.round(totalCRD), patrimoineNet: Math.round(totalValeur - totalCRD) });
@@ -198,20 +198,20 @@ function isPropertyActive(statut: StatutBien | undefined): boolean {
   return !PRE_ACTE_STATUSES.includes(statut);
 }
 
-/** Filter DonneesApp to only include financially active properties (post-acte AND not soft-deleted) */
+/** Filter DonneesApp to only include financially active biens (post-acte AND not soft-deleted) */
 function filterActiveProperties(data: DonneesApp): DonneesApp {
   const activeIds = new Set(
-    data.properties.filter((p) => !p.deletedAt && isPropertyActive(p.statut)).map((p) => p.id),
+    data.biens.filter((p) => !p.deletedAt && isPropertyActive(p.statut)).map((p) => p.id),
   );
   return {
     ...data,
-    properties: data.properties.filter((p) => activeIds.has(p.id)),
-    incomes: data.incomes.filter((i) => activeIds.has(i.propertyId)),
-    expenses: data.expenses.filter((e) => activeIds.has(e.propertyId)),
-    loans: data.loans.filter((l) => activeIds.has(l.propertyId)),
-    lots: (data.lots ?? []).filter((l) => activeIds.has(l.propertyId)),
-    rentTracking: (data.rentTracking ?? []).filter((r) => activeIds.has(r.propertyId)),
-    chargePayments: (data.chargePayments ?? []).filter((c) => activeIds.has(c.propertyId)),
+    biens: data.biens.filter((p) => activeIds.has(p.id)),
+    revenus: data.revenus.filter((i) => activeIds.has(i.bienId)),
+    depenses: data.depenses.filter((e) => activeIds.has(e.bienId)),
+    prets: data.prets.filter((l) => activeIds.has(l.bienId)),
+    lots: (data.lots ?? []).filter((l) => activeIds.has(l.bienId)),
+    suiviLoyers: (data.suiviLoyers ?? []).filter((r) => activeIds.has(r.bienId)),
+    paiementsCharges: (data.paiementsCharges ?? []).filter((c) => activeIds.has(c.bienId)),
   };
 }
 
@@ -221,7 +221,7 @@ export default function Finances() {
   const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null); // null = all
   const [projectionYears, setProjectionYears] = useState(10);
 
-  // Build filtered data: exclude pre-acte properties, then apply user selection
+  // Build filtered data: exclude pre-acte biens, then apply user selection
   const activeData = useMemo(() => data ? filterActiveProperties(data) : null, [data]);
 
   const filteredData = useMemo(() => {
@@ -230,13 +230,13 @@ export default function Finances() {
     const propertyIds = selectedIds;
     return {
       ...activeData,
-      properties: activeData.properties.filter((p) => propertyIds.has(p.id)),
-      incomes: activeData.incomes.filter((i) => propertyIds.has(i.propertyId)),
-      expenses: activeData.expenses.filter((e) => propertyIds.has(e.propertyId)),
-      loans: activeData.loans.filter((l) => propertyIds.has(l.propertyId)),
-      lots: (activeData.lots ?? []).filter((l) => propertyIds.has(l.propertyId)),
-      rentTracking: (activeData.rentTracking ?? []).filter((r) => propertyIds.has(r.propertyId)),
-      chargePayments: (activeData.chargePayments ?? []).filter((c) => propertyIds.has(c.propertyId)),
+      biens: activeData.biens.filter((p) => propertyIds.has(p.id)),
+      revenus: activeData.revenus.filter((i) => propertyIds.has(i.bienId)),
+      depenses: activeData.depenses.filter((e) => propertyIds.has(e.bienId)),
+      prets: activeData.prets.filter((l) => propertyIds.has(l.bienId)),
+      lots: (activeData.lots ?? []).filter((l) => propertyIds.has(l.bienId)),
+      suiviLoyers: (activeData.suiviLoyers ?? []).filter((r) => propertyIds.has(r.bienId)),
+      paiementsCharges: (activeData.paiementsCharges ?? []).filter((c) => propertyIds.has(c.bienId)),
     };
   }, [activeData, selectedIds]);
 
@@ -246,7 +246,7 @@ export default function Finances() {
   // + cumul depuis le premier mois avec loyer percu.
   const rendementData = useMemo<RendementMonth[]>(() => {
     if (!filteredData) return [];
-    const coutTotal = filteredData.properties
+    const coutTotal = filteredData.biens
       .filter((p) => !p.deletedAt && isPropertyActive(p.statut))
       .reduce((s, p) => s + coutTotalBien(p), 0);
     if (coutTotal <= 0 || cashFlowData.length === 0) return [];
@@ -328,7 +328,7 @@ export default function Finances() {
     .sort((a, b) => b - a)
     .slice(0, 3);
 
-  const activeProperties = activeData?.properties ?? [];
+  const activeProperties = activeData?.biens ?? [];
   const allIds = new Set(activeProperties.map((p) => p.id));
   const activeIds = selectedIds ?? allIds;
   const allSelected = selectedIds === null || selectedIds.size === activeProperties.length;
@@ -347,7 +347,7 @@ export default function Finances() {
   };
 
   const isolateProperty = (id: string) => {
-    // Shortcut: select only this property
+    // Shortcut: select only this bien
     setSelectedIds(new Set([id]));
   };
 
@@ -394,7 +394,7 @@ export default function Finances() {
         </div>
       )}
 
-      {filteredData.properties.length === 0 && (
+      {filteredData.biens.length === 0 && (
         <div className="border border-dashed border-muted-foreground/30 rounded-md p-4 text-sm text-muted-foreground text-center">
           {activeProperties.length === 0
             ? "Aucun bien post-acte. Les biens en prospection, offre ou compromis ne sont pas inclus dans les finances."
@@ -520,7 +520,7 @@ export default function Finances() {
               </thead>
               <tbody>
                 {bilan.rows.map((r) => (
-                  <tr key={r.propertyId} className="hover:bg-muted/20">
+                  <tr key={r.bienId} className="hover:bg-muted/20">
                     <td className="py-1.5 px-2 font-medium">{r.propertyNom}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums">{formatCurrency(r.revenusLocatifs)}</td>
                     <td className="py-1.5 px-2 text-right tabular-nums text-destructive">{formatCurrency(-r.chargesDeductibles)}</td>

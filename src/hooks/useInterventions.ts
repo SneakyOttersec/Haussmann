@@ -7,12 +7,12 @@ import { generateId, now } from "@/lib/utils";
 export function useInterventions(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
   const all = data?.interventions ?? [];
   const interventions = useMemo(
-    () => propertyId ? all.filter((i) => i.propertyId === propertyId) : all,
-    [all, propertyId]
+    () => bienId ? all.filter((i) => i.bienId === bienId) : all,
+    [all, bienId]
   );
 
   const ajouterIntervention = useCallback(

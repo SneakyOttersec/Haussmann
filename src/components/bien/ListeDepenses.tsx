@@ -18,13 +18,13 @@ import {
 } from "@/components/ui/table";
 
 interface ExpenseListProps {
-  expenses: Depense[];
+  depenses: Depense[];
   onDelete: (id: string) => void;
   onUpdate?: (id: string, updates: Partial<Depense>) => void;
   /**
    * When true, color each Montant cell based on `priceValidated`:
    * green = confirmed by contract, amber = still a projection.
-   * Used in pre-acte properties; defaults to false (neutral colors) post-acte.
+   * Used in pre-acte biens; defaults to false (neutral colors) post-acte.
    */
   colorByValidation?: boolean;
 }
@@ -131,16 +131,16 @@ const CATEGORY_ICONS: Record<string, string> = {
 /* ── Reviser dialog ── */
 
 interface ReviseDialogProps {
-  expense: Depense;
+  depense: Depense;
   selectedYear: number;
   onClose: () => void;
   onSave: (revision: Omit<RevisionDepense, "id">) => void;
   onDeleteRevision: (revisionId: string) => void;
 }
 
-function ReviseDialog({ expense, selectedYear, onClose, onSave, onDeleteRevision }: ReviseDialogProps) {
-  const timeline = getRevisionTimeline(expense);
-  const [montant, setMontant] = useState(String(getMontantForYear(expense, selectedYear)));
+function ReviseDialog({ depense, selectedYear, onClose, onSave, onDeleteRevision }: ReviseDialogProps) {
+  const timeline = getRevisionTimeline(depense);
+  const [montant, setMontant] = useState(String(getMontantForYear(depense, selectedYear)));
   const [dateEffet, setDateEffet] = useState(`${selectedYear}-01-01`);
   const [notes, setNotes] = useState("");
 
@@ -162,7 +162,7 @@ function ReviseDialog({ expense, selectedYear, onClose, onSave, onDeleteRevision
           <div>
             <h3 className="text-sm font-bold">Reviser le prix</h3>
             <p className="text-[11px] text-muted-foreground mt-0.5">
-              {expense.label} · {CATEGORIE_DEPENSE_LABELS[expense.categorie]}
+              {depense.label} · {CATEGORIE_DEPENSE_LABELS[depense.categorie]}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-primary text-lg leading-none">×</button>
@@ -293,16 +293,16 @@ function YearSelector({
 
 /* ── Main list ── */
 
-export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation }: ExpenseListProps) {
+export function ListeDepenses({ depenses, onDelete, onUpdate, colorByValidation }: ExpenseListProps) {
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
   const [reviseTarget, setReviseTarget] = useState<Depense | null>(null);
   const [showEvolution, setShowEvolution] = useState(false);
 
-  // Build year options based on expense history
+  // Build year options based on depense history
   const years = useMemo(() => {
     const ys = new Set<number>();
-    for (const e of expenses) {
+    for (const e of depenses) {
       const startYear = new Date(e.dateDebut).getFullYear();
       if (!isNaN(startYear)) ys.add(startYear);
       for (const r of e.revisions ?? []) {
@@ -312,23 +312,23 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
     }
     ys.add(currentYear);
     return Array.from(ys).sort((a, b) => a - b);
-  }, [expenses, currentYear]);
+  }, [depenses, currentYear]);
 
-  if (expenses.length === 0) {
+  if (depenses.length === 0) {
     return <p className="text-sm text-muted-foreground py-4">Aucune depense enregistree.</p>;
   }
 
-  const handleAddRevision = (expenseId: string, revision: Omit<RevisionDepense, "id">) => {
-    const expense = expenses.find((e) => e.id === expenseId);
-    if (!expense || !onUpdate) return;
+  const handleAddRevision = (depenseId: string, revision: Omit<RevisionDepense, "id">) => {
+    const depense = depenses.find((e) => e.id === depenseId);
+    if (!depense || !onUpdate) return;
     const newRevision: RevisionDepense = { ...revision, id: crypto.randomUUID() };
-    onUpdate(expenseId, { revisions: [...(expense.revisions ?? []), newRevision] });
+    onUpdate(depenseId, { revisions: [...(depense.revisions ?? []), newRevision] });
   };
 
-  const handleDeleteRevision = (expenseId: string, revisionId: string) => {
-    const expense = expenses.find((e) => e.id === expenseId);
-    if (!expense || !onUpdate) return;
-    onUpdate(expenseId, { revisions: (expense.revisions ?? []).filter((r) => r.id !== revisionId) });
+  const handleDeleteRevision = (depenseId: string, revisionId: string) => {
+    const depense = depenses.find((e) => e.id === depenseId);
+    if (!depense || !onUpdate) return;
+    onUpdate(depenseId, { revisions: (depense.revisions ?? []).filter((r) => r.id !== revisionId) });
   };
 
   return (
@@ -338,7 +338,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
       )}
 
       {Object.entries(DEPENSE_GROUPS).map(([groupLabel, categories]) => {
-        const groupExpenses = expenses.filter((e) => categories.includes(e.categorie));
+        const groupExpenses = depenses.filter((e) => categories.includes(e.categorie));
         if (groupExpenses.length === 0) return null;
 
         return (
@@ -357,32 +357,32 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {groupExpenses.map((expense) => {
-                  const montantEffectif = getMontantForYear(expense, selectedYear);
-                  const nbRevisions = (expense.revisions ?? []).length;
-                  const hasDelta = montantEffectif !== expense.montant;
-                  const validated = !!expense.priceValidated;
+                {groupExpenses.map((depense) => {
+                  const montantEffectif = getMontantForYear(depense, selectedYear);
+                  const nbRevisions = (depense.revisions ?? []).length;
+                  const hasDelta = montantEffectif !== depense.montant;
+                  const validated = !!depense.priceValidated;
                   const montantColor = colorByValidation
                     ? validated ? "text-green-600" : "text-amber-600"
                     : "";
-                  // Credit expense is auto-managed by the loan — block all edits here.
-                  const isCredit = expense.categorie === "credit";
+                  // Credit depense is auto-managed by the pret — block all edits here.
+                  const isCredit = depense.categorie === "credit";
                   return (
-                    <TableRow key={expense.id} className={isCredit ? "opacity-70" : ""}>
+                    <TableRow key={depense.id} className={isCredit ? "opacity-70" : ""}>
                       <TableCell className="font-medium">
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="text-xs">{CATEGORY_ICONS[expense.categorie] ?? "📌"}</span>
+                          <span className="text-xs">{CATEGORY_ICONS[depense.categorie] ?? "📌"}</span>
                           {onUpdate && !isCredit ? (
                             <EditableCell
-                              value={expense.label}
-                              onSave={(v) => onUpdate(expense.id, { label: String(v) })}
+                              value={depense.label}
+                              onSave={(v) => onUpdate(depense.id, { label: String(v) })}
                             />
                           ) : (
-                            <span>{expense.label}{isCredit && <span className="text-[9px] text-muted-foreground ml-1">(via credit)</span>}</span>
+                            <span>{depense.label}{isCredit && <span className="text-[9px] text-muted-foreground ml-1">(via credit)</span>}</span>
                           )}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[expense.categorie]}</TableCell>
+                      <TableCell className="text-muted-foreground">{CATEGORIE_DEPENSE_LABELS[depense.categorie]}</TableCell>
                       <TableCell className={`text-right ${montantColor}`}>
                         <span className="inline-flex items-center gap-1.5 tabular-nums">
                           {formatCurrency(montantEffectif)}
@@ -399,25 +399,25 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
                       <TableCell>
                         {onUpdate && !isCredit ? (
                           <FrequencyChips
-                            value={expense.frequence}
-                            onChange={(v) => onUpdate(expense.id, { frequence: v })}
+                            value={depense.frequence}
+                            onChange={(v) => onUpdate(depense.id, { frequence: v })}
                           />
-                        ) : FREQUENCY_LABELS[expense.frequence]}
+                        ) : FREQUENCY_LABELS[depense.frequence]}
                       </TableCell>
                       <TableCell className="text-right">
-                        {expense.frequence !== "ponctuel"
-                          ? formatCurrency(annualiserMontant(montantEffectif, expense.frequence))
+                        {depense.frequence !== "ponctuel"
+                          ? formatCurrency(annualiserMontant(montantEffectif, depense.frequence))
                           : "—"}
                       </TableCell>
                       <TableCell className="text-center">
                         {!isCredit && (
                           <input
                             type="checkbox"
-                            checked={!!expense.priceValidated}
+                            checked={!!depense.priceValidated}
                             disabled={!onUpdate}
-                            onChange={(e) => onUpdate?.(expense.id, { priceValidated: e.target.checked })}
+                            onChange={(e) => onUpdate?.(depense.id, { priceValidated: e.target.checked })}
                             className="accent-primary cursor-pointer disabled:cursor-not-allowed"
-                            title={expense.priceValidated ? "Prix confirme par contrat" : "Cocher si un contrat / une offre confirme ce prix"}
+                            title={depense.priceValidated ? "Prix confirme par contrat" : "Cocher si un contrat / une offre confirme ce prix"}
                           />
                         )}
                       </TableCell>
@@ -428,7 +428,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setReviseTarget(expense)}
+                                onClick={() => setReviseTarget(depense)}
                                 className="text-muted-foreground hover:text-primary px-2"
                                 title="Reviser le prix"
                               >
@@ -438,7 +438,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => onDelete(expense.id)}
+                              onClick={() => onDelete(depense.id)}
                               className="text-destructive hover:text-destructive"
                             >
                               ×
@@ -457,7 +457,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
 
       {/* Total mensuel */}
       {(() => {
-        const totalMensuel = expenses
+        const totalMensuel = depenses
           .filter((e) => e.frequence !== "ponctuel")
           .reduce((s, e) => {
             const m = getMontantForYear(e, selectedYear);
@@ -466,7 +466,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
             if (e.frequence === "annuel") return s + m / 12;
             return s;
           }, 0);
-        const chargesMensuel = expenses
+        const chargesMensuel = depenses
           .filter((e) => e.frequence !== "ponctuel" && e.categorie !== "credit")
           .reduce((s, e) => {
             const m = getMontantForYear(e, selectedYear);
@@ -491,7 +491,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
 
       {reviseTarget && onUpdate && (
         <ReviseDialog
-          expense={reviseTarget}
+          depense={reviseTarget}
           selectedYear={selectedYear}
           onClose={() => setReviseTarget(null)}
           onSave={(rev) => handleAddRevision(reviseTarget.id, rev)}
@@ -512,7 +512,7 @@ export function ListeDepenses({ expenses, onDelete, onUpdate, colorByValidation 
           </div>
           {showEvolution && (
             <div className="mt-3">
-              <ExpenseEvolutionTable expenses={expenses} years={years} />
+              <ExpenseEvolutionTable depenses={depenses} years={years} />
             </div>
           )}
         </div>

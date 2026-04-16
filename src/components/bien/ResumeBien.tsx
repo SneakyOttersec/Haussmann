@@ -42,10 +42,10 @@ function statusAtLeast(statut: StatutBien | undefined, min: StatutBien): boolean
 }
 
 interface PropertySummaryProps {
-  property: Bien;
-  expenses: Depense[];
-  incomes: Revenu[];
-  loan?: Pret | null;
+  bien: Bien;
+  depenses: Depense[];
+  revenus: Revenu[];
+  pret?: Pret | null;
   /** Cout total deja engage (coutTotal - travaux non tires). When provided
    *  and different from coutTotal, rendement cards show an extra row based
    *  on this capital actually drawn so far. */
@@ -61,7 +61,7 @@ interface PropertySummaryProps {
   /** Lots pour calculer occupation + loyer theorique et le breakdown. */
   lots?: Lot[];
   /** Rent entries pour deriver le loyer percu du mois courant + impayes. */
-  rentEntries?: SuiviMensuelLoyer[];
+  suiviLoyers?: SuiviMensuelLoyer[];
   /** Somme brute des loyers des lots a 100% d'occupation (sans vacance).
    *  Si fourni ET different de revenuMensuelTheorique, une ligne "Max"
    *  est affichee sur les cards Revenu / Cash flow / Rendement. */
@@ -69,19 +69,19 @@ interface PropertySummaryProps {
 }
 
 export function ResumeBien({
-  property,
-  expenses,
-  incomes,
-  loan,
+  bien,
+  depenses,
+  revenus,
+  pret,
   capitalUtiliseActuel,
   revenuMensuelTheorique,
   creditApresDiffereSurUtilise,
   lots,
-  rentEntries,
+  suiviLoyers,
   revenuMensuelMax,
 }: PropertySummaryProps) {
   // ── Simulation initiale : charge les inputs et calcule les KPIs de l'annee 1.
-  // Resultats mis en cache par property.simulationId pour eviter les re-compute
+  // Resultats mis en cache par bien.simulationId pour eviter les re-compute
   // a chaque render. null = pas de sim ou chargement en cours. Affichee
   // uniquement dans les tooltips des cards (plus en ligne sur la card).
   const [simKpis, setSimKpis] = useState<SimKpis | null>(null);
@@ -91,8 +91,8 @@ export function ResumeBien({
   useEffect(() => {
     let cancelled = false;
     setSimKpis(null);
-    if (!property.simulationId) return;
-    const sim = chargerSimulations().find((s) => s.id === property.simulationId);
+    if (!bien.simulationId) return;
+    const sim = chargerSimulations().find((s) => s.id === bien.simulationId);
     if (!sim) return;
     hydraterSimulation(sim).then((hydrated) => {
       if (cancelled) return;
@@ -125,18 +125,18 @@ export function ResumeBien({
       });
     });
     return () => { cancelled = true; };
-  }, [property.simulationId]);
+  }, [bien.simulationId]);
 
   // ── Loyer actuel : priorite au "percu" du mois courant si des rent entries
-  // existent pour ce mois, sinon on retombe sur la somme des incomes (valeur
+  // existent pour ce mois, sinon on retombe sur la somme des revenus (valeur
   // attendue/theorique).
   const now = new Date();
   const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const prevYM = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
 
-  const entriesCurrent = (rentEntries ?? []).filter((e) => e.yearMonth === currentYM);
-  const entriesPrev = (rentEntries ?? []).filter((e) => e.yearMonth === prevYM);
+  const entriesCurrent = (suiviLoyers ?? []).filter((e) => e.yearMonth === currentYM);
+  const entriesPrev = (suiviLoyers ?? []).filter((e) => e.yearMonth === prevYM);
   const loyerPercuCurrent = entriesCurrent.reduce((s, e) => s + e.loyerPercu, 0);
   const loyerAttenduCurrent = entriesCurrent.reduce((s, e) => s + e.loyerAttendu, 0);
   const loyerPercuPrev = entriesPrev.reduce((s, e) => s + e.loyerPercu, 0);
@@ -145,15 +145,15 @@ export function ResumeBien({
     (e) => e.statut === "impaye" || e.statut === "partiel" || (e.loyerAttendu > 0 && e.loyerPercu < e.loyerAttendu),
   ).length;
 
-  const revenuFromIncomes = incomes.reduce(
+  const revenuFromIncomes = revenus.reduce(
     (sum, i) => sum + mensualiserMontant(i.montant, i.frequence),
     0,
   );
   // Le "revenu mensuel actuel" = percu du mois si au moins une rent entry existe
-  // pour ce mois; sinon la somme des incomes (cas pre-location / donnees non
+  // pour ce mois; sinon la somme des revenus (cas pre-location / donnees non
   // encore saisies).
   const hasCurrentEntries = entriesCurrent.length > 0;
-  // Revenu affiche dans la card = percu reel du mois (ou fallback incomes).
+  // Revenu affiche dans la card = percu reel du mois (ou fallback revenus).
   const revenuMensuel = hasCurrentEntries ? loyerPercuCurrent : revenuFromIncomes;
   // Revenu a pleine occupation (SANS vacance). Quand egal au theorique,
   // vacance = 0 et la ligne "Optimum" n'a pas de sens (masquee).
@@ -161,15 +161,15 @@ export function ResumeBien({
     ? revenuMensuelMax
     : revenuFromIncomes;
   // Hierarchie de priorite pour le taux de vacance applique au "Theorique" :
-  //   1. property.tauxVacanceGlobal (override utilisateur niveau bien) ← prevalence
+  //   1. bien.tauxVacanceGlobal (override utilisateur niveau bien) ← prevalence
   //   2. simKpis?.tauxVacance (defini dans la simulation initiale)
   //   3. fallback : taux moyen calcule depuis revenuMensuelTheorique vs Optimum
   //      (hierarchie precedente : tauxVacance par lot)
   const fallbackTauxVacance = revenuMensuelMaxEff > 0
     ? Math.max(0, 1 - (revenuMensuelTheorique ?? revenuFromIncomes) / revenuMensuelMaxEff)
     : 0;
-  const tauxVacanceApplique = property.tauxVacanceGlobal != null
-    ? property.tauxVacanceGlobal
+  const tauxVacanceApplique = bien.tauxVacanceGlobal != null
+    ? bien.tauxVacanceGlobal
     : (simKpis?.tauxVacance ?? fallbackTauxVacance);
   // Revenu CF = revenu pleine occupation × (1 − vacance applicable).
   // Reflet de la hierarchie ci-dessus (et non plus la prop revenuMensuelTheorique
@@ -182,27 +182,27 @@ export function ResumeBien({
   const tauxOccupation = totalLots > 0 ? (lotsOccupes / totalLots) * 100 : null;
 
   // Date du dernier paiement encaisse (rent entry la plus recente avec percu > 0).
-  const lastPaidEntry = [...(rentEntries ?? [])]
+  const lastPaidEntry = [...(suiviLoyers ?? [])]
     .filter((e) => e.loyerPercu > 0)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
-  const depensesMensuelles = expenses
+  const depensesMensuelles = depenses
     .filter((e) => e.categorie !== "credit")
     .reduce((sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
-  // Credit: use the loan's actual current mensualite (defer-aware) instead of
-  // the static credit expense which always stores the post-defer value.
+  // Credit: use the pret's actual current mensualite (defer-aware) instead of
+  // the static credit depense which always stores the post-defer value.
   let creditMensuel: number;
-  if (loan) {
-    const loanStart = new Date(loan.dateDebut);
+  if (pret) {
+    const loanStart = new Date(pret.dateDebut);
     const now = new Date();
     const monthIdx = (now.getFullYear() - loanStart.getFullYear()) * 12
       + (now.getMonth() - loanStart.getMonth());
-    const totalMois = dureeTotaleMoisPret(loan);
+    const totalMois = dureeTotaleMoisPret(pret);
     creditMensuel = monthIdx >= 0 && monthIdx < totalMois
-      ? mensualiteAuMois(loan, monthIdx) + loan.assuranceAnnuelle / 12
+      ? mensualiteAuMois(pret, monthIdx) + pret.assuranceAnnuelle / 12
       : 0;
   } else {
-    creditMensuel = expenses
+    creditMensuel = depenses
       .filter((e) => e.categorie === "credit")
       .reduce((sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
   }
@@ -215,8 +215,8 @@ export function ResumeBien({
   // - A partir de la mise en location : tout s'applique.
   // Les valeurs "theorique" restent pleines (elles projettent le regime de
   // croisiere quelle que soit la phase actuelle).
-  const postActe = statusAtLeast(property.statut, "acte");
-  const enLocation = statusAtLeast(property.statut, "location");
+  const postActe = statusAtLeast(bien.statut, "acte");
+  const enLocation = statusAtLeast(bien.statut, "location");
   const revenuActuelAffiche = enLocation ? revenuMensuel : 0;
   const depensesActuel = postActe ? depensesMensuelles : 0;
   const creditActuel = postActe ? creditMensuel : 0;
@@ -224,28 +224,28 @@ export function ResumeBien({
   // Cash flow "actuel" = base sur le revenu effectivement percu ce mois-ci.
   const cashFlow = revenuActuelAffiche - depensesActuel - creditActuel;
 
-  // If loan has defer, compute the post-defer credit so we can show
+  // If pret has defer, compute the post-defer credit so we can show
   // "Theorique / Apres differe" as the secondary value. Le theorique
   // utilise le revenu a pleine occupation (revenuMensuelCF).
-  const hasDiffere = loan != null && (loan.differeMois ?? 0) > 0;
+  const hasDiffere = pret != null && (pret.differeMois ?? 0) > 0;
 
   let creditPostDiffere = creditMensuel;
   let cashFlowPostDiffere = revenuMensuelCF - depensesMensuelles - creditMensuel;
-  if (hasDiffere && loan) {
-    creditPostDiffere = mensualiteAmortissement(loan) + loan.assuranceAnnuelle / 12;
+  if (hasDiffere && pret) {
+    creditPostDiffere = mensualiteAmortissement(pret) + pret.assuranceAnnuelle / 12;
     cashFlowPostDiffere = revenuMensuelCF - depensesMensuelles - creditPostDiffere;
   }
 
-  const revenuAnnuel = incomes.reduce(
+  const revenuAnnuel = revenus.reduce(
     (sum, i) => sum + annualiserMontant(i.montant, i.frequence),
     0
   );
-  const chargesAnnuelles = expenses
+  const chargesAnnuelles = depenses
     .filter((e) => e.categorie !== "credit")
     .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
-  const coutTotal = coutTotalBien(property);
-  // Rendement "Max" = sur la base des incomes bruts (equivaut a pleine
+  const coutTotal = coutTotalBien(bien);
+  // Rendement "Max" = sur la base des revenus bruts (equivaut a pleine
   // occupation sans vacance — comportement historique).
   const rBrut = rendementBrut(revenuAnnuel, coutTotal);
   const rNet = rendementNet(revenuAnnuel, chargesAnnuelles, coutTotal);
@@ -261,7 +261,7 @@ export function ResumeBien({
     && capitalUtiliseActuel > 0
     && Math.round(capitalUtiliseActuel) !== Math.round(coutTotal);
   // Coherent avec la valeur principale : on applique la vacance (revenuAnnuelAvecVac),
-  // pas les incomes bruts. Seul le denominateur change (capital effectivement tire
+  // pas les revenus bruts. Seul le denominateur change (capital effectivement tire
   // au lieu du cout total).
   const rBrutUtilise = showUtilise ? rendementBrut(revenuAnnuelAvecVac, capitalUtiliseActuel!) : 0;
   const rNetUtilise = showUtilise ? rendementNet(revenuAnnuelAvecVac, chargesAnnuelles, capitalUtiliseActuel!) : 0;
@@ -294,7 +294,7 @@ export function ResumeBien({
   const fc = formatCurrency;
 
   /** Renders a KPI card: Actuel (main), then small "Theorique" line.
-   *  When the loan has a defer, the label becomes "Theorique / Apres differe"
+   *  When the pret has a defer, the label becomes "Theorique / Apres differe"
    *  since the theoretical value IS the post-defer amount.
    *  Wrapped in a CfTooltip that shows the full breakdown on hover. */
   const KpiCard = ({ label, theoValue, actuelValue, surUtiliseValue, maxValue, simValue, simYearValues, simFormat, color, tooltipRows }: {
@@ -425,7 +425,7 @@ export function ResumeBien({
         const showTheo = theo > 0 && (!enLocation || !eq(theo, revenuActuelAffiche));
         const showMaxRev = max > 0 && !eq(max, theo);
 
-        // ── Tooltip enrichi : breakdown par lot / income + contexte temporel ──
+        // ── Tooltip enrichi : breakdown par lot / revenu + contexte temporel ──
         const lotRows = (lots ?? []).map((l) => {
           const entry = entriesCurrent.find((e) => e.lotId === l.id);
           const value = entry
@@ -437,7 +437,7 @@ export function ResumeBien({
           return { label: l.nom || "Lot", value, color };
         });
         const incomeRows = lotRows.length === 0
-          ? incomes.map((i) => ({
+          ? revenus.map((i) => ({
               label: i.label || i.categorie,
               value: fc(mensualiserMontant(i.montant, i.frequence)),
             }))

@@ -22,8 +22,8 @@ interface Props {
   documents: DocumentBien[];
   onAdd: (data: Omit<DocumentBien, "id">) => void;
   onDelete: (id: string) => void;
-  propertyId: string;
-  /** Documents from other sources (timeline phases, loan PJs, intervention PJs). Read-only. */
+  bienId: string;
+  /** Documents from other sources (timeline phases, pret PJs, intervention PJs). Read-only. */
   linkedDocs?: LinkedDoc[];
 }
 
@@ -33,7 +33,7 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
-export function SectionDocuments({ documents, onAdd, onDelete, propertyId, linkedDocs = [] }: Props) {
+export function SectionDocuments({ documents, onAdd, onDelete, bienId, linkedDocs = [] }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [categorie, setCategorie] = useState<CategorieDocument>("autre");
 
@@ -43,7 +43,7 @@ export function SectionDocuments({ documents, onAdd, onDelete, propertyId, linke
     const reader = new FileReader();
     reader.onload = () => {
       onAdd({
-        propertyId,
+        bienId,
         nom: file.name,
         categorie,
         data: reader.result as string,

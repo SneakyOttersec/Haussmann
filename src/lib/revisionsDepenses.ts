@@ -9,14 +9,14 @@ function toLocalISODate(d: Date): string {
 }
 
 /**
- * Return the montant effective on `referenceDate` for an expense.
+ * Return the montant effective on `referenceDate` for an depense.
  * Looks up the most recent revision whose dateEffet is ≤ referenceDate.
- * If no revision applies (expense has no revisions, or all are future),
- * returns expense.montant (the initial/base price).
+ * If no revision applies (depense has no revisions, or all are future),
+ * returns depense.montant (the initial/base price).
  */
-export function obtenirMontantEffectif(expense: Depense, referenceDate: Date): number {
-  const revisions = expense.revisions ?? [];
-  if (revisions.length === 0) return expense.montant;
+export function obtenirMontantEffectif(depense: Depense, referenceDate: Date): number {
+  const revisions = depense.revisions ?? [];
+  if (revisions.length === 0) return depense.montant;
 
   const refISO = toLocalISODate(referenceDate); // YYYY-MM-DD in local time
   // Find the latest revision with dateEffet ≤ refISO
@@ -24,32 +24,32 @@ export function obtenirMontantEffectif(expense: Depense, referenceDate: Date): n
     .filter((r) => r.dateEffet <= refISO)
     .sort((a, b) => b.dateEffet.localeCompare(a.dateEffet));
 
-  if (applicable.length === 0) return expense.montant;
+  if (applicable.length === 0) return depense.montant;
   return applicable[0].montant;
 }
 
 /** Current effective price (today). */
-export function obtenirMontantCourant(expense: Depense): number {
-  return obtenirMontantEffectif(expense, new Date());
+export function obtenirMontantCourant(depense: Depense): number {
+  return obtenirMontantEffectif(depense, new Date());
 }
 
 /** Montant at the START of a given year (Jan 1). */
-export function getMontantForYear(expense: Depense, year: number): number {
-  return obtenirMontantEffectif(expense, new Date(year, 0, 1));
+export function getMontantForYear(depense: Depense, year: number): number {
+  return obtenirMontantEffectif(depense, new Date(year, 0, 1));
 }
 
 /**
- * Return the effective price at the end of each year the expense has been active.
+ * Return the effective price at the end of each year the depense has been active.
  * Useful to render an evolution table or sparkline.
  */
 export function getYearlyMontants(
-  expense: Depense,
+  depense: Depense,
   fromYear: number,
   toYear: number,
 ): { year: number; montant: number }[] {
   const out: { year: number; montant: number }[] = [];
   for (let y = fromYear; y <= toYear; y++) {
-    out.push({ year: y, montant: getMontantForYear(expense, y) });
+    out.push({ year: y, montant: getMontantForYear(depense, y) });
   }
   return out;
 }
@@ -62,13 +62,13 @@ export interface RevisionTimelineEntry {
   id?: string;
 }
 
-export function getRevisionTimeline(expense: Depense): RevisionTimelineEntry[] {
+export function getRevisionTimeline(depense: Depense): RevisionTimelineEntry[] {
   const initial: RevisionTimelineEntry = {
-    dateEffet: expense.dateDebut,
-    montant: expense.montant,
+    dateEffet: depense.dateDebut,
+    montant: depense.montant,
     isInitial: true,
   };
-  const revs = (expense.revisions ?? []).map((r) => ({
+  const revs = (depense.revisions ?? []).map((r) => ({
     dateEffet: r.dateEffet,
     montant: r.montant,
     isInitial: false,
@@ -77,15 +77,15 @@ export function getRevisionTimeline(expense: Depense): RevisionTimelineEntry[] {
   return [initial, ...revs].sort((a, b) => b.dateEffet.localeCompare(a.dateEffet));
 }
 
-/** Add a new revision and return the updated expense (immutable). */
-export function addRevision(expense: Depense, revision: Omit<RevisionDepense, "id">): Depense {
+/** Add a new revision and return the updated depense (immutable). */
+export function addRevision(depense: Depense, revision: Omit<RevisionDepense, "id">): Depense {
   const newRevision: RevisionDepense = {
     ...revision,
     id: crypto.randomUUID(),
   };
-  return { ...expense, revisions: [...(expense.revisions ?? []), newRevision] };
+  return { ...depense, revisions: [...(depense.revisions ?? []), newRevision] };
 }
 
-export function removeRevision(expense: Depense, revisionId: string): Depense {
-  return { ...expense, revisions: (expense.revisions ?? []).filter((r) => r.id !== revisionId) };
+export function removeRevision(depense: Depense, revisionId: string): Depense {
+  return { ...depense, revisions: (depense.revisions ?? []).filter((r) => r.id !== revisionId) };
 }

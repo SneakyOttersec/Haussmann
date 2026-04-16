@@ -3,24 +3,24 @@ import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { annualiserMontant, mensualiserMontant } from "@/lib/utils";
 
 /**
- * Build EntreesCalculateur from an existing property in DonneesApp.
- * Symmetric of simulationToBien: reads property + linked lots, incomes,
- * expenses and loan, reconstructing a simulation that matches.
+ * Build EntreesCalculateur from an existing bien in DonneesApp.
+ * Symmetric of simulationToBien: reads bien + linked lots, revenus,
+ * depenses and pret, reconstructing a simulation that matches.
  *
- * Returns null if property not found.
+ * Returns null if bien not found.
  */
-export function bienToSimulation(data: DonneesApp, propertyId: string): EntreesCalculateur | null {
-  const property = data.properties.find((p) => p.id === propertyId);
-  if (!property) return null;
+export function bienToSimulation(data: DonneesApp, bienId: string): EntreesCalculateur | null {
+  const bien = data.biens.find((p) => p.id === bienId);
+  if (!bien) return null;
 
-  const propertyLots = (data.lots ?? []).filter((l) => l.propertyId === propertyId);
-  const propertyIncomes = data.incomes.filter((i) => i.propertyId === propertyId);
-  const propertyExpenses = data.expenses.filter(
-    (e) => e.propertyId === propertyId && e.categorie !== "credit",
+  const propertyLots = (data.lots ?? []).filter((l) => l.bienId === bienId);
+  const propertyIncomes = data.revenus.filter((i) => i.bienId === bienId);
+  const propertyExpenses = data.depenses.filter(
+    (e) => e.bienId === bienId && e.categorie !== "credit",
   );
-  const loan = data.loans.find((l) => l.propertyId === propertyId);
+  const pret = data.prets.find((l) => l.bienId === bienId);
 
-  // Lots: prefer explicit lots; fallback on loyer incomes
+  // Lots: prefer explicit lots; fallback on loyer revenus
   let lots: LotLoyer[];
   if (propertyLots.length > 0) {
     lots = propertyLots.map((l) => ({
@@ -46,7 +46,7 @@ export function bienToSimulation(data: DonneesApp, propertyId: string): EntreesC
     .filter((i) => i.categorie !== "loyer" && i.frequence !== "ponctuel")
     .reduce((s, i) => s + annualiserMontant(i.montant, i.frequence), 0);
 
-  // Charges mapping from expense categories
+  // Charges mapping from depense categories
   const sumAnnualByCategory = (cat: string) =>
     propertyExpenses
       .filter((e) => e.categorie === cat && e.frequence !== "ponctuel")
@@ -71,36 +71,36 @@ export function bienToSimulation(data: DonneesApp, propertyId: string): EntreesC
 
   // Mobilier: create a lot if amount > 0
   const lotsMobilier: LotMobilier[] =
-    (property.montantMobilier ?? 0) > 0
-      ? [{ id: "mob-1", nom: "Mobilier", montant: property.montantMobilier ?? 0 }]
+    (bien.montantMobilier ?? 0) > 0
+      ? [{ id: "mob-1", nom: "Mobilier", montant: bien.montantMobilier ?? 0 }]
       : [];
   const montantMobilierTotal = lotsMobilier.reduce((s, l) => s + l.montant, 0);
 
   return {
     ...DEFAULT_CALCULATOR_INPUTS,
     // Meta
-    nomSimulation: property.nom,
-    adresse: property.adresse,
-    type: property.type,
-    dateSaisie: property.dateSaisie,
+    nomSimulation: bien.nom,
+    adresse: bien.adresse,
+    type: bien.type,
+    dateSaisie: bien.dateSaisie,
 
     // Acquisition
-    prixAchat: property.prixAchat,
-    fraisNotairePct: property.prixAchat > 0
-      ? property.fraisNotaire / property.prixAchat
+    prixAchat: bien.prixAchat,
+    fraisNotairePct: bien.prixAchat > 0
+      ? bien.fraisNotaire / bien.prixAchat
       : DEFAULT_CALCULATOR_INPUTS.fraisNotairePct,
-    fraisAgence: property.fraisAgence ?? 0,
-    fraisDossier: property.fraisDossier ?? 0,
-    fraisCourtage: property.fraisCourtage ?? 0,
-    fraisGarantie: property.allocationCredit?.garantie ?? 0,
-    surfaceM2: property.surfaceM2 ?? 0,
-    montantTravaux: property.montantTravaux,
-    montantMobilier: property.montantMobilier ?? 0,
+    fraisAgence: bien.fraisAgence ?? 0,
+    fraisDossier: bien.fraisDossier ?? 0,
+    fraisCourtage: bien.fraisCourtage ?? 0,
+    fraisGarantie: bien.allocationCredit?.garantie ?? 0,
+    surfaceM2: bien.surfaceM2 ?? 0,
+    montantTravaux: bien.montantTravaux,
+    montantMobilier: bien.montantMobilier ?? 0,
     montantMobilierTotal,
     lotsMobilier,
 
     // Notes
-    pointsNotables: property.notes ?? "",
+    pointsNotables: bien.notes ?? "",
 
     // Revenus
     lots,
@@ -116,19 +116,19 @@ export function bienToSimulation(data: DonneesApp, propertyId: string): EntreesC
     autresChargesAnnuelles,
 
     // Financement
-    ...(loan
+    ...(pret
       ? {
-          montantEmprunte: loan.montantEmprunte,
-          tauxCredit: loan.tauxAnnuel,
-          dureeCredit: loan.dureeAnnees,
-          typePret: loan.type,
+          montantEmprunte: pret.montantEmprunte,
+          tauxCredit: pret.tauxAnnuel,
+          dureeCredit: pret.dureeAnnees,
+          typePret: pret.type,
           assurancePretMode: "eur" as const,
-          assurancePretAnnuelle: loan.assuranceAnnuelle,
+          assurancePretAnnuelle: pret.assuranceAnnuelle,
           apportPersonnel: Math.max(
             0,
-            property.prixAchat + property.fraisNotaire + (property.fraisAgence ?? 0) +
-              (property.fraisDossier ?? 0) + (property.fraisCourtage ?? 0) +
-              property.montantTravaux - loan.montantEmprunte,
+            bien.prixAchat + bien.fraisNotaire + (bien.fraisAgence ?? 0) +
+              (bien.fraisDossier ?? 0) + (bien.fraisCourtage ?? 0) +
+              bien.montantTravaux - pret.montantEmprunte,
           ),
         }
       : {}),

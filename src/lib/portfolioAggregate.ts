@@ -26,7 +26,7 @@ export interface PortfolioSnapshot {
   cashFlowMensuel: number;
 
   // Ratios
-  ltv: number;                   // loan-to-value = CRD / valeurPatrimoine
+  ltv: number;                   // pret-to-value = CRD / valeurPatrimoine
 }
 
 const EMPTY: PortfolioSnapshot = {
@@ -55,19 +55,19 @@ function yearsElapsedSince(dateISO: string): number {
 
 /**
  * Compute snapshot from the real portfolio stored in DonneesApp.
- * Applies a default appreciation rate to estimate current property values.
+ * Applies a default appreciation rate to estimate current bien values.
  */
 export function computePortfolioSnapshot(
   data: DonneesApp,
   appreciationAnnuelle = 0.02,
 ): PortfolioSnapshot {
-  const { properties, expenses, incomes, loans } = data;
-  if (properties.length === 0) return EMPTY;
+  const { biens, depenses, revenus, prets } = data;
+  if (biens.length === 0) return EMPTY;
 
-  const coutAcquisition = properties.reduce((s, p) => s + coutTotalBien(p), 0);
+  const coutAcquisition = biens.reduce((s, p) => s + coutTotalBien(p), 0);
 
   // Valeur estimee = prixAchat + travaux, projetee avec appreciation depuis dateSaisie
-  const valeurPatrimoine = properties.reduce((s, p) => {
+  const valeurPatrimoine = biens.reduce((s, p) => {
     const base = p.prixAchat + p.montantTravaux;
     const years = yearsElapsedSince(p.dateSaisie);
     return s + base * Math.pow(1 + appreciationAnnuelle, years);
@@ -77,29 +77,29 @@ export function computePortfolioSnapshot(
   let capitalRestantDuTotal = 0;
   let mensualitesCreditTotal = 0;
   let totalEmprunte = 0;
-  for (const loan of loans) {
-    totalEmprunte += loan.montantEmprunte;
+  for (const pret of prets) {
+    totalEmprunte += pret.montantEmprunte;
     const monthsElapsed = Math.max(
       0,
-      Math.floor(yearsElapsedSince(loan.dateDebut) * 12),
+      Math.floor(yearsElapsedSince(pret.dateDebut) * 12),
     );
-    const cappedMonth = Math.min(monthsElapsed, dureeTotaleMoisPret(loan) - 1);
-    capitalRestantDuTotal += crdAuMois(loan, cappedMonth);
-    mensualitesCreditTotal += mensualiteAuMois(loan, cappedMonth) + (loan.assuranceAnnuelle ?? 0) / 12;
+    const cappedMonth = Math.min(monthsElapsed, dureeTotaleMoisPret(pret) - 1);
+    capitalRestantDuTotal += crdAuMois(pret, cappedMonth);
+    mensualitesCreditTotal += mensualiteAuMois(pret, cappedMonth) + (pret.assuranceAnnuelle ?? 0) / 12;
   }
 
   const apportGlobal = Math.max(0, coutAcquisition - totalEmprunte);
 
   // Revenus mensuels (loyer + autres), hors ponctuels
-  const loyerMensuel = incomes
+  const loyerMensuel = revenus
     .filter((i) => i.categorie === "loyer" && i.frequence !== "ponctuel")
     .reduce((s, i) => s + mensualiserMontant(i.montant, i.frequence), 0);
-  const autresRevenusMensuels = incomes
+  const autresRevenusMensuels = revenus
     .filter((i) => i.categorie !== "loyer" && i.frequence !== "ponctuel")
     .reduce((s, i) => s + mensualiserMontant(i.montant, i.frequence), 0);
 
   // Depenses mensuelles recurrentes hors credit
-  const depensesMensuelles = expenses
+  const depensesMensuelles = depenses
     .filter((e) => e.categorie !== "credit" && e.frequence !== "ponctuel")
     .reduce((s, e) => s + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
@@ -107,8 +107,8 @@ export function computePortfolioSnapshot(
     loyerMensuel + autresRevenusMensuels - depensesMensuelles - mensualitesCreditTotal;
 
   return {
-    nbBiens: properties.length,
-    nbCredits: loans.length,
+    nbBiens: biens.length,
+    nbCredits: prets.length,
     coutAcquisition,
     valeurPatrimoine,
     capitalRestantDu: capitalRestantDuTotal,

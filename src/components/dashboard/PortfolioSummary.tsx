@@ -35,39 +35,39 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const { settings } = data;
   const associes = settings.associes ?? [];
 
-  // Only include post-acte properties in financial summaries
-  const activeIds = new Set(data.properties.filter(p => !p.deletedAt && isActive(p.statut)).map(p => p.id));
-  const properties = data.properties.filter(p => activeIds.has(p.id));
-  const expenses = data.expenses.filter(e => activeIds.has(e.propertyId));
-  const incomes = data.incomes.filter(i => activeIds.has(i.propertyId));
-  const loans = data.loans.filter(l => activeIds.has(l.propertyId));
-  const rentTracking = (data.rentTracking ?? []).filter(r => activeIds.has(r.propertyId));
-  const lots = (data.lots ?? []).filter(l => activeIds.has(l.propertyId));
+  // Only include post-acte biens in financial summaries
+  const activeIds = new Set(data.biens.filter(p => !p.deletedAt && isActive(p.statut)).map(p => p.id));
+  const biens = data.biens.filter(p => activeIds.has(p.id));
+  const depenses = data.depenses.filter(e => activeIds.has(e.bienId));
+  const revenus = data.revenus.filter(i => activeIds.has(i.bienId));
+  const prets = data.prets.filter(l => activeIds.has(l.bienId));
+  const suiviLoyers = (data.suiviLoyers ?? []).filter(r => activeIds.has(r.bienId));
+  const lots = (data.lots ?? []).filter(l => activeIds.has(l.bienId));
 
-  const capitalTotal = properties.reduce((sum, p) => sum + coutTotalBien(p), 0);
-  const totalEmprunte = loans.reduce((sum, l) => sum + l.montantEmprunte, 0);
+  const capitalTotal = biens.reduce((sum, p) => sum + coutTotalBien(p), 0);
+  const totalEmprunte = prets.reduce((sum, l) => sum + l.montantEmprunte, 0);
   const apportGlobal = Math.max(0, capitalTotal - totalEmprunte);
 
   /* ── Theorique : projections recurrentes ──
      Pour le loyer : on preferre la somme des lots.loyerMensuel (pleine
      occupation, disponible des l'acte signe) — sinon fallback sur les
-     incomes categorie "loyer" (cas ou les lots ne sont pas encore saisis).
-     Les autres incomes (non-loyer) sont toujours additionnes. */
-  const loyerIncomesMensuel = incomes
+     revenus categorie "loyer" (cas ou les lots ne sont pas encore saisis).
+     Les autres revenus (non-loyer) sont toujours additionnes. */
+  const loyerIncomesMensuel = revenus
     .filter((i) => i.categorie === "loyer")
     .reduce((sum, i) => sum + mensualiserMontant(i.montant, i.frequence), 0);
-  const loyerIncomesAnnuel = incomes
+  const loyerIncomesAnnuel = revenus
     .filter((i) => i.categorie === "loyer")
     .reduce((sum, i) => sum + annualiserMontant(i.montant, i.frequence), 0);
-  const autresIncomesMensuel = incomes
+  const autresIncomesMensuel = revenus
     .filter((i) => i.categorie !== "loyer")
     .reduce((sum, i) => sum + mensualiserMontant(i.montant, i.frequence), 0);
-  const autresIncomesAnnuel = incomes
+  const autresIncomesAnnuel = revenus
     .filter((i) => i.categorie !== "loyer")
     .reduce((sum, i) => sum + annualiserMontant(i.montant, i.frequence), 0);
-  const propertyById = new Map(properties.map((p) => [p.id, p]));
+  const propertyById = new Map(biens.map((p) => [p.id, p]));
   const lotsMensuel = lots.reduce((s, l) => {
-    const p = propertyById.get(l.propertyId);
+    const p = propertyById.get(l.bienId);
     const vac = p?.tauxVacanceGlobal != null ? p.tauxVacanceGlobal : (l.tauxVacance ?? 0);
     return s + (l.loyerMensuel ?? 0) * (1 - vac);
   }, 0);
@@ -75,7 +75,7 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const loyerTheoAnnuel = lotsMensuel > 0 ? lotsMensuel * 12 : loyerIncomesAnnuel;
 
   const revenusTheoMensuel = loyerTheoMensuel + autresIncomesMensuel;
-  const depensesTheoMensuel = expenses.reduce(
+  const depensesTheoMensuel = depenses.reduce(
     (sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence),
     0,
   );
@@ -84,10 +84,10 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const rdtBrutTheo = capitalTotal > 0 ? rendementBrut(revenuAnnuelTheo, capitalTotal) : 0;
 
   /* ── Reel : base sur le suivi des loyers (/loyers) ── */
-  // Window = min(12, months since earliest property acquisition).
+  // Window = min(12, months since earliest bien acquisition).
   // If the portfolio is younger than 12 months, we extrapolate from the available data.
   const now = new Date();
-  const allDates = properties.map(p => new Date(getPropertyAcquisitionDate(p))).filter((d) => !isNaN(d.getTime()));
+  const allDates = biens.map(p => new Date(getPropertyAcquisitionDate(p))).filter((d) => !isNaN(d.getTime()));
   const earliestAchat = allDates.length > 0
     ? allDates.reduce((min, d) => (d < min ? d : min))
     : now;
@@ -97,12 +97,12 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
   const isExtrapolated = effectiveMonths < 12;
 
   const windowMonths = monthsWindow(effectiveMonths);
-  const loyersReelsSum = (rentTracking ?? [])
+  const loyersReelsSum = (suiviLoyers ?? [])
     .filter((e) => windowMonths.includes(e.yearMonth))
     .reduce((s, e) => s + e.loyerPercu, 0);
   const loyersReelsMensuel = loyersReelsSum / effectiveMonths;
 
-  const autresRevenusTheoMensuel = incomes
+  const autresRevenusTheoMensuel = revenus
     .filter((i) => i.categorie !== "loyer")
     .reduce((s, i) => s + mensualiserMontant(i.montant, i.frequence), 0);
 

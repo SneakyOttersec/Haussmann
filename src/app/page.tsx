@@ -22,7 +22,7 @@ export default function Dashboard() {
   const { data, setData } = useDonnees();
   // useBiens returns the soft-delete-filtered list, so deleted cards
   // disappear from the dashboard immediately after the user confirms a delete.
-  const { properties, supprimerBien } = useBiens(data, setData);
+  const { biens, supprimerBien } = useBiens(data, setData);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; nom: string } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
 
@@ -31,7 +31,7 @@ export default function Dashboard() {
   const { settings } = data;
 
   const handleDeleteRequest = (id: string) => {
-    const prop = properties.find((p) => p.id === id);
+    const prop = biens.find((p) => p.id === id);
     if (prop) {
       setDeleteTarget({ id: prop.id, nom: prop.nom });
       setDeleteConfirm("");
@@ -100,12 +100,12 @@ export default function Dashboard() {
       )}
 
       {/* Map */}
-      {properties.length > 0 && (
-        <CarteBiens properties={properties} />
+      {biens.length > 0 && (
+        <CarteBiens biens={biens} />
       )}
 
       {/* KPIs */}
-      {properties.length > 0 && (
+      {biens.length > 0 && (
         <>
           <PortfolioSummary data={data} />
           <Separator className="border-dashed" />
@@ -113,7 +113,7 @@ export default function Dashboard() {
       )}
 
       {/* Liste des biens */}
-      {properties.length === 0 ? (
+      {biens.length === 0 ? (
         <div className="text-center py-16 border border-dashed rounded-md">
           <p className="text-muted-foreground mb-4">Aucun bien immobilier enregistre.</p>
           <Link href="/biens/nouveau">
@@ -122,16 +122,16 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="space-y-4">
-        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mes biens ({properties.length})</h2>
+        <h2 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Mes biens ({biens.length})</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {properties.map((property) => (
+          {biens.map((bien) => (
             <PropertyCard
-              key={property.id}
-              property={property}
-              expenses={data.expenses.filter((e) => e.propertyId === property.id)}
-              incomes={data.incomes.filter((i) => i.propertyId === property.id)}
-              rentEntries={(data.rentTracking ?? []).filter((e) => e.propertyId === property.id)}
-              loan={data.loans.find((l) => l.propertyId === property.id) ?? null}
+              key={bien.id}
+              bien={bien}
+              depenses={data.depenses.filter((e) => e.bienId === bien.id)}
+              revenus={data.revenus.filter((i) => i.bienId === bien.id)}
+              suiviLoyers={(data.suiviLoyers ?? []).filter((e) => e.bienId === bien.id)}
+              pret={data.prets.find((l) => l.bienId === bien.id) ?? null}
               onDelete={handleDeleteRequest}
             />
           ))}

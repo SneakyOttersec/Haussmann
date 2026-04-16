@@ -4,14 +4,14 @@ import { calculerMensualite } from "@/lib/calculs/pret";
 
 /**
  * Creates a Bien + Incomes + Expenses + Loan from a EntreesCalculateur simulation.
- * Returns the new property ID.
+ * Returns the new bien ID.
  */
 export function simulationToBien(
   inputs: EntreesCalculateur,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
   simulationId?: string,
 ): string {
-  const propertyId = generateId();
+  const bienId = generateId();
   const timestamp = now();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -25,8 +25,8 @@ export function simulationToBien(
   // depuis l'ajout du bucket "mobilier" dedie).
   const autreAlloc = fraisCourtage;
 
-  const property: Bien = {
-    id: propertyId,
+  const bien: Bien = {
+    id: bienId,
     nom: inputs.nomSimulation || "Nouveau bien",
     adresse: inputs.adresse || "",
     type: inputs.type ?? "appartement",
@@ -40,7 +40,7 @@ export function simulationToBien(
     montantMobilier,
     surfaceM2: inputs.surfaceM2 || undefined,
     simulationId,
-    // A property born from a simulation is still being prospected — not yet
+    // A bien born from a simulation is still being prospected — not yet
     // owned. The user moves the timeline forward as the deal progresses
     // (offre → compromis → acte). Until then, finances/loyers/charges treat
     // it as theoretical projections (see estPostActe / pre-acte gating).
@@ -71,15 +71,15 @@ export function simulationToBien(
 
   const lots: Lot[] = simLots.map((lot) => ({
     id: generateId(),
-    propertyId,
+    bienId,
     nom: lot.nom || "Lot",
     loyerMensuel: lot.loyerMensuel,
     statut: "vacant" as const,
   }));
 
-  const incomes: Revenu[] = simLots.map((lot) => ({
+  const revenus: Revenu[] = simLots.map((lot) => ({
     id: generateId(),
-    propertyId,
+    bienId,
     categorie: "loyer" as const,
     label: lot.nom || "Loyer",
     montant: lot.loyerMensuel,
@@ -106,11 +106,11 @@ export function simulationToBien(
     chargeEntries.push({ categorie: "autre", label: "Autres charges", montant: inputs.autresChargesAnnuelles });
   }
 
-  const expenses: Depense[] = chargeEntries
+  const depenses: Depense[] = chargeEntries
     .filter((c) => c.montant > 0)
     .map((c) => ({
       id: generateId(),
-      propertyId,
+      bienId,
       categorie: c.categorie,
       label: c.label,
       montant: c.montant,
@@ -121,16 +121,16 @@ export function simulationToBien(
       updatedAt: timestamp,
     }));
 
-  // Credit expense (mensuel)
+  // Credit depense (mensuel)
   if (inputs.montantEmprunte > 0) {
     const mensualite = calculerMensualite(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, inputs.typePret);
     const assuranceMensuelle = inputs.assurancePretMode === "pct"
       ? (inputs.montantEmprunte * inputs.assurancePretPct) / 12
       : inputs.assurancePretAnnuelle / 12;
 
-    expenses.push({
+    depenses.push({
       id: generateId(),
-      propertyId,
+      bienId,
       categorie: "credit",
       label: "Mensualite credit",
       montant: Math.round((mensualite + assuranceMensuelle) * 100) / 100,
@@ -143,10 +143,10 @@ export function simulationToBien(
   }
 
   // Loan — propagate defer config from the simulator
-  const loans: Pret[] = inputs.montantEmprunte > 0
+  const prets: Pret[] = inputs.montantEmprunte > 0
     ? [{
         id: generateId(),
-        propertyId,
+        bienId,
         type: inputs.typePret,
         montantEmprunte: inputs.montantEmprunte,
         tauxAnnuel: inputs.tauxCredit,
@@ -163,12 +163,12 @@ export function simulationToBien(
 
   setData((prev) => ({
     ...prev,
-    properties: [...prev.properties, property],
-    incomes: [...prev.incomes, ...incomes],
-    expenses: [...prev.expenses, ...expenses],
-    loans: [...prev.loans, ...loans],
+    biens: [...prev.biens, bien],
+    revenus: [...prev.revenus, ...revenus],
+    depenses: [...prev.depenses, ...depenses],
+    prets: [...prev.prets, ...prets],
     lots: [...(prev.lots ?? []), ...lots],
   }));
 
-  return propertyId;
+  return bienId;
 }

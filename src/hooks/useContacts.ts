@@ -7,12 +7,12 @@ import { generateId, now } from "@/lib/utils";
 export function useContacts(
   data: DonneesApp | null,
   setData: (updater: (prev: DonneesApp) => DonneesApp) => void,
-  propertyId?: string
+  bienId?: string
 ) {
   const all = data?.contacts ?? [];
   const contacts = useMemo(
-    () => propertyId ? all.filter((c) => c.propertyId === propertyId || !c.propertyId) : all,
-    [all, propertyId]
+    () => bienId ? all.filter((c) => c.bienId === bienId || !c.bienId) : all,
+    [all, bienId]
   );
 
   const ajouterContact = useCallback(
