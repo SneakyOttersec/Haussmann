@@ -260,7 +260,7 @@ export function FormulaireBien({ initialData, onSubmit, submitLabel = "Creer le 
             id="ville"
             value={form.ville ?? ""}
             onChange={(e) => update("ville", e.target.value)}
-            placeholder="ex: Thiers (63)"
+            placeholder="ex: Lyon (69)"
           />
         </div>
         <div className="space-y-2">

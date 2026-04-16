@@ -7,9 +7,9 @@ import type { DonneesApp } from '@/types';
 import { STATUT_BIEN_LABELS, CATEGORIE_DOCUMENT_LABELS } from '@/types';
 
 export interface ExtractedDoc {
-  /** Folder path relative to root, e.g. "Documents/Immeuble Thiers - Phases" */
+  /** Folder path relative to root, e.g. "Documents/Immeuble Grand Plazza - Phases" */
   folderPath: string;
-  /** Descriptive filename, e.g. "02_04_2026_Offre_Immeuble_Thiers.pdf" */
+  /** Descriptive filename, e.g. "02_04_2026_Offre_Immeuble_Grand_Plazza.pdf" */
   fileName: string;
   /** base64 data URI */
   dataUri: string;

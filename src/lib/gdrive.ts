@@ -161,7 +161,7 @@ async function createDriveFolder(name: string, parentId: string): Promise<string
 // Folder cache: "path" -> driveId (avoids redundant API calls within one sync)
 const folderCache: Record<string, string> = {};
 
-/** Ensure a nested folder path exists (e.g. "Haussmann/Documents/Thiers - Phases") */
+/** Ensure a nested folder path exists (e.g. "Haussmann/Documents/Grand Plazza - Phases") */
 async function ensureFolder(path: string, startParentId = 'root'): Promise<string> {
   if (folderCache[path]) return folderCache[path];
 
