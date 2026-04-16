@@ -5,25 +5,25 @@ import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { useDonnees } from "@/hooks/useLocalStorage";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
-import { calculerRentabilite } from "@/lib/calculations";
+import { calculerRentabilite } from "@/lib/calculs";
 import { chargerSimulations, sauvegarderSimulation, supprimerSimulation, exporterSimulations, importerSimulations, hydraterSimulation, restaurerSnapshot } from "@/lib/simulations";
-import { SimulationCard, BienCard, ChargesCard, FinancementCard, FiscaliteCard } from "@/components/calculator/CalculatorForm";
-import { CalculatorResultsPanel } from "@/components/calculator/CalculatorResults";
-import { RegimesComparison } from "@/components/calculator/RegimesComparison";
-import { SensitivityChart } from "@/components/calculator/SensitivityChart";
+import { SimulationCard, BienCard, ChargesCard, FinancementCard, FiscaliteCard } from "@/components/calculateur/FormulaireCalculateur";
+import { PanneauResultatsCalculateur } from "@/components/calculateur/PanneauResultatsCalculateur";
+import { ComparaisonRegimes } from "@/components/calculateur/ComparaisonRegimes";
+import { GraphSensibilite } from "@/components/calculateur/GraphSensibilite";
 import dynamic from "next/dynamic";
-// recharts (~8.5 MB) lives only inside ResultsChart — lazy-load it.
-const ResultsChart = dynamic(
-  () => import("@/components/calculator/ResultsChart").then((m) => m.ResultsChart),
+// recharts (~8.5 MB) lives only inside GraphResultats — lazy-load it.
+const GraphResultats = dynamic(
+  () => import("@/components/calculateur/GraphResultats").then((m) => m.GraphResultats),
   { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
 );
-// HistoryModal: only loaded when the user opens it (see conditional render below).
-const HistoryModal = dynamic(
-  () => import("@/components/calculator/HistoryModal").then((m) => m.HistoryModal),
+// ModaleHistorique: only loaded when the user opens it (see conditional render below).
+const ModaleHistorique = dynamic(
+  () => import("@/components/calculateur/ModaleHistorique").then((m) => m.ModaleHistorique),
   { ssr: false }
 );
 import type { EntreesCalculateur, SimulationSauvegardee, PieceJointe } from "@/types";
-import { AttachmentsPanel } from "@/components/calculator/AttachmentsPanel";
+import { PanneauPiecesJointes } from "@/components/calculateur/PanneauPiecesJointes";
 import { bienToSimulation } from "@/lib/bienToSimulation";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -377,16 +377,16 @@ function SimulateurContent() {
           <ChargesCard inputs={inputs} onUpdate={handleUpdate} />
 
           {/* Results — full width */}
-          <CalculatorResultsPanel results={results} inputs={inputs} associes={data?.settings?.associes} differePretMois={inputs.differePretMois} />
+          <PanneauResultatsCalculateur results={results} inputs={inputs} associes={data?.settings?.associes} differePretMois={inputs.differePretMois} />
 
           {/* Multi-regime comparison */}
-          <RegimesComparison inputs={inputs} />
+          <ComparaisonRegimes inputs={inputs} />
 
           {/* Sensitivity analysis */}
-          <SensitivityChart inputs={inputs} />
+          <GraphSensibilite inputs={inputs} />
 
           {/* Projection chart + table — full width */}
-          <ResultsChart
+          <GraphResultats
             projection={results.projection}
             inputs={inputs}
             results={results}
@@ -405,7 +405,7 @@ function SimulateurContent() {
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm transition-colors outline-none resize-y focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 placeholder:text-muted-foreground"
               />
             </div>
-            <AttachmentsPanel
+            <PanneauPiecesJointes
               attachments={inputs.attachments ?? []}
               onChange={(attachments) => handleUpdate("attachments", attachments)}
             />
@@ -414,7 +414,7 @@ function SimulateurContent() {
       </div>
 
       {historyOpen && (
-        <HistoryModal
+        <ModaleHistorique
           open={historyOpen}
           simulationNom={activeSim?.nom ?? inputs.nomSimulation}
           history={activeHistory}

@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useDonnees } from "@/hooks/useLocalStorage";
 import type { DonneesApp, Bien, StatutBien } from "@/types";
-import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
+import { computeBilanFiscal, getAvailableYears } from "@/lib/calculs/bilanFiscal";
 import { toast } from "sonner";
 import { formatCurrency, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
-import { obtenirMontantEffectif, obtenirMontantCourant } from "@/lib/expenseRevisions";
-import { crdAuMois, dureeTotaleMoisPret } from "@/lib/calculations/loan";
+import { obtenirMontantEffectif, obtenirMontantCourant } from "@/lib/revisionsDepenses";
+import { crdAuMois, dureeTotaleMoisPret } from "@/lib/calculs/pret";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MonthlyFinance, PatrimoineMonth, RendementMonth } from "@/components/finances/FinancesCharts";
 

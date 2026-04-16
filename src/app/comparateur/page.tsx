@@ -3,7 +3,7 @@
 import { useState, useMemo, useSyncExternalStore } from "react";
 import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
-import { calculerRentabilite } from "@/lib/calculations";
+import { calculerRentabilite } from "@/lib/calculs";
 import type { SimulationSauvegardee, EntreesCalculateur, ResultatsCalculateur } from "@/types";
 import { formatCurrency, formatPercent } from "@/lib/utils";
 

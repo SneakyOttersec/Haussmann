@@ -7,7 +7,7 @@ import type { Bien, Depense, Revenu, Pret, SuiviMensuelLoyer, StatutBien } from 
 import { TYPE_BIEN_LABELS, STATUT_BIEN_LABELS, STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
-import { obtenirMontantCourant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
 import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

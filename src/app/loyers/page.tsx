@@ -8,10 +8,10 @@ import { useSuiviLoyers } from "@/hooks/useSuiviLoyers";
 import { useChargePayments } from "@/hooks/useChargePayments";
 import { useLots } from "@/hooks/useLots";
 import { useDepenses } from "@/hooks/useDepenses";
-import { RentTrackingGrid } from "@/components/property/RentTrackingGrid";
-import { ChargeTrackingGrid } from "@/components/property/ChargeTrackingGrid";
+import { RentTrackingGrid } from "@/components/bien/RentTrackingGrid";
+import { GrilleSuiviCharges } from "@/components/bien/GrilleSuiviCharges";
 import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
-import { obtenirMontantCourant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
 import { TYPE_BIEN_LABELS } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -396,7 +396,7 @@ function LoyersContent() {
                   onDelete={deleteRent}
                 />
               ) : (
-                <ChargeTrackingGrid
+                <GrilleSuiviCharges
                   propertyId={selected.property.id}
                   expenses={selected.expenses}
                   entries={allChargeEntries.filter((e) => e.propertyId === selected.property.id)}

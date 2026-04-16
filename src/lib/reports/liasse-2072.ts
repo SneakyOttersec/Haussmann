@@ -1,7 +1,7 @@
 import type jsPDF from "jspdf";
 import type { DonneesApp } from "@/types";
 import { TYPE_BIEN_LABELS } from "@/types";
-import { computeBilanFiscal } from "@/lib/calculations/fiscal-bilan";
+import { computeBilanFiscal } from "@/lib/calculs/bilanFiscal";
 import { getPropertyAcquisitionDate } from "@/lib/utils";
 
 // ── Layout constants ──

@@ -1,8 +1,8 @@
 import type { DonneesApp, EntreesCalculateur } from "@/types";
 import { mensualiserMontant, coutTotalBien } from "@/lib/utils";
-import { obtenirMontantCourant } from "@/lib/expenseRevisions";
-import { crdAuMois, mensualiteAuMois, dureeTotaleMoisPret } from "@/lib/calculations/loan";
-import { computeYearlyFinancials } from "@/lib/calculations";
+import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
+import { crdAuMois, mensualiteAuMois, dureeTotaleMoisPret } from "@/lib/calculs/pret";
+import { computeYearlyFinancials } from "@/lib/calculs";
 
 /**
  * A point-in-time portfolio snapshot. All amounts are in EUR.

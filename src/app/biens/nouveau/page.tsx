@@ -3,8 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useDonnees } from "@/hooks/useLocalStorage";
 import { useBiens } from "@/hooks/useBiens";
-import { PropertyForm } from "@/components/property/PropertyForm";
-import { mensualiteAmortissement } from "@/lib/calculations/loan";
+import { FormulaireBien } from "@/components/bien/FormulaireBien";
+import { mensualiteAmortissement } from "@/lib/calculs/pret";
 import Link from "next/link";
 
 export default function NouveauBien() {
@@ -21,7 +21,7 @@ export default function NouveauBien() {
       </Link>
       <h1 className="mt-4 mb-6">Nouveau bien</h1>
       <div className="border border-dotted rounded-md p-6">
-        <PropertyForm
+        <FormulaireBien
           showFinancement
           onSubmit={(formData, loanData) => {
             const today = new Date().toISOString().slice(0, 10);

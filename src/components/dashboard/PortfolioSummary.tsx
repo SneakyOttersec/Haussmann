@@ -3,8 +3,8 @@
 import type { DonneesApp, StatutBien } from "@/types";
 import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
-import { obtenirMontantCourant } from "@/lib/expenseRevisions";
-import { rendementBrut } from "@/lib/calculations/rendement";
+import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
+import { rendementBrut } from "@/lib/calculs/rendement";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 

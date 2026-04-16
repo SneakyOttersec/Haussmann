@@ -12,9 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 
-// PropertyMap pulls in leaflet (~3.9 MB) — lazy-load to keep dashboard cold-load light.
-const PropertyMap = dynamic(
-  () => import("@/components/dashboard/PropertyMap").then((m) => m.PropertyMap),
+// CarteBiens pulls in leaflet (~3.9 MB) — lazy-load to keep dashboard cold-load light.
+const CarteBiens = dynamic(
+  () => import("@/components/dashboard/CarteBiens").then((m) => m.CarteBiens),
   { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
 );
 
@@ -101,7 +101,7 @@ export default function Dashboard() {
 
       {/* Map */}
       {properties.length > 0 && (
-        <PropertyMap properties={properties} />
+        <CarteBiens properties={properties} />
       )}
 
       {/* KPIs */}

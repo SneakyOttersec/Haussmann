@@ -1,6 +1,6 @@
 import type { DonneesApp, EntreesCalculateur, Bien, Revenu, Depense, Pret, Lot } from "@/types";
 import { generateId, now } from "@/lib/utils";
-import { calculerMensualite } from "@/lib/calculations/loan";
+import { calculerMensualite } from "@/lib/calculs/pret";
 
 /**
  * Creates a Bien + Incomes + Expenses + Loan from a EntreesCalculateur simulation.

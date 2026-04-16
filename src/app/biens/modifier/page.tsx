@@ -5,7 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useDonnees } from "@/hooks/useLocalStorage";
 import { useBiens } from "@/hooks/useBiens";
-import { PropertyForm } from "@/components/property/PropertyForm";
+import { FormulaireBien } from "@/components/bien/FormulaireBien";
 import { Button } from "@/components/ui/button";
 
 function ModifierBienContent() {
@@ -36,7 +36,7 @@ function ModifierBienContent() {
       </Link>
       <h1 className="mt-4 mb-6">Modifier : {property.nom}</h1>
       <div className="border border-dotted rounded-md p-6">
-        <PropertyForm
+        <FormulaireBien
           initialData={property}
           submitLabel="Enregistrer"
           onSubmit={(formData) => {

@@ -1,9 +1,9 @@
 import type jsPDF from "jspdf";
 import type { DonneesApp } from "@/types";
 import { TYPE_BIEN_LABELS } from "@/types";
-import { computeBilanFiscal } from "@/lib/calculations/fiscal-bilan";
-import { calculerAmortissementAnnee } from "@/lib/calculations/tax-is";
-import { crdEnFinAnnee } from "@/lib/calculations/loan";
+import { computeBilanFiscal } from "@/lib/calculs/bilanFiscal";
+import { calculerAmortissementAnnee } from "@/lib/calculs/impotIs";
+import { crdEnFinAnnee } from "@/lib/calculs/pret";
 import { getPropertyAcquisitionDate } from "@/lib/utils";
 
 // ── Layout ──

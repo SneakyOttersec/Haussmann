@@ -1,7 +1,7 @@
 import type { Bien, Revenu, Depense, SuiviMensuelLoyer, Pret } from "@/types";
-import { obtenirMontantEffectif } from "./expenseRevisions";
+import { obtenirMontantEffectif } from "./revisionsDepenses";
 import { getPropertyAcquisitionDate } from "./utils";
-import { mensualiteAuMois, dureeTotaleMoisPret } from "./calculations/loan";
+import { mensualiteAuMois, dureeTotaleMoisPret } from "./calculs/pret";
 
 export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"

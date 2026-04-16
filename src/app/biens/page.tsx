@@ -16,50 +16,50 @@ import { TYPE_BIEN_LABELS } from "@/types";
 import type { StatutBien, Bien, Pret, AllocationCredit, Intervention } from "@/types";
 import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
 import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, estEnveloppeTravauxOuverte } from "@/lib/utils";
-import { calculerMensualite } from "@/lib/calculations";
-import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
+import { calculerMensualite } from "@/lib/calculs";
+import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculs/pret";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
-import { PropertySummary } from "@/components/property/PropertySummary";
-import { PropertyStatusBar } from "@/components/property/PropertyStatusBar";
-import { ExpenseList } from "@/components/property/ExpenseList";
-import { ExpenseForm } from "@/components/property/ExpenseForm";
-import { IncomeList } from "@/components/property/IncomeList";
-import { IncomeForm } from "@/components/property/IncomeForm";
-import { LoanForm } from "@/components/property/LoanForm";
-import { LoanAmortizationTable } from "@/components/property/LoanAmortizationTable";
+import { ResumeBien } from "@/components/bien/ResumeBien";
+import { BarreStatutBien } from "@/components/bien/BarreStatutBien";
+import { ListeDepenses } from "@/components/bien/ListeDepenses";
+import { FormulaireDepense } from "@/components/bien/FormulaireDepense";
+import { ListeRevenus } from "@/components/bien/ListeRevenus";
+import { FormulaireRevenu } from "@/components/bien/FormulaireRevenu";
+import { FormulairePret } from "@/components/bien/FormulairePret";
+import { TableauAmortissementPret } from "@/components/bien/TableauAmortissementPret";
 import dynamic from "next/dynamic";
 import { useSuiviLoyers } from "@/hooks/useSuiviLoyers";
 
 // recharts (~8.5 MB) is only used by these two — lazy-load to keep /biens cold-load light.
-const CashFlowChart = dynamic(
-  () => import("@/components/property/CashFlowChart").then((m) => m.CashFlowChart),
+const GraphFluxMensuels = dynamic(
+  () => import("@/components/bien/GraphFluxMensuels").then((m) => m.GraphFluxMensuels),
   { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
 );
-const RealVsSimulatedSection = dynamic(
-  () => import("@/components/property/RealVsSimulatedSection").then((m) => m.RealVsSimulatedSection),
+const SectionReelVsSimule = dynamic(
+  () => import("@/components/bien/SectionReelVsSimule").then((m) => m.SectionReelVsSimule),
   { ssr: false, loading: () => <div className="h-[495px] border border-dashed rounded-md" /> }
 );
-const MonthlyRendementChart = dynamic(
-  () => import("@/components/property/MonthlyRendementChart").then((m) => m.MonthlyRendementChart),
+const GraphRendementMensuel = dynamic(
+  () => import("@/components/bien/GraphRendementMensuel").then((m) => m.GraphRendementMensuel),
   { ssr: false, loading: () => <div className="h-[300px] border border-dashed rounded-md" /> }
 );
 
 // Below-the-fold sections — lazy-load to shrink /biens initial bundle.
 // Each section is large (forms, tables, dialogs) and only relevant when the user scrolls to it.
-const LotSection = dynamic(
-  () => import("@/components/property/LotSection").then((m) => m.LotSection),
+const SectionLots = dynamic(
+  () => import("@/components/bien/SectionLots").then((m) => m.SectionLots),
   { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
 );
-const InterventionSection = dynamic(
-  () => import("@/components/property/InterventionSection").then((m) => m.InterventionSection),
+const SectionInterventions = dynamic(
+  () => import("@/components/bien/SectionInterventions").then((m) => m.SectionInterventions),
   { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
 );
-const ContactSection = dynamic(
-  () => import("@/components/property/ContactSection").then((m) => m.ContactSection),
+const SectionContacts = dynamic(
+  () => import("@/components/bien/SectionContacts").then((m) => m.SectionContacts),
   { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
 );
-const DocumentSection = dynamic(
-  () => import("@/components/property/DocumentSection").then((m) => m.DocumentSection),
+const SectionDocuments = dynamic(
+  () => import("@/components/bien/SectionDocuments").then((m) => m.SectionDocuments),
   { ssr: false, loading: () => <div className="h-[200px] border border-dashed rounded-md" /> }
 );
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -174,7 +174,7 @@ function LoanExtras({ loan, onUpdate }: {
  * Compute the credit allocation for a property + loan. Uses the stored
  * allocationCredit when available; otherwise derives a default that
  * covers the full project cost (credit + apport). Shared by
- * AllocationSection (display) and the InterventionSection call site
+ * AllocationSection (display) and the SectionInterventions call site
  * (enveloppe travaux).
  */
 function calculerAllocationCredit(property: Bien, loan: Pret): AllocationCredit {
@@ -520,7 +520,7 @@ function PropertyDetailContent() {
   // Tracks whether we've already auto-synced lots for the current "travaux" session.
   // Reset when the property leaves "travaux", so re-entering triggers a new sync.
   const travauxSyncedRef = useRef(false);
-  // Snapshot "Projection actuelle" A1 remonte par RealVsSimulatedSection —
+  // Snapshot "Projection actuelle" A1 remonte par SectionReelVsSimule —
   // source de verite partagee avec le graph pour la marge travaux / CF negatif.
   // Place ici (avant l'early return) pour respecter les rules of hooks.
   const [actuelSnapshot, setActuelSnapshot] = useState<{ loyerNetAnnuel: number; chargesAnnuelles: number } | null>(null);
@@ -852,7 +852,7 @@ function PropertyDetailContent() {
                 className="flex-1 bg-teal-700 hover:bg-teal-800"
                 onClick={async () => {
                   setExportPdfOpen(false);
-                  const { exporterRapportBien } = await import("@/lib/propertyReport");
+                  const { exporterRapportBien } = await import("@/lib/rapportBien");
                   await exporterRapportBien({
                     property,
                     lots,
@@ -911,7 +911,7 @@ function PropertyDetailContent() {
       )}
 
       {/* Status bar */}
-      <PropertyStatusBar
+      <BarreStatutBien
         statut={property.statut ?? "exploitation"}
         statusDates={property.statusDates}
         statusDocs={property.statusDocs}
@@ -952,7 +952,7 @@ function PropertyDetailContent() {
       />
 
       {/* KPIs */}
-      <PropertySummary
+      <ResumeBien
         property={property}
         expenses={expenses}
         incomes={incomes}
@@ -992,7 +992,7 @@ function PropertyDetailContent() {
               </button>
             )}
           </div>
-          <LoanForm propertyId={id} initialData={loan ?? undefined} onSubmit={handleSetLoan} />
+          <FormulairePret propertyId={id} initialData={loan ?? undefined} onSubmit={handleSetLoan} />
         </div>
         {loan ? (
           <Card className="border-dotted">
@@ -1174,7 +1174,7 @@ function PropertyDetailContent() {
               >
                 Supprimer le credit
               </button>
-              <LoanAmortizationTable loan={loan} />
+              <TableauAmortissementPret loan={loan} />
             </CardContent>
           </Card>
         ) : (
@@ -1189,10 +1189,10 @@ function PropertyDetailContent() {
         <Card className="border-dotted">
           <CardHeader className="flex flex-row items-center justify-between pb-3">
             <CardTitle className="text-base">Depenses</CardTitle>
-            <ExpenseForm propertyId={id} onSubmit={ajouterDepense} />
+            <FormulaireDepense propertyId={id} onSubmit={ajouterDepense} />
           </CardHeader>
           <CardContent>
-            <ExpenseList expenses={expenses} onDelete={supprimerDepense} onUpdate={mettreAJourDepense} colorByValidation={isPreActe} />
+            <ListeDepenses expenses={expenses} onDelete={supprimerDepense} onUpdate={mettreAJourDepense} colorByValidation={isPreActe} />
             <p className="text-[11px] text-amber-700 italic mt-3">
               ⚠ Donnees non utilisees dans les graphiques, seules les charges dans &quot;Loyer et charges&quot; le sont.
             </p>
@@ -1202,7 +1202,7 @@ function PropertyDetailContent() {
 
       {/* Lots */}
       <section>
-        <LotSection
+        <SectionLots
           lots={lots}
           onAdd={handleAddLot}
           onUpdate={handleUpdateLot}
@@ -1223,7 +1223,7 @@ function PropertyDetailContent() {
               <CardTitle className="text-base">Flux mensuels depuis l&apos;acquisition</CardTitle>
             </CardHeader>
             <CardContent>
-              <CashFlowChart property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} loan={loan} />
+              <GraphFluxMensuels property={property} incomes={incomes} expenses={expenses} rentEntries={rentEntries} loan={loan} />
             </CardContent>
           </Card>
         </section>
@@ -1232,7 +1232,7 @@ function PropertyDetailContent() {
       {/* Cash flow annuel (Reel vs Simule) */}
       {property.simulationId && (
         <section data-pdf-chart="cashFlowAnnuel" data-pdf-chart-label="Cash flow annuel">
-          <RealVsSimulatedSection
+          <SectionReelVsSimule
             property={property}
             incomes={incomes}
             expenses={expenses}
@@ -1253,7 +1253,7 @@ function PropertyDetailContent() {
             <CardTitle className="text-base">Rendement mensuel</CardTitle>
           </CardHeader>
           <CardContent>
-            <MonthlyRendementChart
+            <GraphRendementMensuel
               property={property}
               incomes={incomes}
               expenses={expenses}
@@ -1269,7 +1269,7 @@ function PropertyDetailContent() {
 
       {/* Travaux */}
       <section>
-        <InterventionSection
+        <SectionInterventions
           interventions={interventions}
           onAdd={ajouterIntervention}
           onUpdate={handleUpdateIntervention}
@@ -1284,23 +1284,23 @@ function PropertyDetailContent() {
 
       {/* Interventions */}
       <section>
-        <InterventionSection interventions={interventions} onAdd={ajouterIntervention} onUpdate={handleUpdateIntervention} onDelete={supprimerIntervention} propertyId={id} filterType="intervention" lots={lots} />
+        <SectionInterventions interventions={interventions} onAdd={ajouterIntervention} onUpdate={handleUpdateIntervention} onDelete={supprimerIntervention} propertyId={id} filterType="intervention" lots={lots} />
       </section>
 
       {/* Contacts */}
       <section>
-        <ContactSection contacts={contacts} onAdd={ajouterContact} onUpdate={mettreAJourContact} onDelete={supprimerContact} propertyId={id} />
+        <SectionContacts contacts={contacts} onAdd={ajouterContact} onUpdate={mettreAJourContact} onDelete={supprimerContact} propertyId={id} />
       </section>
 
       {/* Documents */}
       <section>
-        <DocumentSection
+        <SectionDocuments
           documents={documents}
           onAdd={ajouterDocument}
           onDelete={handleDeleteDocument}
           propertyId={id}
           linkedDocs={(() => {
-            const ld: import("@/components/property/DocumentSection").LinkedDoc[] = [];
+            const ld: import("@/components/bien/SectionDocuments").LinkedDoc[] = [];
             // Timeline phase docs (statusDocs)
             if (property.statusDocs) {
               for (const [phase, doc] of Object.entries(property.statusDocs)) {
