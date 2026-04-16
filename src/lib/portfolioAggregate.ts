@@ -1,7 +1,7 @@
 import type { DonneesApp, EntreesCalculateur } from "@/types";
 import { mensualiserMontant, coutTotalBien } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
-import { crdAtMonth, mensualiteAtMonth, loanDureeTotaleMois } from "@/lib/calculations/loan";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
+import { crdAuMois, mensualiteAuMois, dureeTotaleMoisPret } from "@/lib/calculations/loan";
 import { computeYearlyFinancials } from "@/lib/calculations";
 
 /**
@@ -83,9 +83,9 @@ export function computePortfolioSnapshot(
       0,
       Math.floor(yearsElapsedSince(loan.dateDebut) * 12),
     );
-    const cappedMonth = Math.min(monthsElapsed, loanDureeTotaleMois(loan) - 1);
-    capitalRestantDuTotal += crdAtMonth(loan, cappedMonth);
-    mensualitesCreditTotal += mensualiteAtMonth(loan, cappedMonth) + (loan.assuranceAnnuelle ?? 0) / 12;
+    const cappedMonth = Math.min(monthsElapsed, dureeTotaleMoisPret(loan) - 1);
+    capitalRestantDuTotal += crdAuMois(loan, cappedMonth);
+    mensualitesCreditTotal += mensualiteAuMois(loan, cappedMonth) + (loan.assuranceAnnuelle ?? 0) / 12;
   }
 
   const apportGlobal = Math.max(0, coutAcquisition - totalEmprunte);
@@ -101,7 +101,7 @@ export function computePortfolioSnapshot(
   // Depenses mensuelles recurrentes hors credit
   const depensesMensuelles = expenses
     .filter((e) => e.categorie !== "credit" && e.frequence !== "ponctuel")
-    .reduce((s, e) => s + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
+    .reduce((s, e) => s + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
   const cashFlowMensuel =
     loyerMensuel + autresRevenusMensuels - depensesMensuelles - mensualitesCreditTotal;

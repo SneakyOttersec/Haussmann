@@ -100,7 +100,7 @@ export function enveloppeTravauxFinDate(loan: {
 }
 
 /** True si l'enveloppe travaux est encore ouverte aujourd'hui. */
-export function isEnveloppeTravauxOuverte(loan: {
+export function estEnveloppeTravauxOuverte(loan: {
   dateDebut: string;
   differeMois?: number;
   enveloppeTravauxFinDate?: string;

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useDonnees } from "@/hooks/useLocalStorage";
-import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
+import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import type { SimulationSauvegardee, EntreesCalculateur } from "@/types";
 import {
   computePortfolioSnapshot,
@@ -92,7 +92,7 @@ function DeltaCell({ delta, format, invert }: { delta: number; format: Row["form
 const EMPTY_SIMS: SimulationSauvegardee[] = [];
 let cachedSims: SimulationSauvegardee[] | null = null;
 const getSimsSnapshot = (): SimulationSauvegardee[] => {
-  if (cachedSims === null) cachedSims = loadSimulations();
+  if (cachedSims === null) cachedSims = chargerSimulations();
   return cachedSims;
 };
 const subscribeNoop = () => () => {};
@@ -113,7 +113,7 @@ export default function ScenariosPage() {
     if (!selectedSimId || hydratedBySim[selectedSimId]) return;
     const sim = simulations.find((s) => s.id === selectedSimId);
     if (!sim) return;
-    hydrateSimulation(sim).then((hydrated) => {
+    hydraterSimulation(sim).then((hydrated) => {
       setHydratedBySim((prev) => ({
         ...prev,
         [selectedSimId]: { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated },

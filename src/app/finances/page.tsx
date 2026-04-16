@@ -7,8 +7,8 @@ import type { DonneesApp, Bien, StatutBien } from "@/types";
 import { computeBilanFiscal, getAvailableYears } from "@/lib/calculations/fiscal-bilan";
 import { toast } from "sonner";
 import { formatCurrency, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
-import { getMontantEffectif, getCurrentMontant } from "@/lib/expenseRevisions";
-import { crdAtMonth, loanDureeTotaleMois } from "@/lib/calculations/loan";
+import { obtenirMontantEffectif, obtenirMontantCourant } from "@/lib/expenseRevisions";
+import { crdAuMois, dureeTotaleMoisPret } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import type { MonthlyFinance, PatrimoineMonth, RendementMonth } from "@/components/finances/FinancesCharts";
 
@@ -113,7 +113,7 @@ function buildMonthlyCashFlow(data: DonneesApp): MonthlyFinance[] {
       const start = new Date(exp.dateDebut);
       const end = exp.dateFin ? new Date(exp.dateFin) : null;
       if (start > monthEnd || (end && end < d)) continue;
-      const montantEff = getMontantEffectif(exp, d);
+      const montantEff = obtenirMontantEffectif(exp, d);
       let m = 0;
       if (exp.frequence === "ponctuel") {
         if (start.getFullYear() === d.getFullYear() && start.getMonth() === d.getMonth()) m = montantEff;
@@ -176,9 +176,9 @@ function buildPatrimoine(data: DonneesApp, projectionYears: number): PatrimoineM
       const loanStartMonth = new Date(loanStart.getFullYear(), loanStart.getMonth(), 1);
       if (loanStartMonth > d) continue; // loan not yet started
       const monthsElapsed = (d.getFullYear() - loanStart.getFullYear()) * 12 + (d.getMonth() - loanStart.getMonth());
-      const cappedMonth = Math.min(Math.max(0, monthsElapsed), loanDureeTotaleMois(loan) - 1);
-      // crdAtMonth handles defer (partiel/total) correctly.
-      totalCRD += crdAtMonth(loan, cappedMonth);
+      const cappedMonth = Math.min(Math.max(0, monthsElapsed), dureeTotaleMoisPret(loan) - 1);
+      // crdAuMois handles defer (partiel/total) correctly.
+      totalCRD += crdAuMois(loan, cappedMonth);
     }
 
     months.push({ mois: label, valeurBiens: Math.round(totalValeur), capitalRestantDu: Math.round(totalCRD), patrimoineNet: Math.round(totalValeur - totalCRD) });

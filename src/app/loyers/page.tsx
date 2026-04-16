@@ -11,7 +11,7 @@ import { useDepenses } from "@/hooks/useDepenses";
 import { RentTrackingGrid } from "@/components/property/RentTrackingGrid";
 import { ChargeTrackingGrid } from "@/components/property/ChargeTrackingGrid";
 import { formatCurrency, getPropertyAcquisitionDate } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
 import { TYPE_BIEN_LABELS } from "@/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -230,7 +230,7 @@ function LoyersContent() {
       for (const exp of expenses) {
         if (exp.frequence === "ponctuel" || exp.categorie === "credit") continue;
         nbCharges++;
-        const montant = getCurrentMontant(exp);
+        const montant = obtenirMontantCourant(exp);
         let periodsAnnee = 0;
         let periodsToDate = 0;
         if (exp.frequence === "mensuel") { periodsAnnee = 12; periodsToDate = currentMonth; }

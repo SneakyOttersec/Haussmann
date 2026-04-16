@@ -3,7 +3,7 @@
 import type { DonneesApp, StatutBien } from "@/types";
 import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien, getPropertyAcquisitionDate } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
 import { rendementBrut } from "@/lib/calculations/rendement";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
@@ -76,7 +76,7 @@ export function PortfolioSummary({ data }: PortfolioSummaryProps) {
 
   const revenusTheoMensuel = loyerTheoMensuel + autresIncomesMensuel;
   const depensesTheoMensuel = expenses.reduce(
-    (sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence),
+    (sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence),
     0,
   );
   const cashFlowTheoMensuel = revenusTheoMensuel - depensesTheoMensuel;

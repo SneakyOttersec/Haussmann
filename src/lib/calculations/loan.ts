@@ -163,7 +163,7 @@ export function mensualitePendantDiffere(loan: PretLike): number {
 /**
  * Mensualite (hors assurance) au mois `monthIdx` (0-indexed depuis le debut du pret).
  */
-export function mensualiteAtMonth(loan: PretLike, monthIdx: number): number {
+export function mensualiteAuMois(loan: PretLike, monthIdx: number): number {
   if (monthIdx < 0 || monthIdx >= totalMois(loan)) return 0;
   if (monthIdx < moisDiffere(loan)) return mensualitePendantDiffere(loan);
   return mensualiteAmortissement(loan);
@@ -173,7 +173,7 @@ export function mensualiteAtMonth(loan: PretLike, monthIdx: number): number {
  * Capital restant du a la fin du mois `monthIdx` (0-indexed depuis le debut).
  * Tient compte du differe (partiel ou total).
  */
-export function crdAtMonth(loan: PretLike, monthIdx: number): number {
+export function crdAuMois(loan: PretLike, monthIdx: number): number {
   if (monthIdx < 0) return loan.montantEmprunte;
   // After the loan ends, the CRD is exactly zero (avoid the ~1 EUR rounding tail
   // accumulated by hundreds of floating-point ops).
@@ -209,7 +209,7 @@ export function crdAtMonth(loan: PretLike, monthIdx: number): number {
  * Pour la deductibilite fiscale : les interets capitalises pendant un differe
  * total ne sont pas consideres comme payes — donc non deductibles cette annee-la.
  */
-export function interetsAnneeForLoan(loan: PretLike, annee: number): number {
+export function interetsAnneePret(loan: PretLike, annee: number): number {
   const dureeReelleAnnees = Math.ceil(totalMois(loan) / 12);
   if (annee < 1 || annee > dureeReelleAnnees) return 0;
 
@@ -237,8 +237,8 @@ export function interetsAnneeForLoan(loan: PretLike, annee: number): number {
       // total: rien n'est paye, rien n'est deductible
     } else {
       // Phase amortissement: interets = mensualite - capital rembourse
-      const crdAvant = m === 0 ? loan.montantEmprunte : crdAtMonth(loan, m - 1);
-      const crdApres = crdAtMonth(loan, m);
+      const crdAvant = m === 0 ? loan.montantEmprunte : crdAuMois(loan, m - 1);
+      const crdApres = crdAuMois(loan, m);
       const mensualite = mensualiteAmortissement(loan);
       const capitalRembourse = crdAvant - crdApres;
       totalInterets += Math.max(0, mensualite - capitalRembourse);
@@ -257,7 +257,7 @@ export function totalMensualitesAnnee(loan: PretLike, annee: number): number {
   const moisDebut = (annee - 1) * 12;
   const moisFin = annee * 12 - 1;
   for (let m = moisDebut; m <= moisFin && m < totalMois(loan); m++) {
-    total += mensualiteAtMonth(loan, m);
+    total += mensualiteAuMois(loan, m);
   }
   return round2(total);
 }
@@ -266,16 +266,16 @@ export function totalMensualitesAnnee(loan: PretLike, annee: number): number {
  * Total loan duration in months (defer + amortization). Exported so that
  * call sites don't have to duplicate the differeInclus logic.
  */
-export function loanDureeTotaleMois(loan: PretLike): number {
+export function dureeTotaleMoisPret(loan: PretLike): number {
   return totalMois(loan);
 }
 
 /**
- * CRD a la fin de l'annee N (1-based). Wrapper sur crdAtMonth pour les callers
+ * CRD a la fin de l'annee N (1-based). Wrapper sur crdAuMois pour les callers
  * qui raisonnent en annees plutot qu'en mois.
  */
-export function crdAtYearEnd(loan: PretLike, annee: number): number {
+export function crdEnFinAnnee(loan: PretLike, annee: number): number {
   if (annee <= 0) return loan.montantEmprunte;
   const m = annee * 12 - 1;
-  return crdAtMonth(loan, Math.min(m, totalMois(loan) - 1));
+  return crdAuMois(loan, Math.min(m, totalMois(loan) - 1));
 }

@@ -14,7 +14,7 @@ function toLocalISODate(d: Date): string {
  * If no revision applies (expense has no revisions, or all are future),
  * returns expense.montant (the initial/base price).
  */
-export function getMontantEffectif(expense: Depense, referenceDate: Date): number {
+export function obtenirMontantEffectif(expense: Depense, referenceDate: Date): number {
   const revisions = expense.revisions ?? [];
   if (revisions.length === 0) return expense.montant;
 
@@ -29,13 +29,13 @@ export function getMontantEffectif(expense: Depense, referenceDate: Date): numbe
 }
 
 /** Current effective price (today). */
-export function getCurrentMontant(expense: Depense): number {
-  return getMontantEffectif(expense, new Date());
+export function obtenirMontantCourant(expense: Depense): number {
+  return obtenirMontantEffectif(expense, new Date());
 }
 
 /** Montant at the START of a given year (Jan 1). */
 export function getMontantForYear(expense: Depense, year: number): number {
-  return getMontantEffectif(expense, new Date(year, 0, 1));
+  return obtenirMontantEffectif(expense, new Date(year, 0, 1));
 }
 
 /**

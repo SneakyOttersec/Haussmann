@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useSyncExternalStore } from "react";
-import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
+import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
 import type { SimulationSauvegardee, EntreesCalculateur, ResultatsCalculateur } from "@/types";
@@ -25,12 +25,12 @@ function KpiCell({ value, isBest, format }: { value: number; isBest: boolean; fo
 // to avoid infinite re-renders in useSyncExternalStore.
 const EMPTY_SIMS: SimulationSauvegardee[] = [];
 
-// loadSimulations() returns a fresh array on each call. Cache the result so the
+// chargerSimulations() returns a fresh array on each call. Cache the result so the
 // snapshot is referentially stable between renders; bust the cache when the user
 // triggers a known mutation (none in this read-only page).
 let cachedSims: SimulationSauvegardee[] | null = null;
 const getSimsSnapshot = (): SimulationSauvegardee[] => {
-  if (cachedSims === null) cachedSims = loadSimulations();
+  if (cachedSims === null) cachedSims = chargerSimulations();
   return cachedSims;
 };
 const subscribeNoop = () => () => {};
@@ -52,7 +52,7 @@ export default function Comparateur() {
     if (selected.length >= 4) return;
 
     setLoading(sim.id);
-    const hydrated = await hydrateSimulation(sim);
+    const hydrated = await hydraterSimulation(sim);
     const inputs = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
     const results = calculerRentabilite(inputs);
     setSelected([...selected, { sim, inputs, results }]);

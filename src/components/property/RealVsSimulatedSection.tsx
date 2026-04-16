@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useMemo } from "react";
 import type { Bien, Revenu, Depense, Pret, Lot, SuiviMensuelLoyer, ProjectionAnnuelle, EntreesCalculateur, StatutBien } from "@/types";
-import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
+import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
 import Link from "next/link";
 import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate, annualiserMontant } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
 
 // Categories already reflected elsewhere in the simulation — we exclude them
 // from the "Projection actuelle" annual charges to avoid double counting:
@@ -24,7 +24,7 @@ const EXCLUDED_EXPENSE_CATEGORIES = new Set([
 ]);
 
 /** Real cash flow only makes sense once the property is generating rent (location or beyond). */
-function isOperating(statut?: StatutBien): boolean {
+function estEnExploitation(statut?: StatutBien): boolean {
   return statut === "location" || statut === "exploitation";
 }
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -976,14 +976,14 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
   const [reloadKey, setReloadKey] = useState(0);
   // Hide the "real" curve until the property is actually generating rent.
   // Until then there is no meaningful real cash flow to compare against the simulator.
-  const operating = isOperating(property.statut);
+  const operating = estEnExploitation(property.statut);
 
   useEffect(() => {
     if (!property.simulationId) return;
-    const sims = loadSimulations();
+    const sims = chargerSimulations();
     const sim = sims.find((s) => s.id === property.simulationId);
     if (!sim) return;
-    hydrateSimulation(sim).then((hydrated) => {
+    hydraterSimulation(sim).then((hydrated) => {
       const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
       // Patch the simulation inputs with the property's CURRENT loan params.
       // The simulation may have been saved before defer was added, or the user
@@ -1087,7 +1087,7 @@ export function RealVsSimulatedSection({ property, incomes, expenses, rentEntrie
       // sur 30 ans.
       const annualCharges = (expenses ?? [])
         .filter((e) => !EXCLUDED_EXPENSE_CATEGORIES.has(e.categorie))
-        .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
+        .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
       if (annualCharges > 0 || (expenses ?? []).length > 0) {
         inputsActuel.chargesCopro = 0;
         inputsActuel.taxeFonciere = 0;

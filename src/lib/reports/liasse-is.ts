@@ -3,7 +3,7 @@ import type { DonneesApp } from "@/types";
 import { TYPE_BIEN_LABELS } from "@/types";
 import { computeBilanFiscal } from "@/lib/calculations/fiscal-bilan";
 import { calculerAmortissementAnnee } from "@/lib/calculations/tax-is";
-import { crdAtYearEnd } from "@/lib/calculations/loan";
+import { crdEnFinAnnee } from "@/lib/calculations/loan";
 import { getPropertyAcquisitionDate } from "@/lib/utils";
 
 // ── Layout ──
@@ -255,13 +255,13 @@ export async function generateLiasseIS(data: DonneesApp, annee: number): Promise
   y = row(doc, y, "Report a nouveau", eur(Math.round(reportANouveau)));
   y = row(doc, y, "Resultat de l'exercice", eur(bilan.totaux.resultatFiscal), { color: bilan.totaux.resultatFiscal >= 0 ? C.dark : C.red });
 
-  // Emprunts (defer-aware via crdAtYearEnd)
+  // Emprunts (defer-aware via crdEnFinAnnee)
   let totalCRD = 0;
   for (const loan of loans) {
     const loanStart = parseInt(loan.dateDebut.slice(0, 4));
     const yearsElapsed = annee - loanStart + 1;
     if (yearsElapsed >= 1 && yearsElapsed <= loan.dureeAnnees) {
-      totalCRD += crdAtYearEnd(loan, yearsElapsed);
+      totalCRD += crdEnFinAnnee(loan, yearsElapsed);
     }
   }
   y = row(doc, y, "Emprunts et dettes", eur(Math.round(totalCRD)));

@@ -4,14 +4,14 @@ import { useEffect, useState } from "react";
 import type { EntreesCalculateur, Depense, Revenu, Pret, Lot, Bien, StatutBien, SuiviMensuelLoyer } from "@/types";
 import { STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
-import { mensualiteAtMonth, mensualiteAmortissement, loanDureeTotaleMois } from "@/lib/calculations/loan";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
+import { mensualiteAuMois, mensualiteAmortissement, dureeTotaleMoisPret } from "@/lib/calculations/loan";
 import { Card, CardContent } from "@/components/ui/card";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { rendementBrut, rendementNet } from "@/lib/calculations/rendement";
 import { calculerRentabilite } from "@/lib/calculations";
-import { loadSimulations, hydrateSimulation } from "@/lib/simulations";
+import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 
 interface SimYearValue {
@@ -92,9 +92,9 @@ export function PropertySummary({
     let cancelled = false;
     setSimKpis(null);
     if (!property.simulationId) return;
-    const sim = loadSimulations().find((s) => s.id === property.simulationId);
+    const sim = chargerSimulations().find((s) => s.id === property.simulationId);
     if (!sim) return;
-    hydrateSimulation(sim).then((hydrated) => {
+    hydraterSimulation(sim).then((hydrated) => {
       if (cancelled) return;
       const inputs: EntreesCalculateur = { ...DEFAULT_CALCULATOR_INPUTS, ...hydrated };
       const results = calculerRentabilite(inputs);
@@ -187,7 +187,7 @@ export function PropertySummary({
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
   const depensesMensuelles = expenses
     .filter((e) => e.categorie !== "credit")
-    .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
+    .reduce((sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
   // Credit: use the loan's actual current mensualite (defer-aware) instead of
   // the static credit expense which always stores the post-defer value.
@@ -197,14 +197,14 @@ export function PropertySummary({
     const now = new Date();
     const monthIdx = (now.getFullYear() - loanStart.getFullYear()) * 12
       + (now.getMonth() - loanStart.getMonth());
-    const totalMois = loanDureeTotaleMois(loan);
+    const totalMois = dureeTotaleMoisPret(loan);
     creditMensuel = monthIdx >= 0 && monthIdx < totalMois
-      ? mensualiteAtMonth(loan, monthIdx) + loan.assuranceAnnuelle / 12
+      ? mensualiteAuMois(loan, monthIdx) + loan.assuranceAnnuelle / 12
       : 0;
   } else {
     creditMensuel = expenses
       .filter((e) => e.categorie === "credit")
-      .reduce((sum, e) => sum + mensualiserMontant(getCurrentMontant(e), e.frequence), 0);
+      .reduce((sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
   }
 
   // ── Gating sur le statut du bien ──
@@ -242,7 +242,7 @@ export function PropertySummary({
   );
   const chargesAnnuelles = expenses
     .filter((e) => e.categorie !== "credit")
-    .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
+    .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 
   const coutTotal = coutTotalBien(property);
   // Rendement "Max" = sur la base des incomes bruts (equivaut a pleine

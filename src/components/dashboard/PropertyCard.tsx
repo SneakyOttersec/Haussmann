@@ -7,7 +7,7 @@ import type { Bien, Depense, Revenu, Pret, SuiviMensuelLoyer, StatutBien } from 
 import { TYPE_BIEN_LABELS, STATUT_BIEN_LABELS, STATUT_BIEN_ORDER } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
 import { buildMonthlyFlow, computeCashflowStats, computeTheoreticalMonthlyCashflow } from "@/lib/monthlyFlow";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,7 @@ interface PropertyCardProps {
   onDelete?: (id: string) => void;
 }
 
-function isPostActe(statut?: StatutBien): boolean {
+function estPostActe(statut?: StatutBien): boolean {
   if (!statut) return true;
   return STATUT_BIEN_ORDER.indexOf(statut) >= STATUT_BIEN_ORDER.indexOf("acte");
 }
@@ -33,7 +33,7 @@ function isEnLocation(statut?: StatutBien): boolean {
 
 export function PropertyCard({ property, expenses, incomes, rentEntries, loan, onDelete }: PropertyCardProps) {
   const router = useRouter();
-  const postActe = isPostActe(property.statut);
+  const postActe = estPostActe(property.statut);
   const enLocation = isEnLocation(property.statut);
 
   const stats = useMemo(() => {
@@ -56,8 +56,8 @@ export function PropertyCard({ property, expenses, incomes, rentEntries, loan, o
       return 0;
     };
     const rev = incomes.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
-    const dep = expenses.filter(e => e.categorie !== "credit").reduce((s, e) => s + mensualise(getCurrentMontant(e), e.frequence), 0);
-    const cred = expenses.filter(e => e.categorie === "credit").reduce((s, e) => s + mensualise(getCurrentMontant(e), e.frequence), 0);
+    const dep = expenses.filter(e => e.categorie !== "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
+    const cred = expenses.filter(e => e.categorie === "credit").reduce((s, e) => s + mensualise(obtenirMontantCourant(e), e.frequence), 0);
     return { revenusMensuel: rev, depensesMensuel: dep, creditMensuel: cred };
   }, [incomes, expenses]);
 

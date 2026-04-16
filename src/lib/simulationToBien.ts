@@ -43,7 +43,7 @@ export function simulationToBien(
     // A property born from a simulation is still being prospected — not yet
     // owned. The user moves the timeline forward as the deal progresses
     // (offre → compromis → acte). Until then, finances/loyers/charges treat
-    // it as theoretical projections (see isPostActe / pre-acte gating).
+    // it as theoretical projections (see estPostActe / pre-acte gating).
     statut: "prospection",
     statusDates: { prospection: today },
     allocationCredit: inputs.montantEmprunte > 0 ? (() => {

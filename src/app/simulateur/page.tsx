@@ -6,7 +6,7 @@ import { Suspense } from "react";
 import { useDonnees } from "@/hooks/useLocalStorage";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculations";
-import { loadSimulations, saveSimulation, deleteSimulation, exportSimulations, importSimulations, hydrateSimulation, restoreSnapshot } from "@/lib/simulations";
+import { chargerSimulations, sauvegarderSimulation, supprimerSimulation, exporterSimulations, importerSimulations, hydraterSimulation, restaurerSnapshot } from "@/lib/simulations";
 import { SimulationCard, BienCard, ChargesCard, FinancementCard, FiscaliteCard } from "@/components/calculator/CalculatorForm";
 import { CalculatorResultsPanel } from "@/components/calculator/CalculatorResults";
 import { RegimesComparison } from "@/components/calculator/RegimesComparison";
@@ -143,7 +143,7 @@ function SimulateurContent() {
   const activeHistory = activeSim?.history ?? [];
 
   useEffect(() => {
-    const sims = loadSimulations();
+    const sims = chargerSimulations();
     setSimulations(sims);
     // Priorite : ?simId=... (ouvre une simulation specifique), sinon le dernier
     // enregistrement si aucun bienId. bienId est traite dans un effet separe.
@@ -151,13 +151,13 @@ function SimulateurContent() {
       if (simId) {
         const target = sims.find((s) => s.id === simId);
         if (target) {
-          hydrateSimulation(target).then((hydrated) => {
+          hydraterSimulation(target).then((hydrated) => {
             setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
           });
         }
       } else if (!bienId && sims.length > 0) {
         const mostRecent = sims.reduce((a, b) => (a.savedAt > b.savedAt ? a : b));
-        hydrateSimulation(mostRecent).then((hydrated) => {
+        hydraterSimulation(mostRecent).then((hydrated) => {
           setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
         });
       }
@@ -182,22 +182,22 @@ function SimulateurContent() {
   }, []);
 
   const handleSave = async () => {
-    const sim = await saveSimulation(inputs.nomSimulation, inputs);
-    setSimulations(loadSimulations());
+    const sim = await sauvegarderSimulation(inputs.nomSimulation, inputs);
+    setSimulations(chargerSimulations());
     // Persist the assigned id back into the form state so the next save overwrites
     setInputs(prev => ({ ...prev, id: sim.id }));
     toast.success(`"${sim.nom}" sauvegardee`);
   };
 
   const handleLoad = async (sim: SimulationSauvegardee) => {
-    const hydrated = await hydrateSimulation(sim);
+    const hydrated = await hydraterSimulation(sim);
     setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...hydrated });
     setDrawerOpen(false);
   };
 
   const handleDelete = async (sim: SimulationSauvegardee) => {
-    await deleteSimulation(sim.id);
-    setSimulations(loadSimulations());
+    await supprimerSimulation(sim.id);
+    setSimulations(chargerSimulations());
     if (inputs.id === sim.id) {
       setInputs(prev => ({ ...prev, id: undefined }));
     }
@@ -206,7 +206,7 @@ function SimulateurContent() {
 
   const handleExport = async () => {
     toast.info("Export en cours...");
-    const json = await exportSimulations();
+    const json = await exporterSimulations();
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -223,7 +223,7 @@ function SimulateurContent() {
     const reader = new FileReader();
     reader.onload = async () => {
       try {
-        const merged = await importSimulations(reader.result as string);
+        const merged = await importerSimulations(reader.result as string);
         setSimulations(merged);
         toast.success(`${merged.length} simulation(s) importee(s)`);
       } catch {
@@ -241,7 +241,7 @@ function SimulateurContent() {
 
   const handleRestoreSnapshot = async (index: number) => {
     if (!activeSimId) return;
-    const restored = await restoreSnapshot(activeSimId, index);
+    const restored = await restaurerSnapshot(activeSimId, index);
     if (restored) {
       setInputs({ ...DEFAULT_CALCULATOR_INPUTS, ...restored });
       setHistoryOpen(false);
@@ -330,11 +330,11 @@ function SimulateurContent() {
                   let simId = activeSimId;
                   let inputsWithId = inputs;
                   if (!simId) {
-                    const sim = await saveSimulation(inputs.nomSimulation, inputs);
+                    const sim = await sauvegarderSimulation(inputs.nomSimulation, inputs);
                     simId = sim.id;
                     inputsWithId = { ...inputs, id: sim.id };
                     setInputs(inputsWithId);
-                    setSimulations(loadSimulations());
+                    setSimulations(chargerSimulations());
                   }
                   const id = simulationToBien(inputsWithId, setData, simId);
                   toast.success("Bien cree a partir de la simulation");

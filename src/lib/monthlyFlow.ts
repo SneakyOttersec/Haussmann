@@ -1,7 +1,7 @@
 import type { Bien, Revenu, Depense, SuiviMensuelLoyer, Pret } from "@/types";
-import { getMontantEffectif } from "./expenseRevisions";
+import { obtenirMontantEffectif } from "./expenseRevisions";
 import { getPropertyAcquisitionDate } from "./utils";
-import { mensualiteAtMonth, loanDureeTotaleMois } from "./calculations/loan";
+import { mensualiteAuMois, dureeTotaleMoisPret } from "./calculations/loan";
 
 export interface MonthFlowData {
   yearMonth: string;          // "YYYY-MM"
@@ -110,7 +110,7 @@ export function buildMonthlyFlow(
       // Skip the auto-created credit expense when we have a loan: we recompute
       // it from the loan schedule below to handle defer correctly.
       if (loan && exp.categorie === "credit") continue;
-      const montantEff = getMontantEffectif(exp, cursor);
+      const montantEff = obtenirMontantEffectif(exp, cursor);
       const montant = monthlyContribution(exp.dateDebut, exp.dateFin, montantEff, exp.frequence, cursor);
       if (exp.categorie === "credit") credit += montant;
       else depenses += montant;
@@ -119,8 +119,8 @@ export function buildMonthlyFlow(
     if (loan && loanStart && !isNaN(loanStart.getTime())) {
       const monthIdx = (cursor.getFullYear() - loanStart.getFullYear()) * 12
         + (cursor.getMonth() - loanStart.getMonth());
-      if (monthIdx >= 0 && monthIdx < loanDureeTotaleMois(loan)) {
-        credit += mensualiteAtMonth(loan, monthIdx) + loan.assuranceAnnuelle / 12;
+      if (monthIdx >= 0 && monthIdx < dureeTotaleMoisPret(loan)) {
+        credit += mensualiteAuMois(loan, monthIdx) + loan.assuranceAnnuelle / 12;
       }
     }
 
@@ -178,6 +178,6 @@ export function computeTheoreticalMonthlyCashflow(incomes: Revenu[], expenses: D
   };
   const today = new Date();
   const revenus = incomes.reduce((s, i) => s + mensualise(i.montant, i.frequence), 0);
-  const depenses = expenses.reduce((s, e) => s + mensualise(getMontantEffectif(e, today), e.frequence), 0);
+  const depenses = expenses.reduce((s, e) => s + mensualise(obtenirMontantEffectif(e, today), e.frequence), 0);
   return revenus - depenses;
 }

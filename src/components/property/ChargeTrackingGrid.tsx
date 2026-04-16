@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import type { Depense, PaiementCharge, StatutPaiementCharge } from "@/types";
 import { CATEGORIE_DEPENSE_LABELS, STATUT_PAIEMENT_CHARGE_LABELS } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { getCurrentMontant } from "@/lib/expenseRevisions";
+import { obtenirMontantCourant } from "@/lib/expenseRevisions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -304,7 +304,7 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
 
     for (const exp of recurringExpenses) {
       const periods = periodsForYear(selectedYear, exp.frequence);
-      const montant = getCurrentMontant(exp);
+      const montant = obtenirMontantCourant(exp);
       for (const p of periods) {
         totalAttendu += montant;
         const entry = entries.find((e) => e.expenseId === exp.id && e.periode === p);
@@ -413,7 +413,7 @@ export function ChargeTrackingGrid({ propertyId, expenses, entries, onUpsert, on
           </thead>
           <tbody>
             {recurringExpenses.map((exp) => {
-              const montant = getCurrentMontant(exp);
+              const montant = obtenirMontantCourant(exp);
               const periods = periodsForYear(selectedYear, exp.frequence);
 
               if (exp.frequence === "mensuel") {

@@ -15,7 +15,7 @@ import { useLots } from "@/hooks/useLots";
 import { TYPE_BIEN_LABELS } from "@/types";
 import type { StatutBien, Bien, Pret, AllocationCredit, Intervention } from "@/types";
 import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
-import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, isEnveloppeTravauxOuverte } from "@/lib/utils";
+import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, estEnveloppeTravauxOuverte } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculations";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculations/loan";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
@@ -177,7 +177,7 @@ function LoanExtras({ loan, onUpdate }: {
  * AllocationSection (display) and the InterventionSection call site
  * (enveloppe travaux).
  */
-function computeAllocationCredit(property: Bien, loan: Pret): AllocationCredit {
+function calculerAllocationCredit(property: Bien, loan: Pret): AllocationCredit {
   // Backfill dossier/garantie/mobilier on older allocations that predate those buckets.
   if (property.allocationCredit) {
     const a = property.allocationCredit as Partial<AllocationCredit> & Omit<AllocationCredit, "dossier" | "garantie" | "mobilier">;
@@ -310,7 +310,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
   onSave: (alloc: AllocationCredit) => void;
   onUpdateLoan: (updates: Partial<Pret>) => void;
 }) {
-  const defaultAlloc = computeAllocationCredit(property, loan);
+  const defaultAlloc = calculerAllocationCredit(property, loan);
   const [editOpen, setEditOpen] = useState(false);
   const [edit, setEdit] = useState(defaultAlloc);
 
@@ -325,7 +325,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
 
   // Note: this list is rendered manually so we can interleave the travaux usage hint.
   const enveloppeFinDate = enveloppeTravauxFinDate(loan);
-  const enveloppeOuverte = isEnveloppeTravauxOuverte(loan);
+  const enveloppeOuverte = estEnveloppeTravauxOuverte(loan);
 
   const allocations: { key: keyof AllocationCredit; label: string; value: number }[] = [
     { key: "bien", label: "Bien immobilier", value: defaultAlloc.bien },
@@ -494,7 +494,7 @@ function AllocationSection({ loan, property, interventions, onSave, onUpdateLoan
 }
 
 /** Bien is past the "acte" phase — financial data is meaningful */
-function isPostActe(statut?: StatutBien): boolean {
+function estPostActe(statut?: StatutBien): boolean {
   if (!statut) return true; // backward compat
   const idx = STATUT_BIEN_ORDER.indexOf(statut);
   const acteIdx = STATUT_BIEN_ORDER.indexOf("acte");
@@ -615,7 +615,7 @@ function PropertyDetailContent() {
   // state, financial values are projections — we color each price green when the
   // user has validated it against a real contract/offer, orange otherwise. Once
   // the property is post-acte, prices are real and stay in the default colour.
-  const isPreActe = !isPostActe(property.statut);
+  const isPreActe = !estPostActe(property.statut);
   const creditValide = !!loan?.offerValidated;
   const priceClass = (validated: boolean): string =>
     isPreActe ? (validated ? "text-green-600" : "text-amber-600") : "";
@@ -852,8 +852,8 @@ function PropertyDetailContent() {
                 className="flex-1 bg-teal-700 hover:bg-teal-800"
                 onClick={async () => {
                   setExportPdfOpen(false);
-                  const { exportPropertyReport } = await import("@/lib/propertyReport");
-                  await exportPropertyReport({
+                  const { exporterRapportBien } = await import("@/lib/propertyReport");
+                  await exporterRapportBien({
                     property,
                     lots,
                     expenses,
@@ -1216,7 +1216,7 @@ function PropertyDetailContent() {
 
 
       {/* Flux mensuels — only for post-acte properties */}
-      {isPostActe(property.statut) && (
+      {estPostActe(property.statut) && (
         <section data-pdf-chart="fluxMensuels" data-pdf-chart-label="Flux mensuels depuis l'acquisition">
           <Card className="border-dotted">
             <CardHeader className="pb-3">
@@ -1277,8 +1277,8 @@ function PropertyDetailContent() {
           propertyId={id}
           filterType="travaux"
           lots={lots}
-          enveloppeCredit={loan ? computeAllocationCredit(property, loan).travaux : 0}
-          enveloppeOuverte={loan ? isEnveloppeTravauxOuverte(loan) : true}
+          enveloppeCredit={loan ? calculerAllocationCredit(property, loan).travaux : 0}
+          enveloppeOuverte={loan ? estEnveloppeTravauxOuverte(loan) : true}
         />
       </section>
 

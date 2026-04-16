@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { Pret } from "@/types";
 import { formatCurrency } from "@/lib/utils";
-import { crdAtMonth, interetsAnneeForLoan, totalMensualitesAnnee, loanDureeTotaleMois } from "@/lib/calculations/loan";
+import { crdAuMois, interetsAnneePret, totalMensualitesAnnee, dureeTotaleMoisPret } from "@/lib/calculations/loan";
 
 interface LoanAmortizationTableProps {
   loan: Pret;
@@ -24,7 +24,7 @@ interface AmortRow {
 
 function buildAmortization(loan: Pret): AmortRow[] {
   const rows: AmortRow[] = [];
-  const totalMois = loanDureeTotaleMois(loan);
+  const totalMois = dureeTotaleMoisPret(loan);
   const dureeReelleAnnees = Math.ceil(totalMois / 12);
   const dM = Math.max(0, loan.differeMois ?? 0);
 
@@ -32,11 +32,11 @@ function buildAmortization(loan: Pret): AmortRow[] {
     const moisDebutAnnee = (annee - 1) * 12;
     const moisFinAnnee = Math.min(annee * 12 - 1, totalMois - 1);
 
-    const crdDebut = annee === 1 ? loan.montantEmprunte : crdAtMonth(loan, moisDebutAnnee - 1);
-    const crdFin = crdAtMonth(loan, moisFinAnnee);
+    const crdDebut = annee === 1 ? loan.montantEmprunte : crdAuMois(loan, moisDebutAnnee - 1);
+    const crdFin = crdAuMois(loan, moisFinAnnee);
     const capitalRembourse = Math.max(0, crdDebut - crdFin);
     const totalMensualites = totalMensualitesAnnee(loan, annee);
-    const interets = interetsAnneeForLoan(loan, annee);
+    const interets = interetsAnneePret(loan, annee);
     const assurance = loan.assuranceAnnuelle;
     const totalPaye = totalMensualites + assurance;
 

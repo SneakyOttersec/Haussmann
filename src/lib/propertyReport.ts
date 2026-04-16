@@ -6,11 +6,11 @@ import {
   CATEGORIE_DEPENSE_LABELS, TYPE_BIEN_LABELS, STATUT_BIEN_LABELS,
 } from "@/types";
 import {
-  mensualiteAmortissement, crdAtYearEnd, totalMensualitesAnnee,
-  interetsAnneeForLoan, loanDureeTotaleMois,
+  mensualiteAmortissement, crdEnFinAnnee, totalMensualitesAnnee,
+  interetsAnneePret, dureeTotaleMoisPret,
 } from "./calculations/loan";
 import { annualiserMontant, coutTotalBien } from "./utils";
-import { getCurrentMontant } from "./expenseRevisions";
+import { obtenirMontantCourant } from "./expenseRevisions";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN SYSTEM — "Dossier bancaire" : marine + or, Helvetica sans-serif
@@ -182,15 +182,15 @@ function pageFooter(doc: jsPDF, date: string) {
 // LOAN / AMORT HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 function buildAmortRows(loan: Pret): Array<[string, string, string, string, string]> {
-  const totalMois = loanDureeTotaleMois(loan);
+  const totalMois = dureeTotaleMoisPret(loan);
   const totalAnnees = Math.ceil(totalMois / 12);
   const rows: Array<[string, string, string, string, string]> = [];
   for (let a = 1; a <= totalAnnees; a++) {
     const mensAnnee = totalMensualitesAnnee(loan, a);
-    const interets = interetsAnneeForLoan(loan, a);
+    const interets = interetsAnneePret(loan, a);
     const mensHorsAss = Math.max(0, mensAnnee - loan.assuranceAnnuelle);
     const capitalRembAnnee = Math.max(0, mensHorsAss - interets);
-    const crdFin = crdAtYearEnd(loan, a);
+    const crdFin = crdEnFinAnnee(loan, a);
     rows.push([`A${a}`, eur(mensAnnee), eur(interets), eur(capitalRembAnnee), eur(crdFin)]);
   }
   const totalMens = rows.reduce((s, r) => s + parseNum(r[1]), 0);
@@ -206,7 +206,7 @@ function parseNum(s: string): number {
 function computeAnnualCharges(expenses: Depense[]): number {
   return expenses
     .filter((e) => !EXCLUDED_EXPENSE_CATS.has(e.categorie))
-    .reduce((sum, e) => sum + annualiserMontant(getCurrentMontant(e), e.frequence), 0);
+    .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ const MODE_CONFIG: Record<ReportMode, {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN EXPORT
 // ─────────────────────────────────────────────────────────────────────────────
-export async function exportPropertyReport(params: {
+export async function exporterRapportBien(params: {
   property: Bien;
   lots: Lot[];
   expenses: Depense[];
@@ -295,11 +295,11 @@ export async function exportPropertyReport(params: {
   let regimeFiscal: string | null = null;
   if (property.simulationId) {
     try {
-      const { loadSimulations, hydrateSimulation } = await import("./simulations");
-      const sims = loadSimulations();
+      const { chargerSimulations, hydraterSimulation } = await import("./simulations");
+      const sims = chargerSimulations();
       const sim = sims.find((s) => s.id === property.simulationId);
       if (sim) {
-        const hydrated = await hydrateSimulation(sim);
+        const hydrated = await hydraterSimulation(sim);
         regimeFiscal = hydrated.regimeFiscal ?? null;
       }
     } catch {
@@ -323,7 +323,7 @@ export async function exportPropertyReport(params: {
   // 4 KPI boxes — vue d'ensemble en tête de page
   const kpiW = (CW - 3 * 4) / 4;
   const kpiH = 20;
-  const crdA10 = loan ? crdAtYearEnd(loan, 10) : 0;
+  const crdA10 = loan ? crdEnFinAnnee(loan, 10) : 0;
   const valeurA10 = valeurBien * Math.pow(1.02, 10); // +2%/an par défaut
   const patrimoineA10 = valeurA10 - crdA10;
   kpiBox(doc, M + 0 * (kpiW + 4), y, kpiW, kpiH, "Coût total", eur(coutTotal));
@@ -504,7 +504,7 @@ export async function exportPropertyReport(params: {
   const byCat = new Map<string, number>();
   for (const e of expenses) {
     if (EXCLUDED_EXPENSE_CATS.has(e.categorie)) continue;
-    const annuel = annualiserMontant(getCurrentMontant(e), e.frequence);
+    const annuel = annualiserMontant(obtenirMontantCourant(e), e.frequence);
     if (annuel === 0) continue;
     byCat.set(e.categorie, (byCat.get(e.categorie) ?? 0) + annuel);
   }
