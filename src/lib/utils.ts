@@ -69,7 +69,12 @@ export function coutTotalBien(p: {
   // only historical defaults.
   if (p.allocationCredit) {
     const a = p.allocationCredit;
-    return a.bien + a.travaux + a.notaire + a.agence + (a.dossier ?? 0) + (a.garantie ?? 0) + (a.mobilier ?? 0) + a.autre;
+    // Backfill mobilier : bucket ajoute en 2026, les allocations plus
+    // anciennes ne l'ont pas. On fallback sur property.montantMobilier
+    // pour que le cout total reste coherent tant que l'utilisateur n'a
+    // pas explicitement edite son allocation.
+    const mobilier = a.mobilier ?? p.montantMobilier ?? 0;
+    return a.bien + a.travaux + a.notaire + a.agence + (a.dossier ?? 0) + (a.garantie ?? 0) + mobilier + a.autre;
   }
   return p.prixAchat + p.fraisNotaire + (p.fraisAgence ?? 0) + (p.fraisDossier ?? 0) + (p.fraisCourtage ?? 0) + p.montantTravaux + (p.montantMobilier ?? 0);
 }
