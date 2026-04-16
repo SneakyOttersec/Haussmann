@@ -45,7 +45,6 @@ next-env.d.ts
 test-results/
 *.png
 
-# analysis
-analyse_montlucon_03.md
+# generated exports
 *.pdf
 haussmann-*.zip
