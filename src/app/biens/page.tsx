@@ -15,7 +15,7 @@ import { useLots } from "@/hooks/useLots";
 import { TYPE_BIEN_LABELS } from "@/types";
 import type { StatutBien, Bien, Pret, AllocationCredit, Intervention } from "@/types";
 import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
-import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, estEnveloppeTravauxOuverte } from "@/lib/utils";
+import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, estEnveloppeTravauxOuverte, generateId, now } from "@/lib/utils";
 import { calculerMensualite } from "@/lib/calculs";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculs/pret";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
@@ -691,6 +691,44 @@ function PropertyDetailContent() {
     }
   };
 
+  /**
+   * Reviser le loyer d'un lot :
+   * 1. Met a jour lot.loyerMensuel + ajoute une entree historiqueLoyers
+   * 2. Synchronise le revenu lie au lot (Income "loyer")
+   * 3. Met a jour tous les suiviLoyers futurs (>= mois d'effet) qui avaient
+   *    encore l'ancien loyerAttendu, pour refleter le nouveau montant.
+   */
+  const handleReviserLoyer = (lotId: string, nouveauMontant: number, dateEffet: string) => {
+    const lot = lots.find((l) => l.id === lotId);
+    if (!lot) return;
+    const ancienMontant = lot.loyerMensuel;
+
+    // 1. Lot : loyerMensuel + historiqueLoyers
+    const newEntry = { id: generateId(), date: dateEffet, montant: nouveauMontant };
+    mettreAJourLot(lotId, {
+      loyerMensuel: nouveauMontant,
+      historiqueLoyers: [...(lot.historiqueLoyers ?? []), newEntry],
+    });
+
+    // 2. Revenu lie (Income "loyer")
+    const matchingIncome = revenus.find((i) => i.notes === `Lot: ${lot.nom}` && i.categorie === "loyer");
+    if (matchingIncome) mettreAJourRevenu(matchingIncome.id, { montant: nouveauMontant });
+
+    // 3. SuiviLoyers futurs : ajuster loyerAttendu
+    const effectiveYM = dateEffet.slice(0, 7); // "YYYY-MM"
+    setData((prev) => ({
+      ...prev,
+      suiviLoyers: prev.suiviLoyers.map((e) => {
+        if (e.lotId !== lotId) return e;
+        if (e.yearMonth < effectiveYM) return e;
+        // Ne touche que les entrees dont le loyerAttendu correspond a l'ancien
+        // montant — pas les ajustements manuels.
+        if (Math.round(e.loyerAttendu) !== Math.round(ancienMontant)) return e;
+        return { ...e, loyerAttendu: nouveauMontant, updatedAt: now() };
+      }),
+    }));
+  };
+
   // Intervention → Document sync: when a PJ is attached, mirror it in Documents
   const handleUpdateIntervention = (intId: string, updates: Parameters<typeof mettreAJourIntervention>[1]) => {
     mettreAJourIntervention(intId, updates);
@@ -1211,6 +1249,7 @@ function PropertyDetailContent() {
           propertyStatut={bien.statut}
           tauxVacanceGlobal={bien.tauxVacanceGlobal}
           onUpdateTauxVacanceGlobal={(v) => mettreAJourBien(id, { tauxVacanceGlobal: v })}
+          onReviserLoyer={handleReviserLoyer}
         />
       </section>
 

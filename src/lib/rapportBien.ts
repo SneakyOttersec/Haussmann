@@ -278,8 +278,6 @@ export async function exporterRapportBien(params: {
   const apport = bien.apport ?? Math.max(0, coutTotal - (pret?.montantEmprunte ?? 0));
   const rendementBrut = coutTotal > 0 ? loyerAnnuelCible / coutTotal : 0;
   const rendementNet = coutTotal > 0 ? (loyerAnnuelAvecVac - chargesAnnuelles) / coutTotal : 0;
-  const capitalUtilise = Math.max(0, coutTotal - loyerAnnuelAvecVac); // pour suivi
-  void capitalUtilise;
   const cfMensuel = (loyerAnnuelAvecVac - chargesAnnuelles) / 12 - mensualiteMens;
   const cfAnnuel = cfMensuel * 12;
 

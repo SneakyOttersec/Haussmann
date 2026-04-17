@@ -273,20 +273,27 @@ function YearSelector({
   return (
     <div className="flex flex-wrap items-center gap-1.5 mb-3">
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Annee :</span>
-      {years.map((y) => (
-        <button
-          key={y}
-          onClick={() => onSelect(y)}
-          className={`text-[11px] px-2 py-1 rounded border transition-colors ${
-            selected === y
-              ? "border-primary/40 bg-primary/10 text-primary font-semibold"
-              : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          {y}
-          {y === currentYear && <span className="opacity-60 ml-1 text-[9px]">(courante)</span>}
-        </button>
-      ))}
+      {years.map((y) => {
+        const isFuture = y > currentYear;
+        return (
+          <button
+            key={y}
+            onClick={() => !isFuture && onSelect(y)}
+            disabled={isFuture}
+            className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+              isFuture
+                ? "border-dotted border-muted-foreground/15 text-muted-foreground/40 cursor-not-allowed"
+                : selected === y
+                ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+                : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {y}
+            {y === currentYear && <span className="opacity-60 ml-1 text-[9px]">(courante)</span>}
+            {isFuture && <span className="opacity-40 ml-1 text-[9px]">(a venir)</span>}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -311,6 +318,7 @@ export function ListeDepenses({ depenses, onDelete, onUpdate, colorByValidation 
       }
     }
     ys.add(currentYear);
+    ys.add(currentYear + 1); // always show n+1 (greyed out until it becomes current)
     return Array.from(ys).sort((a, b) => a - b);
   }, [depenses, currentYear]);
 

@@ -189,7 +189,6 @@ export function computeYearlyFinancials(inputs: EntreesCalculateur): YearlyFinan
 
   // Yearly projection
   const evo = (key: string) => inputs.evolutions?.[key as keyof typeof inputs.evolutions] ?? 0;
-  const baseGestionLoc = loyerAnnuelNet * inputs.gestionLocativePct;
   const baseCompta = inputs.comptabilite;
   const totalMoisCredit = differePretInclus
     ? inputs.dureeCredit * 12
@@ -212,7 +211,10 @@ export function computeYearlyFinancials(inputs: EntreesCalculateur): YearlyFinan
     const yrCopro = round2(inputs.chargesCopro * Math.pow(1 + evo('chargesCopro'), yr));
     const yrTF = round2(inputs.taxeFonciere * Math.pow(1 + evo('taxeFonciere'), yr));
     const yrPNO = round2(inputs.assurancePNO * Math.pow(1 + evo('assurancePNO'), yr));
-    const yrGestion = round2(baseGestionLoc * Math.pow(1 + evo('gestionLocative'), yr));
+    // Gestion locative = % du loyer net de l'annee (pas d'une base figee A1).
+    // La plupart des contrats de gestion facturent un % du loyer encaisse,
+    // donc la gestion doit evoluer avec le loyer, pas independamment.
+    const yrGestion = round2(yrLoyerNet * inputs.gestionLocativePct);
     const yrCompta = round2(baseCompta * Math.pow(1 + evo('comptabilite'), yr));
     const yrCFE = round2(inputs.cfeCrl * Math.pow(1 + evo('cfeCrl'), yr));
     const yrEntretien = round2(inputs.entretien * Math.pow(1 + evo('entretien'), yr));

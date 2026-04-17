@@ -1047,20 +1047,8 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
       if (typeof ov.tauxVacance === "number") inputs.tauxVacance = ov.tauxVacance;
       const results = calculerRentabilite(inputs);
       setProjection(results.projection);
-      // ── Optimum : meme simulation mais SANS vacance locative (pleine occupation) ──
-      // Donne le plafond theorique du cash flow.
-      const inputsOpt: EntreesCalculateur = { ...inputs, tauxVacance: 0 };
-      const resultsOpt = calculerRentabilite(inputsOpt);
-      setProjectionOptimum(resultsOpt.projection);
-      // Variante "sur capital consomme" : meme Optimum mais avec principal tire.
       const hasConsomme = montantEmprunteConsomme != null
         && Math.round(montantEmprunteConsomme) !== Math.round(inputs.montantEmprunte);
-      if (hasConsomme) {
-        const inputsOptCons: EntreesCalculateur = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
-        setProjectionOptimumConsomme(calculerRentabilite(inputsOptCons).projection);
-      } else {
-        setProjectionOptimumConsomme(null);
-      }
       // ── Projection actuelle : patche la simulation avec les donnees
       // courantes du bien (loyer des lots, vacance globale, apport, charges
       // annualisees des 12 derniers mois). Si l'utilisateur modifie un lot ou
@@ -1100,20 +1088,125 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
         inputsActuel.autresChargesAnnuelles = annualCharges;
       }
       const resultsActuel = calculerRentabilite(inputsActuel);
-      setProjectionActuel(resultsActuel.projection);
-      // Notifie le parent du snapshot annuel (annee 1 — loyer et charges sont
-      // stables sur la duree, la variation ne vient que de l'indexation).
-      const firstYear = resultsActuel.projection[0];
-      if (firstYear && onActuelSnapshot) {
+
+      // ── Post-traitement : ajuster le loyer par annee en fonction de
+      // l'historique des revisions. Sans ca, la courbe "Projection actuelle"
+      // applique le loyer courant a TOUTES les annees, y compris celles ou
+      // un ancien loyer etait en vigueur.
+      // Approche : pour chaque annee de projection, on calcule le loyer
+      // mensuel total effectif (somme des lots, chaque lot utilisant le
+      // montant en vigueur a cette date via son historiqueLoyers), puis on
+      // scale loyerBrut/loyerNet proportionnellement et on recalcule le CF.
+      const acqDate = getPropertyAcquisitionDate(bien);
+      const acqYear = new Date(acqDate).getFullYear();
+      const baseLoyerMensuel = lotsLoyerMensuel > 0 ? lotsLoyerMensuel : (inputsActuel.loyerMensuel || 1);
+
+      const adjustedProjection = resultsActuel.projection.map((yr, idx) => {
+        const projYear = acqYear + idx;
+        // Loyer mensuel effectif pour cette annee = Σ lots (montant en vigueur au 1er janvier)
+        const refDate = `${projYear}-01-01`;
+        let effectifMensuel = 0;
+        for (const lot of (lots ?? [])) {
+          const hist = (lot.historiqueLoyers ?? [])
+            .filter((h) => h.date <= refDate)
+            .sort((a, b) => b.date.localeCompare(a.date));
+          effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
+        }
+        if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
+        // Scale proportionnellement : le ratio s'applique sur loyerBrut/loyerNet
+        // (les charges et le credit restent identiques)
+        const ratio = effectifMensuel / baseLoyerMensuel;
+        const loyerBrut = Math.round(yr.loyerBrut * ratio);
+        const loyerNet = Math.round(yr.loyerNet * ratio);
+        return {
+          ...yr,
+          loyerBrut,
+          loyerNet,
+          cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit),
+        };
+      });
+
+      setProjectionActuel(adjustedProjection);
+      // Notifie le parent du snapshot annuel. On prend l'annee COURANTE (pas A1)
+      // pour que la marge break-even reflete le loyer en vigueur maintenant.
+      const currentProjIdx = Math.max(0, new Date().getFullYear() - acqYear);
+      const snapshotYear = adjustedProjection[currentProjIdx] ?? adjustedProjection[0];
+      if (snapshotYear && onActuelSnapshot) {
         onActuelSnapshot({
-          loyerNetAnnuel: firstYear.loyerNet,
-          chargesAnnuelles: firstYear.charges,
+          loyerNetAnnuel: snapshotYear.loyerNet,
+          chargesAnnuelles: snapshotYear.charges,
         });
       }
+      // ── Optimum : meme que Projection actuelle mais SANS vacance locative ──
+      // Base sur inputsActuel (donnees live, pas la sim figee) pour que les
+      // revisions de loyer soient refletees. Meme post-traitement par annee.
+      const inputsOpt: EntreesCalculateur = { ...inputsActuel, tauxVacance: 0 };
+      const rawOpt = calculerRentabilite(inputsOpt).projection;
+      const adjustedOpt = rawOpt.map((yr, idx) => {
+        const projYear = acqYear + idx;
+        const refDate = `${projYear}-01-01`;
+        let effectifMensuel = 0;
+        for (const lot of (lots ?? [])) {
+          const hist = (lot.historiqueLoyers ?? [])
+            .filter((h) => h.date <= refDate)
+            .sort((a, b) => b.date.localeCompare(a.date));
+          effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
+        }
+        if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
+        const ratio = effectifMensuel / baseLoyerMensuel;
+        const loyerBrut = Math.round(yr.loyerBrut * ratio);
+        const loyerNet = Math.round(yr.loyerNet * ratio);
+        return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
+      });
+      setProjectionOptimum(adjustedOpt);
+
       // Variante "sur capital consomme" : meme inputsActuel mais principal tire.
+      // On applique le meme ajustement de loyer par annee.
+      if (hasConsomme) {
+        // Optimum consomme
+        const inputsOptCons: EntreesCalculateur = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
+        const rawOptCons = calculerRentabilite(inputsOptCons).projection;
+        const adjustedOptCons = rawOptCons.map((yr, idx) => {
+          const projYear = acqYear + idx;
+          const refDate = `${projYear}-01-01`;
+          let effectifMensuel = 0;
+          for (const lot of (lots ?? [])) {
+            const hist = (lot.historiqueLoyers ?? [])
+              .filter((h) => h.date <= refDate)
+              .sort((a, b) => b.date.localeCompare(a.date));
+            effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
+          }
+          if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
+          const ratio = effectifMensuel / baseLoyerMensuel;
+          const loyerBrut = Math.round(yr.loyerBrut * ratio);
+          const loyerNet = Math.round(yr.loyerNet * ratio);
+          return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
+        });
+        setProjectionOptimumConsomme(adjustedOptCons);
+      } else {
+        setProjectionOptimumConsomme(null);
+      }
+      // Projection actuelle consomme
       if (hasConsomme) {
         const inputsActuelCons: EntreesCalculateur = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
-        setProjectionActuelConsomme(calculerRentabilite(inputsActuelCons).projection);
+        const rawCons = calculerRentabilite(inputsActuelCons).projection;
+        const adjustedCons = rawCons.map((yr, idx) => {
+          const projYear = acqYear + idx;
+          const refDate = `${projYear}-01-01`;
+          let effectifMensuel = 0;
+          for (const lot of (lots ?? [])) {
+            const hist = (lot.historiqueLoyers ?? [])
+              .filter((h) => h.date <= refDate)
+              .sort((a, b) => b.date.localeCompare(a.date));
+            effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
+          }
+          if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
+          const ratio = effectifMensuel / baseLoyerMensuel;
+          const loyerBrut = Math.round(yr.loyerBrut * ratio);
+          const loyerNet = Math.round(yr.loyerNet * ratio);
+          return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
+        });
+        setProjectionActuelConsomme(adjustedCons);
       } else {
         setProjectionActuelConsomme(null);
       }

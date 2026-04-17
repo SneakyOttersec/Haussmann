@@ -272,6 +272,7 @@ export function GrilleSuiviCharges({ bienId, depenses, entries, onUpsert, onDele
       const y = new Date(e.dateDebut).getFullYear();
       if (!isNaN(y) && y >= 2000) ys.add(y);
     }
+    ys.add(currentYear + 1); // always show n+1 (greyed out until it becomes current)
     return Array.from(ys).sort((a, b) => a - b);
   }, [depenses, currentYear, dateSaisie]);
 
@@ -381,19 +382,25 @@ export function GrilleSuiviCharges({ bienId, depenses, entries, onUpsert, onDele
       {/* Year selector */}
       <div className="flex flex-wrap items-center gap-1.5">
         <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Annee :</span>
-        {years.map((y) => (
-          <button
-            key={y}
-            onClick={() => setSelectedYear(y)}
-            className={`text-[11px] px-2 py-1 rounded border transition-colors ${
-              selectedYear === y
-                ? "border-primary/40 bg-primary/10 text-primary font-semibold"
-                : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {y}{y === currentYear ? " (courante)" : ""}
-          </button>
-        ))}
+        {years.map((y) => {
+          const isFuture = y > currentYear;
+          return (
+            <button
+              key={y}
+              onClick={() => !isFuture && setSelectedYear(y)}
+              disabled={isFuture}
+              className={`text-[11px] px-2 py-1 rounded border transition-colors ${
+                isFuture
+                  ? "border-dotted border-muted-foreground/15 text-muted-foreground/40 cursor-not-allowed"
+                  : selectedYear === y
+                  ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+                  : "border-dotted border-muted-foreground/30 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {y}{y === currentYear ? " (courante)" : ""}{isFuture ? " (a venir)" : ""}
+            </button>
+          );
+        })}
       </div>
 
       {/* Grid */}

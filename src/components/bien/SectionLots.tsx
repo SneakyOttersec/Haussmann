@@ -23,6 +23,8 @@ interface Props {
   tauxVacanceGlobal?: number;
   /** Callback pour modifier le taux global. Si absent, l'input n'est pas affiche. */
   onUpdateTauxVacanceGlobal?: (value: number | undefined) => void;
+  /** Callback pour reviser le loyer d'un lot : met a jour le lot + les suiviLoyers futurs. */
+  onReviserLoyer?: (lotId: string, nouveauMontant: number, dateEffet: string) => void;
 }
 
 function isEnLocation(statut?: StatutBien): boolean {
@@ -40,15 +42,18 @@ const LOT_STATUT_STYLE: Record<LotStatut, string> = {
   travaux: "bg-amber-100 text-amber-700",
 };
 
-function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
+function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut, onReviserLoyer }: {
   lot: Lot;
   enLocation: boolean;
   onUpdate: (id: string, updates: Partial<Lot>) => void;
   onDelete: (id: string) => void;
   propertyStatut?: StatutBien;
+  onReviserLoyer?: (lotId: string, nouveauMontant: number, dateEffet: string) => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [revisionOpen, setRevisionOpen] = useState(false);
+  const [revision, setRevision] = useState({ montant: l.loyerMensuel, dateEffet: new Date().toISOString().slice(0, 10) });
   const [confirmOverride, setConfirmOverride] = useState<LotStatut | null>(null);
   const [edit, setEdit] = useState({
     nom: l.nom,
@@ -70,7 +75,8 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
     }
   };
 
-  const history = (l.historiqueLoyers ?? []).sort((a, b) => b.date.localeCompare(a.date));
+  const history = (l.historiqueLoyers ?? []).sort((a, b) => a.date.localeCompare(b.date)); // chronological
+  const [selectedRevision, setSelectedRevision] = useState<string | null>(null);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,8 +96,14 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
     setEditOpen(false);
   };
 
-  // First and last entry for evolution display
-  const firstEntry = history.length > 0 ? history[history.length - 1] : null;
+  // Revisions with computed periods
+  const revisions = history.map((h, i) => {
+    const debut = h.date;
+    const fin = i < history.length - 1 ? history[i + 1].date : null; // null = en cours
+    const isActuel = i === history.length - 1;
+    return { ...h, debut, fin, isActuel, index: i + 1 };
+  });
+  const firstEntry = history.length > 0 ? history[0] : null;
   const evolution = firstEntry && firstEntry.montant > 0
     ? ((l.loyerMensuel - firstEntry.montant) / firstEntry.montant * 100)
     : 0;
@@ -115,12 +127,22 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
           </button>
           <span className="flex-1" />
           <span className="font-medium tabular-nums shrink-0">{formatCurrency(l.loyerMensuel)}/m</span>
-          {history.length > 1 && (
+          {revisions.length > 1 && (
             <button
               onClick={() => setHistoryOpen(!historyOpen)}
               className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${evolution >= 0 ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"}`}
+              title={historyOpen ? "Masquer les revisions" : "Afficher les revisions"}
             >
-              {evolution >= 0 ? "+" : ""}{evolution.toFixed(1)}%
+              {revisions.length - 1} rev. · {evolution >= 0 ? "+" : ""}{evolution.toFixed(1)}%
+            </button>
+          )}
+          {onReviserLoyer && (
+            <button
+              onClick={() => { setRevision({ montant: l.loyerMensuel, dateEffet: new Date().toISOString().slice(0, 10) }); setRevisionOpen(true); }}
+              className="text-[10px] px-1.5 py-0.5 rounded border border-dotted border-primary/30 text-primary hover:bg-primary/5 transition-colors shrink-0"
+              title="Reviser le loyer (indexation IRL, nouveau bail...)"
+            >
+              Reviser
             </button>
           )}
           <button onClick={() => onDelete(l.id)} className="text-destructive text-sm hover:opacity-70 shrink-0">×</button>
@@ -140,19 +162,133 @@ function LotRow({ lot: l, onUpdate, onDelete, enLocation, propertyStatut }: {
           </span>
         </div>
 
-        {/* Rent history */}
-        {historyOpen && history.length > 0 && (
-          <div className="pb-2 pl-4 space-y-0.5">
-            {history.map((h) => (
-              <div key={h.id} className="flex items-center gap-3 text-[11px] text-muted-foreground">
-                <span className="w-20">{h.date}</span>
-                <span className="font-medium tabular-nums text-foreground">{formatCurrency(h.montant)}/m</span>
-                {h.id === history[0].id && <span className="text-[9px] text-primary">actuel</span>}
-              </div>
-            ))}
+        {/* Revision tabs */}
+        {historyOpen && revisions.length > 0 && (
+          <div className="pb-2 space-y-2">
+            {/* Tab bar */}
+            <div className="flex flex-wrap items-center gap-1 pl-0.5">
+              {revisions.map((r) => {
+                const isSelected = selectedRevision === r.id || (selectedRevision === null && r.isActuel);
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedRevision(r.id)}
+                    className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                      r.isActuel && isSelected
+                        ? "border-primary/40 bg-primary/10 text-primary font-semibold"
+                        : isSelected
+                        ? "border-muted-foreground/40 bg-muted/30 text-foreground font-medium"
+                        : "border-dotted border-muted-foreground/20 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {r.isActuel ? "Actuel" : `Rev. ${r.index}`}
+                    <span className="ml-1 tabular-nums opacity-70">{formatCurrency(r.montant)}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Selected revision detail */}
+            {(() => {
+              const sel = revisions.find((r) => r.id === selectedRevision) ?? revisions[revisions.length - 1];
+              if (!sel) return null;
+              const prevRev = sel.index > 1 ? revisions[sel.index - 2] : null;
+              const variation = prevRev ? sel.montant - prevRev.montant : 0;
+              const variationPct = prevRev && prevRev.montant > 0 ? (variation / prevRev.montant * 100) : 0;
+              return (
+                <div className="pl-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+                  <span>
+                    Periode : <span className="text-foreground font-medium">{sel.debut}</span>
+                    {" → "}
+                    <span className="text-foreground font-medium">{sel.fin ?? "en cours"}</span>
+                  </span>
+                  <span>
+                    Montant : <span className="text-foreground font-medium tabular-nums">{formatCurrency(sel.montant)}/mois</span>
+                  </span>
+                  {prevRev && (
+                    <span className={variation >= 0 ? "text-green-600" : "text-red-600"}>
+                      {variation >= 0 ? "+" : ""}{formatCurrency(variation)}/m ({variation >= 0 ? "+" : ""}{variationPct.toFixed(1)}%)
+                    </span>
+                  )}
+                  {sel.isActuel && (
+                    <span className="text-[9px] text-primary font-medium">en vigueur</span>
+                  )}
+                  {/* Delete revision — only if more than 1 revision exists (can't delete the only one) */}
+                  {revisions.length > 1 && (
+                    <button
+                      onClick={() => {
+                        const remaining = (l.historiqueLoyers ?? []).filter((h) => h.id !== sel.id);
+                        // If deleting the current revision, revert loyerMensuel to the previous one
+                        const sorted = remaining.sort((a, b) => a.date.localeCompare(b.date));
+                        const newLoyer = sorted.length > 0 ? sorted[sorted.length - 1].montant : l.loyerMensuel;
+                        onUpdate(l.id, { historiqueLoyers: remaining, loyerMensuel: newLoyer });
+                        setSelectedRevision(null);
+                      }}
+                      className="text-destructive/70 hover:text-destructive text-[10px] transition-colors"
+                      title="Supprimer cette revision"
+                    >
+                      Supprimer
+                    </button>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
+
+      {/* Revision loyer dialog */}
+      <Dialog open={revisionOpen} onOpenChange={setRevisionOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reviser le loyer — {l.nom}</DialogTitle></DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (onReviserLoyer && revision.montant > 0 && revision.montant !== l.loyerMensuel) {
+                onReviserLoyer(l.id, revision.montant, revision.dateEffet);
+              }
+              setRevisionOpen(false);
+            }}
+            className="space-y-4"
+          >
+            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+              <span>Loyer actuel :</span>
+              <span className="font-medium text-foreground tabular-nums">{formatCurrency(l.loyerMensuel)}/mois</span>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Nouveau loyer (EUR/mois)</Label>
+              <Input
+                type="number"
+                min={0}
+                autoFocus
+                value={revision.montant || ""}
+                onChange={(e) => setRevision({ ...revision, montant: Number(e.target.value) })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">Date d&apos;effet</Label>
+              <Input
+                type="date"
+                value={revision.dateEffet}
+                onChange={(e) => setRevision({ ...revision, dateEffet: e.target.value })}
+                required
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Les suivis de loyers futurs (a partir de ce mois) seront automatiquement ajustes au nouveau montant.
+              </p>
+            </div>
+            {revision.montant > 0 && revision.montant !== l.loyerMensuel && (
+              <div className={`text-[11px] p-2 rounded ${revision.montant > l.loyerMensuel ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
+                {revision.montant > l.loyerMensuel ? "+" : ""}{formatCurrency(revision.montant - l.loyerMensuel)}/mois
+                ({revision.montant > l.loyerMensuel ? "+" : ""}{((revision.montant - l.loyerMensuel) / l.loyerMensuel * 100).toFixed(1)}%)
+              </div>
+            )}
+            <Button type="submit" className="w-full" disabled={revision.montant <= 0 || revision.montant === l.loyerMensuel}>
+              Appliquer la revision
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
@@ -341,7 +477,7 @@ function VacanceGlobaleEditor({
   );
 }
 
-export function SectionLots({ lots, onAdd, onUpdate, onDelete, bienId, propertyStatut, title, tauxVacanceGlobal, onUpdateTauxVacanceGlobal }: Props) {
+export function SectionLots({ lots, onAdd, onUpdate, onDelete, bienId, propertyStatut, title, tauxVacanceGlobal, onUpdateTauxVacanceGlobal, onReviserLoyer }: Props) {
   const enLocation = isEnLocation(propertyStatut);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ nom: "", etage: "", surface: 0, loyerMensuel: 0, statut: "vacant" as LotStatut, tauxVacancePct: 0 });
@@ -457,7 +593,7 @@ export function SectionLots({ lots, onAdd, onUpdate, onDelete, bienId, propertyS
             )}
             <div>
               {lots.map((l) => (
-                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} propertyStatut={propertyStatut} />
+                <LotRow key={l.id} lot={l} onUpdate={onUpdate} onDelete={onDelete} enLocation={enLocation} propertyStatut={propertyStatut} onReviserLoyer={onReviserLoyer} />
               ))}
             </div>
           </>
