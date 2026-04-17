@@ -217,7 +217,7 @@ function BreakdownTooltip({ active, payload, label, showSimule, showActuel, show
       {sim && (
         <div style={{ marginBottom: act || opt || real ? 8 : 0 }}>
           <div style={{ color: "#60a5fa", fontWeight: 600, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 2 }}>
-            Simulation Initiale (avant impot)
+            Simulation Initiale
           </div>
           <TooltipRow label="Loyer net" value={sim.loyerNet} color="#16a34a" />
           <TooltipRow label="− Charges" value={-sim.charges} color="#fb923c" />
@@ -1518,7 +1518,7 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
             />
             <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
             {showSimule && (
-              <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simulation Initiale (avant impot)" />
+              <Line yAxisId="simule" type="monotone" dataKey="simule" stroke="#60a5fa" strokeWidth={2} dot={{ r: 2 }} name="Simulation Initiale" />
             )}
             {hasActuelDelta && showActuel && (
               <Line
