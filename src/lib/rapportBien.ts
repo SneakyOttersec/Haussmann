@@ -272,20 +272,51 @@ export async function exporterRapportBien(params: {
   const loyerAnnuelCible = loyerMensuelCible * 12;
   const loyerAnnuelAvecVac = loyerMensuelAvecVac * 12;
   const chargesAnnuelles = computeAnnualCharges(depenses);
-  const mensualiteMens = pret ? mensualiteAmortissement(pret) + pret.assuranceAnnuelle / 12 : 0;
-  const mensualiteAnnuelle = mensualiteMens * 12;
   const coutTotal = coutTotalBien(bien);
   const apport = bien.apport ?? Math.max(0, coutTotal - (pret?.montantEmprunte ?? 0));
+
+  // ── Mensualite : capital tire vs capital total ──
+  // En demande de pret : utilise le capital total (le bien n'est pas encore
+  //   acquis, aucune notion de capital tire).
+  // En suivi interne / refinancement : utilise le capital effectivement tire
+  //   a ce jour pour refleter la mensualite reelle, et on mentionne en
+  //   secondaire le scenario "enveloppe travaux pleinement consommee".
+  const pretEffectif = pret
+    && mode !== "demande_pret"
+    && montantEmprunteEffectif > 0
+    && Math.round(montantEmprunteEffectif) !== Math.round(pret.montantEmprunte)
+      ? { ...pret, montantEmprunte: montantEmprunteEffectif }
+      : null;
+  const hasCapitalDelta = pretEffectif !== null;
+  const pretAffiche = pretEffectif ?? pret;
+
+  const mensualiteMens = pretAffiche ? mensualiteAmortissement(pretAffiche) + pretAffiche.assuranceAnnuelle / 12 : 0;
+  const mensualiteAnnuelle = mensualiteMens * 12;
+  // Mensualite si capital total consomme (pour le petit encart secondaire)
+  const mensualiteMensTotal = pret ? mensualiteAmortissement(pret) + pret.assuranceAnnuelle / 12 : 0;
+  const mensualiteAnnuelleTotal = mensualiteMensTotal * 12;
+
+  // Resultat operationnel = loyer net - charges (sans credit)
+  const resultatOperationnelAnnuel = loyerAnnuelAvecVac - chargesAnnuelles;
+
+  // Cash flow = operationnel - service de la dette
+  const cfAnnuel = resultatOperationnelAnnuel - mensualiteAnnuelle;
+  const cfMensuel = cfAnnuel / 12;
+  // Scenario "capital total" (si delta)
+  const cfAnnuelTotal = resultatOperationnelAnnuel - mensualiteAnnuelleTotal;
+  const cfMensuelTotal = cfAnnuelTotal / 12;
+
+  // Rendements
+  // - Brut : loyer cible (sans vacance, sans charges) / cout total
+  // - Net : resultat operationnel (avec vacance, moins charges, HORS credit) / cout total
+  // - Sur apport (ROE) : CF annuel apres dette / apport — mesure le levier
   const rendementBrut = coutTotal > 0 ? loyerAnnuelCible / coutTotal : 0;
-  const rendementNet = coutTotal > 0 ? (loyerAnnuelAvecVac - chargesAnnuelles) / coutTotal : 0;
-  const cfMensuel = (loyerAnnuelAvecVac - chargesAnnuelles) / 12 - mensualiteMens;
-  const cfAnnuel = cfMensuel * 12;
+  const rendementNet = coutTotal > 0 ? resultatOperationnelAnnuel / coutTotal : 0;
+  const rendementSurApport = apport > 0 ? cfAnnuel / apport : 0;
+  const rendementSurApportTotal = apport > 0 ? cfAnnuelTotal / apport : 0;
 
   // Pour la KPI "Patrimoine net A10" sur la page Le bien.
   const valeurBien = bien.prixAchat + (bien.montantTravaux ?? 0) + (bien.montantMobilier ?? 0);
-  // Part du loyer consommée par le crédit (mensualité / loyer mensuel).
-  // Affichée dans les "Indicateurs de performance" de la page Exploitation.
-  const partLoyerCredit = loyerMensuelAvecVac > 0 ? mensualiteMens / loyerMensuelAvecVac : 0;
 
   const today = new Date().toLocaleDateString("fr-FR");
 
@@ -329,7 +360,10 @@ export async function exporterRapportBien(params: {
   kpiBox(doc, M + 2 * (kpiW + 4), y, kpiW, kpiH, "Rendement net", pct(rendementNet * 100));
   kpiBox(doc, M + 3 * (kpiW + 4), y, kpiW, kpiH, "Patrimoine net A10", eur(patrimoineA10));
   y += kpiH + 3;
-  y = footnote(doc, y, "Patrimoine net A10 : valeur du bien à 10 ans (hypothèse +2 %/an) moins le capital restant dû.", M, CW);
+  const kpiFootnote = hasCapitalDelta
+    ? `Cash flow calculé sur capital tiré (${eur(montantEmprunteEffectif)}). Sur capital total (${eur(pret!.montantEmprunte)}) : ${eur(cfMensuelTotal)}/mois. Patrimoine net A10 : valeur du bien à 10 ans (+2 %/an) moins le capital restant dû.`
+    : "Patrimoine net A10 : valeur du bien à 10 ans (hypothèse +2 %/an) moins le capital restant dû.";
+  y = footnote(doc, y, kpiFootnote, M, CW);
   y += 4;
 
   const charL = M;
@@ -471,7 +505,13 @@ export async function exporterRapportBien(params: {
     }
     y = kvRow(doc, y, "Type de prêt", pret.type === "in_fine" ? "In fine" : "Amortissable");
     if (pret.assuranceAnnuelle) y = kvRow(doc, y, "Assurance prêt", `${eur(pret.assuranceAnnuelle)}/an`);
-    y = kvRow(doc, y, "Mensualité totale (hors différé)", `${eur(mensualiteMens)}/mois`, { bold: true });
+    const mensLabel = hasCapitalDelta
+      ? "Mensualité courante (sur capital tiré)"
+      : "Mensualité totale (hors différé)";
+    y = kvRow(doc, y, mensLabel, `${eur(mensualiteMens)}/mois`, { bold: true });
+    if (hasCapitalDelta) {
+      y = kvRow(doc, y, "Mensualité si capital total consommé", `${eur(mensualiteMensTotal)}/mois`, { color: C.muted });
+    }
     y += 2;
     if (breakEvenMarge != null) {
       const color = breakEvenMarge >= 0 ? C.green : C.red;
@@ -515,24 +555,66 @@ export async function exporterRapportBien(params: {
   y = kvRow(doc, y, "Total charges", eur(chargesAnnuelles), { bold: true });
   y += 4;
 
-  // Cash flow
-  y = subsectionTitle(doc, y, "Cash flow");
+  // Resultat operationnel (avant dette)
+  y = subsectionTitle(doc, y, "Résultat opérationnel (avant dette)");
   y = kvRow(doc, y, "Revenus locatifs nets", eur(loyerAnnuelAvecVac));
   y = kvRow(doc, y, "Charges d'exploitation", `-${eur(chargesAnnuelles)}`);
-  if (pret) y = kvRow(doc, y, "Service de la dette", `-${eur(mensualiteAnnuelle)}`);
   hLine(doc, y - 3.5);
-  y = kvRow(doc, y, "Cash flow annuel avant impôt", eur(cfAnnuel), { bold: true, color: cfAnnuel >= 0 ? C.green : C.red });
-  y = kvRow(doc, y, "Cash flow mensuel équivalent", `${eur(cfMensuel)}/mois`, { color: cfMensuel >= 0 ? C.green : C.red });
+  y = kvRow(doc, y, "= Résultat opérationnel annuel", eur(resultatOperationnelAnnuel), { bold: true });
   y += 4;
 
-  // Rendements (3 cards)
+  // Cash flow apres service de la dette
+  if (pret) {
+    y = subsectionTitle(doc, y, "Cash flow après dette");
+    y = kvRow(doc, y, "Résultat opérationnel", eur(resultatOperationnelAnnuel));
+    const dettLabel = hasCapitalDelta
+      ? `Service de la dette (capital tiré ${eur(montantEmprunteEffectif)})`
+      : "Service de la dette";
+    y = kvRow(doc, y, dettLabel, `-${eur(mensualiteAnnuelle)}`);
+    hLine(doc, y - 3.5);
+    y = kvRow(doc, y, "= Cash flow annuel avant impôt", eur(cfAnnuel), { bold: true, color: cfAnnuel >= 0 ? C.green : C.red });
+    y = kvRow(doc, y, "Équivalent mensuel", `${eur(cfMensuel)}/mois`, { color: cfMensuel >= 0 ? C.green : C.red });
+
+    // Scenario secondaire : capital total consomme
+    if (hasCapitalDelta) {
+      y += 2;
+      y = footnote(doc, y,
+        `Si enveloppe travaux pleinement consommée (capital total ${eur(pret.montantEmprunte)}) : `
+        + `mensualité ${eur(mensualiteMensTotal)}/mois, `
+        + `cash flow ${eur(cfMensuelTotal)}/mois (${eur(cfAnnuelTotal)}/an).`,
+        M, CW,
+      );
+    }
+    y += 4;
+  } else {
+    y = kvRow(doc, y, "Cash flow annuel (sans crédit)", eur(resultatOperationnelAnnuel), { bold: true, color: resultatOperationnelAnnuel >= 0 ? C.green : C.red });
+    y += 4;
+  }
+
+  // Indicateurs de performance (3 KPI cards)
   y = subsectionTitle(doc, y, "Indicateurs de performance");
   const perfW = (CW - 2 * 4) / 3;
-  const perfH = 18;
+  const perfH = 20;
   kpiBox(doc, M, y, perfW, perfH, "Rdt brut", pct(rendementBrut * 100), { hint: "loyers / coût total" });
-  kpiBox(doc, M + perfW + 4, y, perfW, perfH, "Rdt net", pct(rendementNet * 100), { hint: "(loyers nets - charges) / coût total" });
-  kpiBox(doc, M + 2 * (perfW + 4), y, perfW, perfH, "Part loyer / crédit", pct(partLoyerCredit * 100, 1), { hint: "mensualité / loyer", color: partLoyerCredit > 0.8 ? C.red : partLoyerCredit > 0.6 ? C.amber : C.green });
-  y += perfH + 6;
+  kpiBox(doc, M + perfW + 4, y, perfW, perfH, "Rdt net", pct(rendementNet * 100), { hint: "opérationnel / coût total (hors dette)" });
+  if (apport > 0 && pret) {
+    const roeColor = rendementSurApport >= 0.08 ? C.green : rendementSurApport >= 0.04 ? C.navy : rendementSurApport >= 0 ? C.amber : C.red;
+    kpiBox(doc, M + 2 * (perfW + 4), y, perfW, perfH, "Rdt sur apport", pct(rendementSurApport * 100), {
+      hint: "CF annuel / apport (effet de levier)",
+      color: roeColor,
+    });
+  } else {
+    kpiBox(doc, M + 2 * (perfW + 4), y, perfW, perfH, "Rdt net-net", "—", { hint: "nécessite un apport" });
+  }
+  y += perfH + 3;
+  // Petit encart secondaire : rendement sur apport en scenario capital total
+  if (hasCapitalDelta && apport > 0 && pret) {
+    y = footnote(doc, y,
+      `Rendement sur apport en scénario capital total consommé : ${pct(rendementSurApportTotal * 100)} (vs ${pct(rendementSurApport * 100)} sur capital tiré à date).`,
+      M, CW,
+    );
+  }
+  y += 4;
 
   // ═══════════════════════════════════════════════════════════════════════════
   // ANNEXES — AMORTISSEMENT
