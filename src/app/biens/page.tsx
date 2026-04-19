@@ -848,6 +848,8 @@ function PropertyDetailContent() {
                   tauxInteret,
                   tauxAssurance,
                   apportPct,
+                  montantEmprunteEffectif: pret ? montantEmprunteEffectif : undefined,
+                  montantEmprunteTotal: pret?.montantEmprunte,
                 });
               }}
               className="px-2.5 py-1 text-xs rounded-md border border-dotted border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-600/70 transition-colors"
