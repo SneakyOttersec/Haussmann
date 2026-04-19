@@ -827,6 +827,34 @@ function PropertyDetailContent() {
             >
               Export PDF
             </button>
+            <button
+              onClick={async () => {
+                const { exporterBusinessPlan } = await import("@/lib/businessPlan");
+                const dureeAnnees = pret?.dureeAnnees ?? 20;
+                const tauxInteret = pret?.tauxAnnuel ?? 0.035;
+                const coutTotalEstime = bien.prixAchat + (bien.montantTravaux ?? 0) + (bien.montantMobilier ?? 0) + (bien.fraisNotaire ?? 0);
+                const apportPct = coutTotalEstime > 0 && bien.apport
+                  ? Math.min(1, bien.apport / coutTotalEstime)
+                  : 0.10;
+                const tauxAssurance = pret && pret.assuranceAnnuelle > 0 && pret.montantEmprunte > 0
+                  ? pret.assuranceAnnuelle / pret.montantEmprunte
+                  : 0.001;
+                await exporterBusinessPlan({
+                  bien,
+                  lots,
+                  depenses,
+                  description: bien.notes,
+                  dureeAnnees,
+                  tauxInteret,
+                  tauxAssurance,
+                  apportPct,
+                });
+              }}
+              className="px-2.5 py-1 text-xs rounded-md border border-dotted border-emerald-600/40 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-600/70 transition-colors"
+              title="Exporter un Business Plan Excel (format banquier)"
+            >
+              Business Plan
+            </button>
             <Link
               href={`/biens/modifier?id=${id}`}
               className="px-2.5 py-1 text-xs rounded-md border border-dotted border-primary/30 text-primary hover:bg-primary/5 hover:border-primary/60 transition-colors"
