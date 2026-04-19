@@ -20,9 +20,16 @@ interface BuildSheetParams {
   dureeAnnees: number;
   tauxInteret: number;
   tauxAssurance: number;
-  // Si defini, remplace la formule de "Montant du pret" par cette valeur fixe
-  // (utilise pour l'onglet "capital tire" : prêt forcé au capital effectivement tiré)
-  montantPretFixe?: number;
+  /**
+   * Mode "capital tire" : apport fixe + travaux reduits pour refleter
+   * l'etat a date. Le pret est alors calcule par formule (somme des couts
+   * moins apport), ce qui donne automatiquement le capital effectivement
+   * tire. Si omis, mode "capital total" (apport = %, pret = reste).
+   */
+  modeTire?: {
+    apportEur: number;
+    travauxTires: number;
+  };
 }
 
 // Styles partages entre les onglets
@@ -100,8 +107,13 @@ function populateSheet(ws: Worksheet, p: BuildSheetParams): void {
   ws.getCell("B16").value = p.prixAchat;
   ws.getCell("B16").numFmt = EUR_FMT;
 
-  ws.getCell("A17").value = "Travaux";
-  ws.getCell("B17").value = p.montantTravaux;
+  // Travaux : reduit en mode "capital tire" (seule la portion deja financee
+  // est comptee — le reste est encore dans l'enveloppe, non consomme).
+  const travauxLabel = p.modeTire
+    ? `Travaux financés à date (sur ${Math.round(p.montantTravaux).toLocaleString("fr-FR")} € d'enveloppe)`
+    : "Travaux";
+  ws.getCell("A17").value = travauxLabel;
+  ws.getCell("B17").value = p.modeTire ? p.modeTire.travauxTires : p.montantTravaux;
   ws.getCell("B17").numFmt = EUR_FMT;
 
   ws.getCell("A18").value = "Ameublement";
@@ -114,15 +126,16 @@ function populateSheet(ws: Worksheet, p: BuildSheetParams): void {
 
   // Apport et pret :
   //  - Onglet "capital total" : apport = % du cout total, pret = reste
-  //  - Onglet "capital tire"   : pret = montantPretFixe, apport = reste
-  if (p.montantPretFixe != null) {
+  //  - Onglet "capital tire"  : apport fixe (montant reel), pret = reste
+  //    (avec les travaux reduits, le pret calcule = capital effectivement tire)
+  if (p.modeTire) {
     ws.getCell("A20").value = "Apport de la SCI";
-    ws.getCell("B20").value = { formula: `B16+B17+B18+B19-B21` };
+    ws.getCell("B20").value = p.modeTire.apportEur;
     ws.getCell("B20").numFmt = EUR_FMT;
     ws.getCell("B20").font = BOLD;
 
-    ws.getCell("A21").value = "Montant du pret (capital tire a date)";
-    ws.getCell("B21").value = p.montantPretFixe;
+    ws.getCell("A21").value = "Montant du pret (capital tiré à date)";
+    ws.getCell("B21").value = { formula: "B16+B17+B18+B19-B20" };
     ws.getCell("B21").numFmt = EUR_FMT;
     ws.getCell("B21").font = BOLD;
   } else {
@@ -311,13 +324,14 @@ export async function exporterBusinessPlan(params: {
 
   const fraisNotairePct = bien.prixAchat > 0 ? (bien.fraisNotaire / bien.prixAchat) : 0.08;
 
-  const commonParams: Omit<BuildSheetParams, "montantPretFixe"> = {
+  const travauxTotal = bien.montantTravaux || 0;
+  const commonParams: Omit<BuildSheetParams, "modeTire"> = {
     bien, lots, chargesEntries,
     description: description ?? bien.notes ?? "",
     avantages: avantages ?? "",
     pointsFiscaux: pointsFiscaux ?? "Le financement se fera via une SC à l'IS dont les associés se partagent les parts.",
     prixAchat: bien.prixAchat,
-    montantTravaux: bien.montantTravaux || 0,
+    montantTravaux: travauxTotal,
     montantMobilier: bien.montantMobilier || 0,
     fraisNotairePct,
     apportPct,
@@ -329,12 +343,25 @@ export async function exporterBusinessPlan(params: {
   populateSheet(wsTotal, commonParams);
 
   // ─── Onglet 2 : capital tire (si delta) ───────────────────────────────────
+  // Coherence : si une partie du credit n'est pas encore tiree, c'est parce
+  // que l'enveloppe travaux n'est pas pleinement consommee. On reduit donc
+  // les travaux dans ce scenario pour que apport + pret tire = cout du projet
+  // a date (sans les travaux non tires).
   const hasCapitalDelta = montantEmprunteEffectif != null
     && montantEmprunteTotal != null
     && Math.round(montantEmprunteEffectif) !== Math.round(montantEmprunteTotal);
   if (hasCapitalDelta) {
+    const apportReel = bien.apport ?? Math.max(0, (bien.prixAchat + (bien.fraisNotaire ?? 0) + travauxTotal + (bien.montantMobilier ?? 0)) - montantEmprunteTotal);
+    const travauxNonTires = Math.max(0, montantEmprunteTotal - montantEmprunteEffectif);
+    const travauxTires = Math.max(0, travauxTotal - travauxNonTires);
     const wsTire = wb.addWorksheet("Capital tiré");
-    populateSheet(wsTire, { ...commonParams, montantPretFixe: montantEmprunteEffectif });
+    populateSheet(wsTire, {
+      ...commonParams,
+      modeTire: {
+        apportEur: Math.round(apportReel),
+        travauxTires: Math.round(travauxTires),
+      },
+    });
   }
 
   // ─── Generate + download ─────────────────────────────────────────────────
