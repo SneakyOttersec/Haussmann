@@ -16,7 +16,7 @@ import { TYPE_BIEN_LABELS } from "@/types";
 import type { StatutBien, Bien, Pret, AllocationCredit, Intervention } from "@/types";
 import { STATUT_BIEN_ORDER, STATUT_BIEN_LABELS } from "@/types";
 import { formatCurrency, checkFileSize, coutTotalBien, enveloppeTravauxFinDate, estEnveloppeTravauxOuverte, generateId, now } from "@/lib/utils";
-import { calculerMensualite } from "@/lib/calculs";
+import { calculerMensualite, calculerTAEGPret } from "@/lib/calculs";
 import { mensualiteAmortissement, mensualitePendantDiffere, capitalApresDiffere } from "@/lib/calculs/pret";
 import { CfTooltip } from "@/components/ui/cf-tooltip";
 import { ResumeBien } from "@/components/bien/ResumeBien";
@@ -1141,7 +1141,18 @@ function PropertyDetailContent() {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Taux nominal</p>
-                        <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(pret.tauxAnnuel * 100).toFixed(2)} %</p>
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(pret.tauxAnnuel * 100).toFixed(2)} %</p>
+                          {(() => {
+                            const fraisInitiaux = (bien.fraisDossier ?? 0) + (bien.fraisCourtage ?? 0);
+                            const taeg = calculerTAEGPret(pret, pret.assuranceAnnuelle, fraisInitiaux);
+                            return taeg > 0 ? (
+                              <p className="text-[10px] text-muted-foreground tabular-nums" title="Taux annuel effectif global (incluant assurance + frais initiaux)">
+                                TAEG <span className="font-medium text-foreground">{taeg.toFixed(2)} %</span>
+                              </p>
+                            ) : null;
+                          })()}
+                        </div>
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Duree totale</p>

@@ -18,9 +18,6 @@ function upfrontMandatoryFees(inputs: EntreesCalculateur): number {
 }
 
 export function calculerTAEGPourInputs(inputs: EntreesCalculateur): number {
-  if (inputs.montantEmprunte <= 0 || inputs.dureeCredit <= 0) return 0;
-
-  const assuranceAnnuelle = resolveAssuranceAnnuelle(inputs);
   const pret: PretLike = {
     montantEmprunte: inputs.montantEmprunte,
     tauxAnnuel: inputs.tauxCredit,
@@ -32,18 +29,24 @@ export function calculerTAEGPourInputs(inputs: EntreesCalculateur): number {
     differeType: 'partiel',
     differeInclus: inputs.differePretInclus ?? true,
   };
+  return calculerTAEGPret(pret, resolveAssuranceAnnuelle(inputs), upfrontMandatoryFees(inputs));
+}
 
-  const netDisbursed = round2(inputs.montantEmprunte - upfrontMandatoryFees(inputs));
+/**
+ * Calcul du TAEG directement a partir d'un Pret + assurance annuelle +
+ * frais initiaux (dossier + courtage + garantie). Utilisable depuis la
+ * page bien pour afficher le TAEG a cote du taux nominal.
+ */
+export function calculerTAEGPret(pret: PretLike, assuranceAnnuelle: number, fraisInitiaux: number): number {
+  if (pret.montantEmprunte <= 0 || pret.dureeAnnees <= 0) return 0;
+  const netDisbursed = round2(pret.montantEmprunte - fraisInitiaux);
   if (netDisbursed <= 0) return 0;
-
   const totalMois = dureeTotaleMoisPret(pret);
   const assuranceMensuelle = assuranceAnnuelle / 12;
   const cashFlows: number[] = [-netDisbursed];
-
   for (let monthIdx = 0; monthIdx < totalMois; monthIdx++) {
     cashFlows.push(round2(mensualiteAuMois(pret, monthIdx) + assuranceMensuelle));
   }
-
   const monthlyIrrPct = calculerTRI(cashFlows);
   const monthlyRate = monthlyIrrPct / 100;
   if (!Number.isFinite(monthlyRate) || monthlyRate <= -1) return 0;
