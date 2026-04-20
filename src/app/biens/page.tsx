@@ -354,7 +354,7 @@ function AllocationSection({ pret, bien, interventions, onSave, onUpdateLoan }: 
     <>
       <div className="mt-3 pt-3 border-t border-dashed border-muted-foreground/15">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Allocation du credit</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Allocation du financement</p>
           <button
             onClick={() => { setEdit(defaultAlloc); setEditOpen(true); }}
             className="text-[10px] text-primary hover:underline"
@@ -390,18 +390,18 @@ function AllocationSection({ pret, bien, interventions, onSave, onUpdateLoan }: 
                   </p>
                   {travauxEnveloppe > 0 && (
                     <p className="flex items-center gap-1.5">
-                      ↳ dispo jusqu&apos;au{" "}
+                      ↳ Déblocage possible jusqu&apos;au{" "}
                       <input
                         type="date"
                         value={enveloppeFinDate ?? ""}
                         onChange={(e) => onUpdateLoan({ enveloppeTravauxFinDate: e.target.value || undefined })}
                         className="h-5 px-1 text-[10px] border border-dashed border-muted-foreground/30 rounded bg-transparent focus:border-primary outline-none tabular-nums"
                       />
-                      {!enveloppeOuverte && (
-                        <span className="text-destructive font-medium">expiree</span>
+                      {enveloppeFinDate && !enveloppeOuverte && (
+                        <span className="text-destructive font-medium">• expirée</span>
                       )}
                       {enveloppeOuverte && enveloppeFinDate && (
-                        <span className="text-green-600">ouverte</span>
+                        <span className="text-green-600">• ouverte</span>
                       )}
                       {pret.enveloppeTravauxFinDate && (
                         <button
@@ -451,7 +451,7 @@ function AllocationSection({ pret, bien, interventions, onSave, onUpdateLoan }: 
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Allocation du credit</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Allocation du financement</DialogTitle></DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
             {([
               { key: "bien", label: "Bien immobilier" },
@@ -620,11 +620,13 @@ function PropertyDetailContent() {
   const priceClass = (validated: boolean): string =>
     isPreActe ? (validated ? "text-green-600" : "text-amber-600") : "";
 
-  const handleSetLoan = (loanData: Parameters<typeof setPret>[0]) => {
-    setPret(loanData);
-    // The auto-created "credit" depense holds the post-defer monthly payment.
-    // The Cash Flow chart and fiscal bilan compute the real per-month cost
-    // from the pret helpers, so they correctly handle the defer phase.
+  /**
+   * Synchronise la depense "credit" avec les parametres actuels du pret.
+   * Doit etre appele apres toute modification de montantEmprunte / tauxAnnuel
+   * / dureeAnnees / differe / assurance pour garder la mensualite affichee
+   * en accord avec le pret.
+   */
+  const syncCreditExpense = (loanData: Parameters<typeof setPret>[0]) => {
     const mensualite = mensualiteAmortissement(loanData);
     const assuranceMensuelle = loanData.assuranceAnnuelle / 12;
     const montantTotal = Math.round((mensualite + assuranceMensuelle) * 100) / 100;
@@ -643,6 +645,18 @@ function PropertyDetailContent() {
       });
     }
   };
+
+  /**
+   * Wrapper sur setPret qui re-synchronise systematiquement la depense
+   * "credit". Toute mise a jour du pret (formulaire, allocation, LoanExtras,
+   * onUpdateEmprunt) doit passer par ici.
+   */
+  const setPretSafe = (loanData: Parameters<typeof setPret>[0]) => {
+    setPret(loanData);
+    syncCreditExpense(loanData);
+  };
+
+  const handleSetLoan = setPretSafe;
 
   const handleDeleteLoan = (loanId: string) => {
     supprimerPret(loanId);
@@ -1049,7 +1063,7 @@ function PropertyDetailContent() {
             <h2>Credit</h2>
             {isPreActe && pret && (
               <button
-                onClick={() => setPret({ ...pret, offerValidated: !creditValide })}
+                onClick={() => setPretSafe({ ...pret, offerValidated: !creditValide })}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] transition-colors ${
                   creditValide
                     ? "bg-green-500/15 text-green-700 font-medium"
@@ -1224,18 +1238,18 @@ function PropertyDetailContent() {
                 bien={bien}
                 pret={pret}
                 onUpdateApport={(v) => mettreAJourBien(id, { apport: v })}
-                onUpdateEmprunt={(v) => setPret({ ...pret, montantEmprunte: v })}
+                onUpdateEmprunt={(v) => setPretSafe({ ...pret, montantEmprunte: v })}
               />
-              {/* Allocation du credit */}
+              {/* Allocation du financement */}
               <AllocationSection
                 pret={pret}
                 bien={bien}
                 interventions={interventions}
                 onSave={(alloc) => mettreAJourBien(id, { allocationCredit: alloc })}
-                onUpdateLoan={(updates) => setPret({ ...pret, ...updates })}
+                onUpdateLoan={(updates) => setPretSafe({ ...pret, ...updates })}
               />
               {/* Banque + Documents credit */}
-              <LoanExtras pret={pret} onUpdate={(updates) => setPret({ ...pret, ...updates })} />
+              <LoanExtras pret={pret} onUpdate={(updates) => setPretSafe({ ...pret, ...updates })} />
               <button
                 onClick={() => handleDeleteLoan(pret.id)}
                 className="text-xs text-destructive hover:underline mt-3"
