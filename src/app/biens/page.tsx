@@ -1144,13 +1144,34 @@ function PropertyDetailContent() {
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <p className={`font-bold tabular-nums ${priceClass(creditValide)}`}>{(pret.tauxAnnuel * 100).toFixed(2)} %</p>
                           {(() => {
-                            const fraisInitiaux = (bien.fraisDossier ?? 0) + (bien.fraisCourtage ?? 0);
+                            const fraisDossier = bien.fraisDossier ?? 0;
+                            const fraisCourtage = bien.fraisCourtage ?? 0;
+                            const fraisInitiaux = fraisDossier + fraisCourtage;
                             const taeg = calculerTAEGPret(pret, pret.assuranceAnnuelle, fraisInitiaux);
-                            return taeg > 0 ? (
-                              <p className="text-[10px] text-muted-foreground tabular-nums" title="Taux annuel effectif global (incluant assurance + frais initiaux)">
-                                TAEG <span className="font-medium text-foreground">{taeg.toFixed(2)} %</span>
-                              </p>
-                            ) : null;
+                            if (taeg <= 0) return null;
+                            const taegRows = [
+                              { label: "Principal emprunte", value: formatCurrency(pret.montantEmprunte) },
+                              { label: "− Frais initiaux", value: `-${formatCurrency(fraisInitiaux)}`, color: "text-amber-600" },
+                              { label: "= Net decaisse", value: formatCurrency(pret.montantEmprunte - fraisInitiaux), bold: true },
+                              { separator: true, label: "", value: "" },
+                              { label: "Mensualite hors assurance", value: `${formatCurrency(mensualiteCredit)}/m` },
+                              { label: "+ Assurance", value: `+${formatCurrency(pret.assuranceAnnuelle / 12)}/m`, color: "text-amber-600" },
+                              { label: "= Flux mensuel total", value: `${formatCurrency(mensualiteCredit + pret.assuranceAnnuelle / 12)}/m`, bold: true },
+                              { separator: true, label: "", value: "" },
+                              { label: "Taux nominal", value: `${(pret.tauxAnnuel * 100).toFixed(2)} %` },
+                              { label: "TAEG", value: `${taeg.toFixed(2)} %`, bold: true, color: "text-foreground" },
+                              { separator: true, label: "", value: "" },
+                              { label: "TRI mensuel resolu sur :", value: "" },
+                              { label: "  [-net decaisse, mens..., mens]", value: "" },
+                              { label: "annualise (1+r)^12 - 1", value: "" },
+                            ];
+                            return (
+                              <CfTooltip rows={taegRows}>
+                                <p className="text-[10px] text-muted-foreground tabular-nums cursor-help underline decoration-dotted decoration-muted-foreground/40 underline-offset-2">
+                                  TAEG <span className="font-medium text-foreground">{taeg.toFixed(2)} %</span>
+                                </p>
+                              </CfTooltip>
+                            );
                           })()}
                         </div>
                       </div>
