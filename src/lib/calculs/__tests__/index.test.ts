@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculerRentabilite, computeYearlyFinancials } from '../index';
+import { calculerRentabilite, calculerTAEGPourInputs, computeYearlyFinancials } from '../index';
 import type { EntreesCalculateur } from '@/types';
 import { DEFAULT_CALCULATOR_INPUTS } from '../../constants';
 
@@ -60,6 +60,13 @@ describe('computeYearlyFinancials', () => {
     // En differe total, mensualites annee 1 = interets + assurance seulement
     // capital rembourse devrait etre ~0
     expect(fin.years[0].capitalRembourse).toBeLessThan(100);
+  });
+
+  it('arrete l assurance emprunteur apres la fin effective du pret', () => {
+    const fin = computeYearlyFinancials(inputs);
+    const afterLoan = fin.years[inputs.dureeCredit];
+    expect(afterLoan.assurancePret).toBe(0);
+    expect(afterLoan.mensualitesAnnee).toBe(0);
   });
 });
 
@@ -135,5 +142,42 @@ describe('calculerRentabilite', () => {
     if (afterLoan) {
       expect(afterLoan.capitalRestantDu).toBe(0);
     }
+  });
+});
+
+describe('calculerTAEGPourInputs', () => {
+  it('est superieur au taux nominal quand assurance et frais obligatoires existent', () => {
+    const taeg = calculerTAEGPourInputs(DEFAULT_CALCULATOR_INPUTS);
+    expect(taeg).toBeGreaterThan(DEFAULT_CALCULATOR_INPUTS.tauxCredit * 100);
+  });
+
+  it('augmente quand on ajoute des frais obligatoires', () => {
+    const sansFrais = calculerTAEGPourInputs({
+      ...DEFAULT_CALCULATOR_INPUTS,
+      fraisDossier: 0,
+      fraisCourtage: 0,
+      fraisGarantie: 0,
+      assurancePretAnnuelle: 0,
+    });
+    const avecFrais = calculerTAEGPourInputs({
+      ...DEFAULT_CALCULATOR_INPUTS,
+      fraisDossier: 1200,
+      fraisCourtage: 1800,
+      fraisGarantie: 2500,
+      assurancePretAnnuelle: 900,
+    });
+    expect(avecFrais).toBeGreaterThan(sansFrais);
+  });
+
+  it('reste calculable avec differe', () => {
+    const taeg = calculerTAEGPourInputs({
+      ...DEFAULT_CALCULATOR_INPUTS,
+      differePretMois: 12,
+      differePretInclus: false,
+      fraisDossier: 900,
+      fraisCourtage: 1500,
+      fraisGarantie: 2000,
+    });
+    expect(taeg).toBeGreaterThan(0);
   });
 });

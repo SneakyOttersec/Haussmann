@@ -3,8 +3,11 @@
  * Pour mettre a jour : modifier l'annee et les valeurs correspondantes.
  */
 export const FISCAL_RULES = {
-  annee: 2024,
-  prelevementsSociaux: 0.172,
+  annee: 2026,
+  prelevementsSociaux: {
+    revenusFonersEtPatrimoine: 0.172,
+    lmnp: 0.186,
+  },
   is: {
     tauxReduit: 0.15,
     seuilReduit: 42_500,
@@ -31,7 +34,8 @@ export const FISCAL_RULES = {
 } as const;
 
 // Backward-compatible individual exports
-export const PRELEVEMENTS_SOCIAUX = FISCAL_RULES.prelevementsSociaux;
+export const PRELEVEMENTS_SOCIAUX = FISCAL_RULES.prelevementsSociaux.revenusFonersEtPatrimoine;
+export const PRELEVEMENTS_SOCIAUX_LMNP = FISCAL_RULES.prelevementsSociaux.lmnp;
 export const IS_TAUX_REDUIT = FISCAL_RULES.is.tauxReduit;
 export const IS_SEUIL_REDUIT = FISCAL_RULES.is.seuilReduit;
 export const IS_TAUX_NORMAL = FISCAL_RULES.is.tauxNormal;
@@ -42,6 +46,8 @@ export const SEUIL_MICRO_FONCIER = FISCAL_RULES.microFoncier.seuil;
 export const SEUIL_MICRO_BIC = FISCAL_RULES.microBic.seuil;
 export const ABATTEMENT_MICRO_FONCIER = FISCAL_RULES.microFoncier.abattement;
 export const ABATTEMENT_MICRO_BIC = FISCAL_RULES.microBic.abattement;
+export const IR_DEFICIT_GLOBAL_MAX = 10_700;
+export const REPORT_DEFICIT_DUREE_ANNEES = 10;
 
 export const DEFAULT_CALCULATOR_INPUTS = {
   nomSimulation: '',

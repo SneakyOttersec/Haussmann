@@ -1,6 +1,6 @@
 import type { EntreesCalculateur, ResultatsCalculateur, RegimeFiscalDetaille } from '@/types';
 import { versRegimeFiscalDetaille } from '@/types';
-import { calculerMensualite, calculerMensualiteAmortissable } from './pret';
+import { calculerMensualite, calculerMensualiteAmortissable, mensualiteAuMois, dureeTotaleMoisPret, type PretLike } from './pret';
 import { rendementBrut, rendementNet, rendementNetNet } from './rendement';
 import { calculerTRI } from './irr';
 import { projeterAvecRegime, type YearComputed } from './regimes';
@@ -13,29 +13,41 @@ function resolveAssuranceAnnuelle(inputs: EntreesCalculateur): number {
   return inputs.assurancePretAnnuelle;
 }
 
-function calculerTAEG(
-  montantEmprunte: number,
-  tauxCredit: number,
-  dureeAnnees: number,
-  assuranceAnnuelle: number,
-): number {
-  if (montantEmprunte <= 0 || dureeAnnees <= 0) return 0;
-  const mensualiteCredit = calculerMensualite(montantEmprunte, tauxCredit, dureeAnnees, 'amortissable');
-  const mensualiteTotale = mensualiteCredit + assuranceAnnuelle / 12;
-  let r = tauxCredit / 12 || 0.003;
-  const n = dureeAnnees * 12;
-  for (let i = 0; i < 100; i++) {
-    const factor = Math.pow(1 + r, n);
-    const pv = mensualiteTotale * (factor - 1) / (r * factor);
-    const dr = 0.00001;
-    const factor2 = Math.pow(1 + r + dr, n);
-    const pv2 = mensualiteTotale * (factor2 - 1) / ((r + dr) * factor2);
-    const deriv = (pv2 - pv) / dr;
-    const newR = r - (pv - montantEmprunte) / deriv;
-    if (Math.abs(newR - r) < 1e-10) break;
-    r = Math.max(0.0001, newR);
+function upfrontMandatoryFees(inputs: EntreesCalculateur): number {
+  return (inputs.fraisDossier ?? 0) + (inputs.fraisCourtage ?? 0) + (inputs.fraisGarantie ?? 0);
+}
+
+export function calculerTAEGPourInputs(inputs: EntreesCalculateur): number {
+  if (inputs.montantEmprunte <= 0 || inputs.dureeCredit <= 0) return 0;
+
+  const assuranceAnnuelle = resolveAssuranceAnnuelle(inputs);
+  const pret: PretLike = {
+    montantEmprunte: inputs.montantEmprunte,
+    tauxAnnuel: inputs.tauxCredit,
+    dureeAnnees: inputs.dureeCredit,
+    type: inputs.typePret,
+    differeMois: inputs.differePretMois ?? 0,
+    // The calculator only exposes "differe partiel". If a future UI adds
+    // total defer, this helper can reuse the same PretLike shape.
+    differeType: 'partiel',
+    differeInclus: inputs.differePretInclus ?? true,
+  };
+
+  const netDisbursed = round2(inputs.montantEmprunte - upfrontMandatoryFees(inputs));
+  if (netDisbursed <= 0) return 0;
+
+  const totalMois = dureeTotaleMoisPret(pret);
+  const assuranceMensuelle = assuranceAnnuelle / 12;
+  const cashFlows: number[] = [-netDisbursed];
+
+  for (let monthIdx = 0; monthIdx < totalMois; monthIdx++) {
+    cashFlows.push(round2(mensualiteAuMois(pret, monthIdx) + assuranceMensuelle));
   }
-  return r * 12 * 100;
+
+  const monthlyIrrPct = calculerTRI(cashFlows);
+  const monthlyRate = monthlyIrrPct / 100;
+  if (!Number.isFinite(monthlyRate) || monthlyRate <= -1) return 0;
+  return round2((Math.pow(1 + monthlyRate, 12) - 1) * 100);
 }
 
 /* ── Differe helpers ── */
@@ -54,8 +66,8 @@ function creditAnnee(
   assuranceMensuelle: number,
   annee: number,
   typePret: 'amortissable' | 'in_fine',
-): { mensualitesAnnee: number; interetsAnnee: number; capitalRembourse: number; crd: number } {
-  if (montant <= 0) return { mensualitesAnnee: 0, interetsAnnee: 0, capitalRembourse: 0, crd: 0 };
+): { mensualitesAnnee: number; interetsAnnee: number; assuranceAnnee: number; capitalRembourse: number; crd: number } {
+  if (montant <= 0) return { mensualitesAnnee: 0, interetsAnnee: 0, assuranceAnnee: 0, capitalRembourse: 0, crd: 0 };
 
   const tauxMensuel = taux / 12;
   // When differeInclus === false, the amortization phase = full dureeAns,
@@ -75,6 +87,7 @@ function creditAnnee(
 
   let totalPaye = 0;
   let totalInterets = 0;
+  let totalAssurance = 0;
   let crd = montant;
 
   if (annee > 1) {
@@ -100,11 +113,13 @@ function creditAnnee(
       const interet = round2(crd * tauxMensuel);
       totalPaye = round2(totalPaye + interet + assuranceMensuelle);
       totalInterets = round2(totalInterets + interet);
+      totalAssurance = round2(totalAssurance + assuranceMensuelle);
     } else {
       if (typePret === 'in_fine') {
         const interet = round2(crd * tauxMensuel);
         totalPaye = round2(totalPaye + interet + assuranceMensuelle);
         totalInterets = round2(totalInterets + interet);
+        totalAssurance = round2(totalAssurance + assuranceMensuelle);
         if (m === totalMoisCredit - 1) {
           totalPaye = round2(totalPaye + crd);
           crd = 0;
@@ -114,6 +129,7 @@ function creditAnnee(
         const capital = round2(mensualiteAmort - interet);
         totalPaye = round2(totalPaye + mensualiteAmort + assuranceMensuelle);
         totalInterets = round2(totalInterets + interet);
+        totalAssurance = round2(totalAssurance + assuranceMensuelle);
         crd = round2(Math.max(0, crd - capital));
       }
     }
@@ -124,6 +140,7 @@ function creditAnnee(
   return {
     mensualitesAnnee: totalPaye,
     interetsAnnee: totalInterets,
+    assuranceAnnee: totalAssurance,
     capitalRembourse: crdDebutAnnee - crd,
     crd,
   };
@@ -175,7 +192,7 @@ export function computeYearlyFinancials(inputs: EntreesCalculateur): YearlyFinan
     ? calculerMensualiteAmortissable(inputs.montantEmprunte, inputs.tauxCredit, dureeAmortMois / 12)
     : 0;
   const mensualiteTotale = mensualiteCreditStandard + assuranceMensuelle;
-  const taeg = calculerTAEG(inputs.montantEmprunte, inputs.tauxCredit, inputs.dureeCredit, assuranceAnnuelle);
+  const taeg = calculerTAEGPourInputs(inputs);
 
   const loyerAnnuelBrut = loyerMensuelTotal * 12 + inputs.autresRevenusAnnuels;
   const loyerAnnuelNet = loyerAnnuelBrut * (1 - inputs.tauxVacance);
@@ -233,7 +250,7 @@ export function computeYearlyFinancials(inputs: EntreesCalculateur): YearlyFinan
       loyerNet: yrLoyerNet,
       charges: yrCharges,
       interets: cr.interetsAnnee,
-      assurancePret: assuranceAnnuelle,
+      assurancePret: cr.assuranceAnnee,
       mensualitesAnnee: cr.mensualitesAnnee,
       capitalRembourse: cr.capitalRembourse,
       crd: cr.crd,

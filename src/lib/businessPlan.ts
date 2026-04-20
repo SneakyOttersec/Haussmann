@@ -242,7 +242,7 @@ function populateSheet(ws: Worksheet, p: BuildSheetParams): void {
 
   const rdtRow = cfHeaderRow + 1;
   ws.getCell(`A${rdtRow}`).value = "Rendement brut";
-  ws.getCell(`B${rdtRow}`).value = { formula: `E${totalAnRow}/B21` };
+  ws.getCell(`B${rdtRow}`).value = { formula: `E${totalAnRow}/(B16+B17+B18+B19)` };
   ws.getCell(`B${rdtRow}`).numFmt = PCT_FMT;
   ws.getCell(`B${rdtRow}`).font = BOLD;
 

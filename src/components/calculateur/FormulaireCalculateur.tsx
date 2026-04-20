@@ -4,6 +4,7 @@ import type { EntreesCalculateur, TypeBien, RegimeFiscal, TypePret, LotLoyer, Lo
 import { TRAVAUX_CATEGORIES, AMORT_DUREES } from "@/types";
 import { TMI_TRANCHES } from "@/lib/constants";
 import { checkFileSize } from "@/lib/utils";
+import { calculerTAEGPourInputs } from "@/lib/calculs";
 import { Label } from "@/components/ui/label";
 import { useRef, useState } from "react";
 
@@ -726,24 +727,11 @@ export function FinancementCard({ inputs, onUpdate }: CalculatorFormProps) {
           ? inputs.montantEmprunte * (t * Math.pow(1 + t, dureeAmortMois)) / (Math.pow(1 + t, dureeAmortMois) - 1)
           : inputs.montantEmprunte / Math.max(1, dureeAmortMois);
         const mensTotale = mensCredit + assAn / 12;
-        // Newton-Raphson TAEG
-        let r = inputs.tauxCredit / 12;
-        const n = inputs.dureeCredit * 12;
-        for (let i = 0; i < 100; i++) {
-          const f = Math.pow(1 + r, n);
-          const pv = mensTotale * (f - 1) / (r * f);
-          const dr = 0.00001;
-          const f2 = Math.pow(1 + r + dr, n);
-          const pv2 = mensTotale * (f2 - 1) / ((r + dr) * f2);
-          const newR = r - (pv - inputs.montantEmprunte) / ((pv2 - pv) / dr);
-          if (Math.abs(newR - r) < 1e-10) break;
-          r = Math.max(0.0001, newR);
-        }
-        const taeg = r * 12 * 100;
+        const taeg = calculerTAEGPourInputs(inputs);
         return (
           <span className="text-[11px] text-muted-foreground">
             Mensualite : <span className="font-bold text-foreground">{Math.round(mensTotale).toLocaleString("fr-FR")} EUR</span>
-            {" · "}TAEG (estime) : <span className="font-bold text-foreground">{taeg.toFixed(2)} %</span>
+            {" · "}TAEG : <span className="font-bold text-foreground">{taeg.toFixed(2)} %</span>
           </span>
         );
       })()}

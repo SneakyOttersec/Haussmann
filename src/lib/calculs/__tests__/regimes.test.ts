@@ -5,11 +5,13 @@ import {
   regimeApplicability,
   plusValueSortie,
   projeterAvecRegime,
+  comparerRegimes,
   type YearTaxInput,
   type YearComputed,
 } from '../regimes';
 import type { EntreesCalculateur } from '@/types';
-import { DEFAULT_CALCULATOR_INPUTS, PRELEVEMENTS_SOCIAUX } from '../../constants';
+import { DEFAULT_CALCULATOR_INPUTS, PRELEVEMENTS_SOCIAUX, PRELEVEMENTS_SOCIAUX_LMNP } from '../../constants';
+import { computeYearlyFinancials } from '../index';
 
 /* ── Shared fixtures ── */
 
@@ -115,8 +117,17 @@ describe('computeTaxForRegime — ir_reel', () => {
     // Annee 2: resultat positif absorbe le deficit
     const y2 = makeYear({ annee: 2, loyerNet: 12000, charges: 2000, interets: 2000, assurancePret: 500 });
     const r2 = computeTaxForRegime('ir_reel', baseInputs, fraisNotaire, y2, r1.state);
-    // 12000-2000-2000-500 = 7500, + deficit ~-7500 → ~0
-    expect(r2.resultatFiscal).toBeCloseTo(0, -1);
+    // Seule la fraction reportable sur revenus fonciers est carry forward.
+    // Le deficit imputable sur le revenu global n'est pas reporte dans le simulateur.
+    expect(r2.resultatFiscal).toBeCloseTo(5_500, 0);
+  });
+
+  it('ne reporte pas la fraction imputable sur le revenu global', () => {
+    // Exemple proche de la doctrine fiscale: 5k loyers, 12k charges hors interets, 6k interets.
+    const y1 = makeYear({ loyerNet: 5000, charges: 12_000, interets: 6000, assurancePret: 0 });
+    const r1 = computeTaxForRegime('ir_reel', baseInputs, fraisNotaire, y1, initialRegimeState());
+    // Reportable = 2 300 € seulement (1 000 d'interets + 1 300 au-dela du plafond 10 700).
+    expect(r1.state.deficitFiscal).toBeCloseTo(-2_300, 0);
   });
 });
 
@@ -128,7 +139,7 @@ describe('computeTaxForRegime — lmnp_micro', () => {
     const result = computeTaxForRegime('lmnp_micro', baseInputs, fraisNotaire, year, initialRegimeState());
     const base = 9600 * 0.50;
     expect(result.resultatFiscal).toBeCloseTo(base, 0);
-    expect(result.impot).toBeGreaterThan(0);
+    expect(result.impot).toBeCloseTo(base * (0.30 + PRELEVEMENTS_SOCIAUX_LMNP), 0);
   });
 });
 
@@ -166,6 +177,18 @@ describe('computeTaxForRegime — lmnp_reel', () => {
     const r2 = computeTaxForRegime('lmnp_reel', baseInputs, fraisNotaire, y2, r1.state);
     // Report cumule = report annee 1 + amort annee 2 (~6400)
     expect(r2.state.reportAmortLmnp).toBeGreaterThan(r1.state.reportAmortLmnp);
+  });
+
+  it('fait expirer les deficits LMNP au bout de 10 ans', () => {
+    const prevState = {
+      ...initialRegimeState(),
+      deficitFiscal: -1_500,
+      deficitCarryforwards: [{ amount: 1_500, yearsRemaining: 1 }],
+    };
+    const year = makeYear({ annee: 11, loyerNet: 3500, charges: 3500, interets: 0, assurancePret: 0 });
+    const result = computeTaxForRegime('lmnp_reel', baseInputs, fraisNotaire, year, prevState);
+    expect(result.state.deficitFiscal).toBe(0);
+    expect(result.state.deficitCarryforwards).toHaveLength(0);
   });
 });
 
@@ -299,5 +322,33 @@ describe('projeterAvecRegime', () => {
       expect(typeof p.cashFlowApresImpot).toBe('number');
       expect(p.cashFlowApresImpot).toBeLessThanOrEqual(p.cashFlowAvantImpot);
     }
+  });
+
+  it('expose l amortissement annuel dans la projection', () => {
+    const years = makeYears(2);
+    const proj = projeterAvecRegime('is', baseInputs, fraisNotaire, years);
+    expect(proj.projection[0].amortissement).toBeGreaterThan(0);
+    expect(proj.projection[0].assurancePret).toBe(700);
+  });
+});
+
+describe('comparerRegimes', () => {
+  it('integre la reintegration LMNP reel dans le patrimoine net apres vente', () => {
+    const inputs: EntreesCalculateur = {
+      ...baseInputs,
+      loyerMensuel: 1500,
+      lots: [{ id: '1', nom: 'Lot 1', loyerMensuel: 1500 }],
+      regimeFiscal: 'IR',
+    };
+    const fin = computeYearlyFinancials(inputs);
+    const comparisons = comparerRegimes(inputs, fin.fraisNotaire, fin.years, {
+      horizon: 10,
+      apportPersonnel: fin.apportPersonnel,
+    });
+    const ir = comparisons.find((c) => c.regime === 'ir_reel');
+    const lmnp = comparisons.find((c) => c.regime === 'lmnp_reel');
+    expect(ir).toBeDefined();
+    expect(lmnp).toBeDefined();
+    expect(lmnp!.patrimoineNetApresVente).toBeLessThan(ir!.patrimoineNetApresVente);
   });
 });

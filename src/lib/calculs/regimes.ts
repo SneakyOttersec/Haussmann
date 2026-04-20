@@ -2,6 +2,7 @@ import type { EntreesCalculateur, RegimeFiscalDetaille, ProjectionAnnuelle } fro
 import { calculerTRI } from './irr';
 import {
   PRELEVEMENTS_SOCIAUX,
+  PRELEVEMENTS_SOCIAUX_LMNP,
   IS_TAUX_REDUIT,
   IS_SEUIL_REDUIT,
   IS_TAUX_NORMAL,
@@ -9,6 +10,8 @@ import {
   SEUIL_MICRO_BIC,
   ABATTEMENT_MICRO_FONCIER,
   ABATTEMENT_MICRO_BIC,
+  IR_DEFICIT_GLOBAL_MAX,
+  REPORT_DEFICIT_DUREE_ANNEES,
 } from '../constants';
 import { calculerAmortissementAnnee } from './impotIs';
 import { round2 } from '@/lib/round';
@@ -16,14 +19,16 @@ import { round2 } from '@/lib/round';
 /* ── State tracked across years ── */
 
 export interface RegimeState {
-  /** Deficit reportable (negative or 0) — for IR reel, LMNP reel charges, IS */
+  /** Deficit reportable aggregate (negative or 0 for backward-compatible reads) */
   deficitFiscal: number;
   /** Amortissement LMNP non utilise, reportable sans limite (positive or 0) */
   reportAmortLmnp: number;
+  /** Time-limited deficits carried forward (IR reel / LMNP reel). Positive amounts. */
+  deficitCarryforwards: Array<{ amount: number; yearsRemaining: number }>;
 }
 
 export function initialRegimeState(): RegimeState {
-  return { deficitFiscal: 0, reportAmortLmnp: 0 };
+  return { deficitFiscal: 0, reportAmortLmnp: 0, deficitCarryforwards: [] };
 }
 
 /* ── Per-year inputs ── */
@@ -80,8 +85,55 @@ export function regimeApplicability(
 
 /* ── Per-year tax computation ── */
 
-function tauxIR(tmi: number): number {
+function tauxIRLocationNue(tmi: number): number {
   return tmi + PRELEVEMENTS_SOCIAUX;
+}
+
+function tauxIRLmnp(tmi: number): number {
+  return tmi + PRELEVEMENTS_SOCIAUX_LMNP;
+}
+
+function sumBuckets(buckets: RegimeState['deficitCarryforwards']): number {
+  return round2(buckets.reduce((sum, bucket) => sum + bucket.amount, 0));
+}
+
+function ageBuckets(buckets: RegimeState['deficitCarryforwards']): RegimeState['deficitCarryforwards'] {
+  return buckets
+    .map((bucket) => ({ ...bucket, yearsRemaining: bucket.yearsRemaining - 1 }))
+    .filter((bucket) => bucket.amount > 0 && bucket.yearsRemaining > 0);
+}
+
+function consumeBuckets(
+  buckets: RegimeState['deficitCarryforwards'],
+  taxableBase: number,
+): { taxableBaseAfterUse: number; remainingBuckets: RegimeState['deficitCarryforwards']; used: number } {
+  let remainingBase = round2(Math.max(0, taxableBase));
+  let used = 0;
+  const remainingBuckets = buckets.map((bucket) => {
+    if (remainingBase <= 0 || bucket.amount <= 0) return bucket;
+    const consumed = Math.min(bucket.amount, remainingBase);
+    remainingBase = round2(remainingBase - consumed);
+    used = round2(used + consumed);
+    return { ...bucket, amount: round2(bucket.amount - consumed) };
+  }).filter((bucket) => bucket.amount > 0);
+
+  return {
+    taxableBaseAfterUse: remainingBase,
+    remainingBuckets,
+    used,
+  };
+}
+
+function buildStateFromBuckets(
+  buckets: RegimeState['deficitCarryforwards'],
+  reportAmortLmnp = 0,
+): RegimeState {
+  const totalCarryforward = sumBuckets(buckets);
+  return {
+    deficitFiscal: totalCarryforward === 0 ? 0 : round2(-totalCarryforward),
+    reportAmortLmnp,
+    deficitCarryforwards: buckets,
+  };
 }
 
 function impotIS(resultatFiscal: number): number {
@@ -111,7 +163,7 @@ export function computeTaxForRegime(
     case 'ir_micro': {
       // Abattement forfaitaire 30%, pas de charges deductibles
       const base = round2(loyerBrut * (1 - ABATTEMENT_MICRO_FONCIER));
-      const impot = round2(Math.max(0, base) * tauxIR(tmi));
+      const impot = round2(Math.max(0, base) * tauxIRLocationNue(tmi));
       return {
         impot,
         resultatFiscal: base,
@@ -124,29 +176,45 @@ export function computeTaxForRegime(
     case 'ir_reel': {
       // Revenu foncier = loyers nets - charges - interets - assurance pret
       const revenuFoncier = round2(loyerNet - charges - interets - assurancePret);
-      // Apply deficit carryforward from prior years
-      const resultatApresReport = round2(revenuFoncier + prevState.deficitFiscal);
+      const carryforwardIn = prevState.deficitCarryforwards ?? [];
 
-      if (resultatApresReport < 0) {
+      if (revenuFoncier < 0) {
+        // Revenus imputes prioritairement sur les interets. Seule la fraction
+        // hors interets est imputable au revenu global, plafonnee a 10 700 €.
+        const revenuApresInterets = round2(loyerNet - interets);
+        const revenuDisponiblePourCharges = Math.max(0, revenuApresInterets);
+        const deficitInterets = round2(Math.max(0, -revenuApresInterets));
+        const deficitHorsInterets = round2(Math.max(0, charges + assurancePret - revenuDisponiblePourCharges));
+        const imputableGlobal = round2(Math.min(IR_DEFICIT_GLOBAL_MAX, deficitHorsInterets));
+        const reportableFoncier = round2(deficitInterets + Math.max(0, deficitHorsInterets - imputableGlobal));
+        const agedBuckets = ageBuckets(carryforwardIn);
+        const nextBuckets = reportableFoncier > 0
+          ? [...agedBuckets, { amount: reportableFoncier, yearsRemaining: REPORT_DEFICIT_DUREE_ANNEES }]
+          : agedBuckets;
+
         return {
           impot: 0,
-          resultatFiscal: resultatApresReport,
+          resultatFiscal: revenuFoncier,
           amortissement: 0,
-          state: { deficitFiscal: resultatApresReport, reportAmortLmnp: 0 },
+          state: buildStateFromBuckets(nextBuckets),
         };
       }
+
+      const consumed = consumeBuckets(carryforwardIn, revenuFoncier);
+      const nextBuckets = ageBuckets(consumed.remainingBuckets);
+      const resultatApresReport = round2(consumed.taxableBaseAfterUse);
       return {
-        impot: round2(resultatApresReport * tauxIR(tmi)),
+        impot: round2(resultatApresReport * tauxIRLocationNue(tmi)),
         resultatFiscal: resultatApresReport,
         amortissement: 0,
-        state: { deficitFiscal: 0, reportAmortLmnp: 0 },
+        state: buildStateFromBuckets(nextBuckets),
       };
     }
 
     /* ── LMNP - Micro-BIC ── */
     case 'lmnp_micro': {
       const base = round2(loyerBrut * (1 - ABATTEMENT_MICRO_BIC));
-      const impot = round2(Math.max(0, base) * tauxIR(tmi));
+      const impot = round2(Math.max(0, base) * tauxIRLmnp(tmi));
       return {
         impot,
         resultatFiscal: base,
@@ -175,22 +243,27 @@ export function computeTaxForRegime(
       // 3. Resultat apres amort
       let resultatFiscal = round2(resultatAvantAmort - amortUtilise);
 
-      // 4. Apply deficit BIC carryforward
-      resultatFiscal = round2(resultatFiscal + prevState.deficitFiscal);
+      const carryforwardIn = prevState.deficitCarryforwards ?? [];
 
       if (resultatFiscal < 0) {
+        const agedBuckets = ageBuckets(carryforwardIn);
+        const nextBuckets = [...agedBuckets, { amount: Math.abs(resultatFiscal), yearsRemaining: REPORT_DEFICIT_DUREE_ANNEES }];
         return {
           impot: 0,
           resultatFiscal,
           amortissement: amortUtilise,
-          state: { deficitFiscal: resultatFiscal, reportAmortLmnp: reportAmortNew },
+          state: buildStateFromBuckets(nextBuckets, reportAmortNew),
         };
       }
+
+      const consumed = consumeBuckets(carryforwardIn, resultatFiscal);
+      const nextBuckets = ageBuckets(consumed.remainingBuckets);
+      resultatFiscal = round2(consumed.taxableBaseAfterUse);
       return {
-        impot: round2(resultatFiscal * tauxIR(tmi)),
+        impot: round2(resultatFiscal * tauxIRLmnp(tmi)),
         resultatFiscal,
         amortissement: amortUtilise,
-        state: { deficitFiscal: 0, reportAmortLmnp: reportAmortNew },
+        state: buildStateFromBuckets(nextBuckets, reportAmortNew),
       };
     }
 
@@ -205,14 +278,14 @@ export function computeTaxForRegime(
           impot: 0,
           resultatFiscal,
           amortissement: amortAnnee,
-          state: { deficitFiscal: resultatFiscal, reportAmortLmnp: 0 },
+          state: { ...initialRegimeState(), deficitFiscal: resultatFiscal },
         };
       }
       return {
         impot: round2(impotIS(resultatFiscal)),
         resultatFiscal,
         amortissement: amortAnnee,
-        state: { deficitFiscal: 0, reportAmortLmnp: 0 },
+        state: initialRegimeState(),
       };
     }
   }
@@ -382,6 +455,8 @@ export function projeterAvecRegime(
       charges: y.charges,
       interets: y.interets,
       capitalRembourse: y.capitalRembourse,
+      assurancePret: y.assurancePret,
+      amortissement: taxOut.amortissement,
       mensualitesCredit: y.mensualitesAnnee,
       cashFlowAvantImpot: cfAvantImpot,
       impot: taxOut.impot,
@@ -509,7 +584,7 @@ export function comparerRegimes(
       inputs.montantTravaux,
       fraisNotaire,
       lastYear?.valeurBien ?? 0,
-      regime === 'is' ? regProj.amortCumule : 0,
+      regime === 'is' || regime === 'lmnp_reel' ? regProj.amortCumule : 0,
       horizon,
     );
     const patrimoineNet = (lastYear?.valeurBien ?? 0) - (lastYear?.capitalRestantDu ?? 0) - pvSortie.impotPV + cashFlowCumule;

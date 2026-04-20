@@ -172,7 +172,7 @@ export async function generateReport(inputs: EntreesCalculateur, results: Result
   kpi(doc, M + kW, y, kW - 1.5, 15, "Rdt net", pct(results.rendementNet));
   kpi(doc, M + kW * 2, y, kW - 1.5, 15, "Rdt net-net", pct(results.rendementNetNet));
   kpi(doc, M + kW * 3, y, kW - 1.5, 15, "Cash flow/m", eur(results.cashFlowMensuelApresImpot), cfColor);
-  kpi(doc, M + kW * 4, y, kW - 1.5, 15, "TAEG (estime)", pct(results.taeg));
+  kpi(doc, M + kW * 4, y, kW - 1.5, 15, "TAEG", pct(results.taeg));
   kpi(doc, M + kW * 5, y, kW - 1.5, 15, "TRI 10 ans", pct(results.tri), results.tri > 0 ? C.green : C.red);
   y += 22;
 
@@ -194,7 +194,7 @@ export async function generateReport(inputs: EntreesCalculateur, results: Result
   yR = row(doc, yR, "Duree", `${inputs.dureeCredit} ans`, { x: colR, w: colW });
   if (inputs.differePretMois > 0) yR = row(doc, yR, "Differe partiel", `${inputs.differePretMois} mois`, { x: colR, w: colW });
   yR = row(doc, yR, "Mensualite totale", eur(results.mensualiteCredit), { x: colR, w: colW, bold: true });
-  yR = row(doc, yR, "TAEG (estime)", pct(results.taeg), { x: colR, w: colW });
+  yR = row(doc, yR, "TAEG", pct(results.taeg), { x: colR, w: colW });
 
   y = Math.max(yL, yR) + 4;
 

@@ -61,7 +61,13 @@ export function bienToSimulation(data: DonneesApp, bienId: string): EntreesCalcu
   const autresRaw = sumAnnualByCategory("autre");
 
   // gestion_locative stored in € but calc expects % of loyer net
-  const loyerNetAnnuel = loyerMensuelTotal * 12 * (1 - DEFAULT_CALCULATOR_INPUTS.tauxVacance);
+  const vacanceBien = bien.tauxVacanceGlobal;
+  const inferredVacance = loyerMensuelTotal > 0
+    ? (vacanceBien ?? Math.max(0, Math.min(0.95, 1 - Math.min(1, propertyIncomes
+      .filter((i) => i.categorie === "loyer" && i.frequence !== "ponctuel")
+      .reduce((s, i) => s + annualiserMontant(i.montant, i.frequence), 0) / (loyerMensuelTotal * 12)))))
+    : DEFAULT_CALCULATOR_INPUTS.tauxVacance;
+  const loyerNetAnnuel = loyerMensuelTotal * 12 * (1 - inferredVacance);
   const gestionLocativePct =
     loyerNetAnnuel > 0 && gestionLocativeEur > 0
       ? gestionLocativeEur / loyerNetAnnuel
@@ -106,6 +112,7 @@ export function bienToSimulation(data: DonneesApp, bienId: string): EntreesCalcu
     lots,
     loyerMensuel: loyerMensuelTotal,
     autresRevenusAnnuels,
+    tauxVacance: inferredVacance,
 
     // Charges
     chargesCopro,
@@ -124,11 +131,13 @@ export function bienToSimulation(data: DonneesApp, bienId: string): EntreesCalcu
           typePret: pret.type,
           assurancePretMode: "eur" as const,
           assurancePretAnnuelle: pret.assuranceAnnuelle,
-          apportPersonnel: Math.max(
+          differePretMois: pret.differeMois ?? 0,
+          differePretInclus: pret.differeInclus ?? true,
+          apportPersonnel: bien.apport ?? Math.max(
             0,
             bien.prixAchat + bien.fraisNotaire + (bien.fraisAgence ?? 0) +
               (bien.fraisDossier ?? 0) + (bien.fraisCourtage ?? 0) +
-              bien.montantTravaux - pret.montantEmprunte,
+              bien.montantTravaux + (bien.montantMobilier ?? 0) + (bien.allocationCredit?.garantie ?? 0) - pret.montantEmprunte,
           ),
         }
       : {}),

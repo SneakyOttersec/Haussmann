@@ -5,6 +5,8 @@ import type { ResultatsCalculateur as Results, EntreesCalculateur, Associe } fro
 import { formatCurrency, formatPercent } from "@/lib/utils";
 import { calculerTRI } from "@/lib/calculs/irr";
 import { plusValueSortie } from "@/lib/calculs/regimes";
+import { computeYearlyFinancials } from "@/lib/calculs";
+import { projeterAvecRegime } from "@/lib/calculs/regimes";
 import { versRegimeFiscalDetaille } from "@/types";
 
 interface CalculatorResultsProps {
@@ -69,35 +71,37 @@ export function PanneauResultatsCalculateur({ results, inputs, associes, differe
   const [showTriTooltip, setShowTriTooltip] = useState(false);
   const [showTriProjetTooltip, setShowTriProjetTooltip] = useState(false);
 
+  const fiscalProjectionContext = useMemo(() => {
+    if (!inputs) return null;
+    const regime = versRegimeFiscalDetaille(inputs.regimeFiscal);
+    const fin = computeYearlyFinancials(inputs);
+    const regProj = projeterAvecRegime(regime, inputs, fin.fraisNotaire, fin.years);
+    return { regime, fraisNotaire: fin.fraisNotaire, projection: regProj.projection };
+  }, [inputs]);
+
   // Pre-calcule l'impot sur la plus-value a la revente pour l'horizon choisi
   // afin d'inclure cette charge dans le TRI investisseur (alignement avec la
   // comparaison fiscale).
   const impotPVSortie = useMemo(() => {
-    if (!inputs) return 0;
+    if (!inputs || !fiscalProjectionContext) return 0;
     const n = Math.min(triAnnee, r.projection.length);
     if (n < 1) return 0;
-    const last = r.projection[n - 1];
+    const last = fiscalProjectionContext.projection[n - 1];
     if (!last) return 0;
-    const regime = versRegimeFiscalDetaille(inputs.regimeFiscal);
-    const fraisNotaire = inputs.prixAchat * inputs.fraisNotairePct;
-    // Pour IS/LMNP reel, on a besoin du cumul d'amortissement a la sortie.
-    // Approximation : cumul = somme des amortissements sur les annees projetees.
-    // ProjectionAnnuelle n'expose pas l'amort par annee — on utilise 0 en fallback
-    // pour IR (pas de reintegration) et la methode simple pour IS/LMNP.
-    const amortCumule = (regime === "is" || regime === "lmnp_reel")
-      ? (inputs.prixAchat * 0.80 / 30) * n + (inputs.montantTravaux / 18) * n + (inputs.montantMobilierTotal / 7) * n
+    const amortCumule = (fiscalProjectionContext.regime === "is" || fiscalProjectionContext.regime === "lmnp_reel")
+      ? fiscalProjectionContext.projection.slice(0, n).reduce((sum, year) => sum + year.amortissement, 0)
       : 0;
     const pv = plusValueSortie(
-      regime,
+      fiscalProjectionContext.regime,
       inputs.prixAchat,
       inputs.montantTravaux,
-      fraisNotaire,
+      fiscalProjectionContext.fraisNotaire,
       last.valeurBien,
       amortCumule,
       n,
     );
     return pv.impotPV;
-  }, [inputs, r.projection, triAnnee]);
+  }, [fiscalProjectionContext, inputs, r.projection.length, triAnnee]);
 
   // Cash flow mensuel moyen sur toute la duree du credit (pas seulement A1).
   // Intègre le differe (ou sa mensualite plus basse) et les annees d'amortissement
@@ -178,8 +182,8 @@ export function PanneauResultatsCalculateur({ results, inputs, associes, differe
       applied: `Somme CF apres impot: ${eur(avgCashFlowApresImpot.annuel * avgCashFlowApresImpot.years)}\nSur ${avgCashFlowApresImpot.years} ans\n= ${eur(avgCashFlowApresImpot.annuel)}/an\n= ${formatCurrency(avgCashFlowApresImpot.mensuel)}/mois (moyenne)`,
     },
     taeg: {
-      formula: "Taux annuel effectif global\n= Taux nominal + cout assurance\ncalcule par methode actuarielle\n(Newton-Raphson)",
-      applied: `Mensualite totale: ${formatCurrency(r.mensualiteCredit, true)}/mois\nTAEG = ${formatPercent(r.taeg)}`,
+      formula: "Taux annuel effectif global\n= taux actuariel des flux mensuels reels\nincluant assurance emprunteur et frais obligatoires saisis\n(dossier, courtage, garantie), avec prise en compte du differe",
+      applied: `Mensualite totale max: ${formatCurrency(r.mensualiteCredit, true)}/mois\nFlux initiaux nets = emprunt - frais obligatoires\nTAEG = ${formatPercent(r.taeg)}`,
     },
     triInvestisseur: {
       formula: `Avec levier (point de vue associe)\n\nMise de depart = apport personnel\nFlux annuels = cash flow apres impot\nSortie A${triAnnee} = cash flow + (valeur bien − dette restante) − impot sur la plus-value`,

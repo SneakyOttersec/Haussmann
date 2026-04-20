@@ -38,7 +38,9 @@ export function simulationToBien(
     fraisCourtage,
     montantTravaux: inputs.montantTravaux,
     montantMobilier,
+    apport: inputs.apportPersonnel,
     surfaceM2: inputs.surfaceM2 || undefined,
+    tauxVacanceGlobal: inputs.tauxVacance,
     simulationId,
     // A bien born from a simulation is still being prospected — not yet
     // owned. The user moves the timeline forward as the deal progresses
@@ -68,6 +70,7 @@ export function simulationToBien(
   // Lots + Incomes: one per lot from simulation
   const simLots = (inputs.lots && inputs.lots.length > 0 ? inputs.lots : [{ id: "1", nom: "Lot 1", loyerMensuel: inputs.loyerMensuel }])
     .filter((lot) => lot.loyerMensuel > 0);
+  const loyerMensuelTotal = simLots.reduce((sum, lot) => sum + lot.loyerMensuel, 0);
 
   const lots: Lot[] = simLots.map((lot) => ({
     id: generateId(),
@@ -95,7 +98,7 @@ export function simulationToBien(
     { categorie: "copropriete", label: "Copropriete", montant: inputs.chargesCopro },
     { categorie: "taxe_fonciere", label: "Taxe fonciere", montant: inputs.taxeFonciere },
     { categorie: "assurance_pno", label: "Assurance PNO", montant: inputs.assurancePNO },
-    { categorie: "gestion_locative", label: "Gestion locative", montant: Math.round(inputs.loyerMensuel * 12 * (1 - inputs.tauxVacance) * inputs.gestionLocativePct) },
+    { categorie: "gestion_locative", label: "Gestion locative", montant: Math.round(loyerMensuelTotal * 12 * (1 - inputs.tauxVacance) * inputs.gestionLocativePct) },
     { categorie: "autre", label: "Comptabilite", montant: inputs.comptabilite },
     { categorie: "autre", label: "CFE / CRL", montant: inputs.cfeCrl },
     { categorie: "reparations", label: "Entretien", montant: inputs.entretien },

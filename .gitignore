@@ -48,3 +48,6 @@ test-results/
 # generated exports
 *.pdf
 haussmann-*.zip
+
+# tooling state
+.codex

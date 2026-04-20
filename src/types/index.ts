@@ -571,6 +571,8 @@ export interface ProjectionAnnuelle {
   loyerNet: number;
   charges: number;
   interets: number;
+  assurancePret: number;
+  amortissement: number;
   capitalRembourse: number;
   mensualitesCredit: number;
   cashFlowAvantImpot: number;
