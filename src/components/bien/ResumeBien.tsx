@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { EntreesCalculateur, Depense, Revenu, Pret, Lot, Bien, StatutBien, SuiviMensuelLoyer } from "@/types";
 import { STATUT_BIEN_ORDER } from "@/types";
-import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien } from "@/lib/utils";
+import { formatCurrency, formatPercent, mensualiserMontant, annualiserMontant, coutTotalBien, chargeDueSelonPhase } from "@/lib/utils";
 import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
 import { mensualiteAuMois, mensualiteAmortissement, dureeTotaleMoisPret } from "@/lib/calculs/pret";
 import { Card, CardContent } from "@/components/ui/card";
@@ -218,7 +218,17 @@ export function ResumeBien({
   const postActe = statusAtLeast(bien.statut, "acte");
   const enLocation = statusAtLeast(bien.statut, "location");
   const revenuActuelAffiche = enLocation ? revenuMensuel : 0;
-  const depensesActuel = postActe ? depensesMensuelles : 0;
+  // Charges dues ce mois-ci, gatees par categorie selon la phase du bien
+  // (gestion locative + entretien uniquement une fois en location ;
+  //  taxe fonciere / PNO / copro des l'acte). Reflete dans la vue mensuelle le
+  // pro-rata applique a la projection annuelle.
+  const depensesActuel = depenses
+    .filter((e) => chargeDueSelonPhase(e.categorie, { postActe, enLocation }))
+    .reduce((sum, e) => sum + mensualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
+  // Gestion locative / entretien declares mais pas encore dus (entre l'acte et
+  // la location) : sert a expliquer l'ecart dans le tooltip.
+  const chargesExploitPasDues = postActe && !enLocation
+    && depenses.some((e) => (e.categorie === "gestion_locative" || e.categorie === "reparations") && obtenirMontantCourant(e) > 0);
   const creditActuel = postActe ? creditMensuel : 0;
 
   // Cash flow "actuel" = base sur le revenu effectivement percu ce mois-ci.
@@ -528,6 +538,9 @@ export function ResumeBien({
           ...(!postActe
             ? [{ label: "Acte non signe : pas de charges dues", value: "" }]
             : []),
+          ...(chargesExploitPasDues
+            ? [{ label: "Gestion locative et entretien comptes des la mise en location", value: "" }]
+            : []),
           ...(hasDiffere
             ? [
                 { separator: true as const, label: "", value: "" },
@@ -567,7 +580,7 @@ export function ResumeBien({
           ...(!postActe
             ? [{ label: "Acte non signe : aucun flux actuel", value: "" }]
             : !enLocation
-            ? [{ label: "Pas encore en location", value: "" }]
+            ? [{ label: chargesExploitPasDues ? "Pas encore en location (gestion locative et entretien non comptes)" : "Pas encore en location", value: "" }]
             : []),
           { separator: true as const, label: "", value: "" },
           { label: "Revenus (projete)", value: fc(revenuMensuelCF), color: "text-green-600" },

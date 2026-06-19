@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
-import type { FrequenceDepense, FrequenceRevenu } from "@/types"
+import type { FrequenceDepense, FrequenceRevenu, CategorieDepense } from "@/types"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -150,6 +150,44 @@ export function getPropertyAcquisitionDate(p: { dateSaisie?: string; statusDates
   // Fallback to dateSaisie (entry date) then createdAt
   if (p.dateSaisie) return p.dateSaisie;
   return p.createdAt?.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+}
+
+/**
+ * Fraction (0..1) de l'annee civile `annee` situee a partir de `date`.
+ * Annees anterieures a `date` : 0. Posterieures : 1. Annee de `date` :
+ * pro-rata au nombre de mois restants (mois de la date inclus). Sans date
+ * valide fournie : 1 (aucun pro-rata).
+ *
+ * Sert a pro-rater la 1re annee d'une charge a partir d'une date de reference
+ * (mise en exploitation pour la gestion locative, acte signe pour la taxe
+ * fonciere / PNO / entretien).
+ */
+export function fractionAnneeDepuis(annee: number, date?: string): number {
+  if (!date) return 1;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return 1;
+  const refYear = d.getFullYear();
+  if (annee < refYear) return 0;
+  if (annee > refYear) return 1;
+  return (12 - d.getMonth()) / 12; // getMonth() 0..11, mois de la date inclus
+}
+
+/**
+ * Une charge mensuelle est-elle effectivement due, vu la phase actuelle du bien ?
+ * Reflete dans la vue mensuelle le meme decoupage que le pro-rata de la
+ * projection annuelle :
+ * - credit : gere a part (jamais via cette fonction).
+ * - gestion_locative + reparations (entretien) : seulement une fois le bien en
+ *   exploitation/location (pas de gestion ni d'entretien avant l'exploitation).
+ * - autres charges (taxe fonciere, PNO, copro, …) : des l'acte signe.
+ */
+export function chargeDueSelonPhase(
+  categorie: CategorieDepense,
+  phase: { postActe: boolean; enLocation: boolean },
+): boolean {
+  if (categorie === 'credit') return false;
+  if (categorie === 'gestion_locative' || categorie === 'reparations') return phase.enLocation;
+  return phase.postActe;
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 Mo

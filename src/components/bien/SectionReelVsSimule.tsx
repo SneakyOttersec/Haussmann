@@ -6,7 +6,7 @@ import { chargerSimulations, hydraterSimulation } from "@/lib/simulations";
 import { DEFAULT_CALCULATOR_INPUTS } from "@/lib/constants";
 import { calculerRentabilite } from "@/lib/calculs";
 import Link from "next/link";
-import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate, annualiserMontant } from "@/lib/utils";
+import { formatCurrency, formatPercent, generateId, getPropertyAcquisitionDate, annualiserMontant, fractionAnneeDepuis } from "@/lib/utils";
 import { buildMonthlyFlow } from "@/lib/monthlyFlow";
 import { obtenirMontantCourant } from "@/lib/revisionsDepenses";
 
@@ -1101,9 +1101,33 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
       const acqYear = new Date(acqDate).getFullYear();
       const baseLoyerMensuel = lotsLoyerMensuel > 0 ? lotsLoyerMensuel : (inputsActuel.loyerMensuel || 1);
 
-      const adjustedProjection = resultsActuel.projection.map((yr, idx) => {
+      // ── Pro-rata des charges de la 1re annee ──
+      // Certaines charges ne courent qu'a partir d'une date de reference :
+      //  - gestion locative + entretien : mise en exploitation (a defaut, mise en location) ;
+      //  - taxe fonciere / assurance PNO : acte signe (= date d'acquisition
+      //    retenue, qui priorise statusDates.acte).
+      // L'annee de cette date est pro-ratee aux mois concernes ; les annees
+      // anterieures n'en supportent aucune. Ces charges sont regroupees dans
+      // autresChargesAnnuelles (qui evolue avec evoAutres) : on isole leur
+      // montant declare pour retrancher la part non encore due.
+      const expDate = bien.statusDates?.exploitation ?? bien.statusDates?.location;
+      const acteDate = acqDate; // getPropertyAcquisitionDate priorise statusDates.acte
+      const evoAutres = inputsActuel.evolutions?.autresCharges ?? 0;
+      const sommeAnnuelleDepenses = (cats: string[]) => (depenses ?? [])
+        .filter((e) => cats.includes(e.categorie))
+        .reduce((sum, e) => sum + annualiserMontant(obtenirMontantCourant(e), e.frequence), 0);
+      // NB : GLI n'a pas de categorie de depense dediee (champ simulateur
+      // uniquement), il n'apparait donc pas dans les charges de la projection.
+      const prorataGroupes: { montantAnnuel: number; date?: string }[] = [
+        { montantAnnuel: sommeAnnuelleDepenses(["gestion_locative", "reparations"]), date: expDate },
+        { montantAnnuel: sommeAnnuelleDepenses(["taxe_fonciere", "assurance_pno"]), date: acteDate },
+      ];
+
+      // Ajuste une annee de projection : (1) loyer effectif selon l'historique
+      // des loyers des lots, (2) pro-rata des charges ci-dessus. Recalcule le
+      // cash flow avant impot. Renvoie l'annee inchangee quand rien ne bouge.
+      const ajusterAnnee = (yr: ProjectionAnnuelle, idx: number): ProjectionAnnuelle => {
         const projYear = acqYear + idx;
-        // Loyer mensuel effectif pour cette annee = Σ lots (montant en vigueur au 1er janvier)
         const refDate = `${projYear}-01-01`;
         let effectifMensuel = 0;
         for (const lot of (lots ?? [])) {
@@ -1112,19 +1136,31 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
             .sort((a, b) => b.date.localeCompare(a.date));
           effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
         }
-        if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
-        // Scale proportionnellement : le ratio s'applique sur loyerBrut/loyerNet
-        // (les charges et le credit restent identiques)
-        const ratio = effectifMensuel / baseLoyerMensuel;
-        const loyerBrut = Math.round(yr.loyerBrut * ratio);
-        const loyerNet = Math.round(yr.loyerNet * ratio);
+        const loyerRatio = effectifMensuel > 0 && effectifMensuel !== baseLoyerMensuel
+          ? effectifMensuel / baseLoyerMensuel
+          : 1;
+        // Part des charges declarees non encore dues cette annee (evolue avec evoAutres).
+        let reductionCharges = 0;
+        for (const g of prorataGroupes) {
+          if (g.montantAnnuel <= 0) continue;
+          const f = fractionAnneeDepuis(projYear, g.date);
+          if (f >= 1) continue;
+          reductionCharges += g.montantAnnuel * Math.pow(1 + evoAutres, idx) * (1 - f);
+        }
+        const charges = Math.max(0, Math.round(yr.charges - reductionCharges));
+        if (loyerRatio === 1 && reductionCharges === 0) return yr;
+        const loyerBrut = Math.round(yr.loyerBrut * loyerRatio);
+        const loyerNet = Math.round(yr.loyerNet * loyerRatio);
         return {
           ...yr,
           loyerBrut,
           loyerNet,
-          cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit),
+          charges,
+          cashFlowAvantImpot: Math.round(loyerNet - charges - yr.mensualitesCredit),
         };
-      });
+      };
+
+      const adjustedProjection = resultsActuel.projection.map(ajusterAnnee);
 
       setProjectionActuel(adjustedProjection);
       // Notifie le parent du snapshot annuel. On prend l'annee COURANTE (pas A1)
@@ -1142,22 +1178,7 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
       // revisions de loyer soient refletees. Meme post-traitement par annee.
       const inputsOpt: EntreesCalculateur = { ...inputsActuel, tauxVacance: 0 };
       const rawOpt = calculerRentabilite(inputsOpt).projection;
-      const adjustedOpt = rawOpt.map((yr, idx) => {
-        const projYear = acqYear + idx;
-        const refDate = `${projYear}-01-01`;
-        let effectifMensuel = 0;
-        for (const lot of (lots ?? [])) {
-          const hist = (lot.historiqueLoyers ?? [])
-            .filter((h) => h.date <= refDate)
-            .sort((a, b) => b.date.localeCompare(a.date));
-          effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
-        }
-        if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
-        const ratio = effectifMensuel / baseLoyerMensuel;
-        const loyerBrut = Math.round(yr.loyerBrut * ratio);
-        const loyerNet = Math.round(yr.loyerNet * ratio);
-        return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
-      });
+      const adjustedOpt = rawOpt.map(ajusterAnnee);
       setProjectionOptimum(adjustedOpt);
 
       // Variante "sur capital consomme" : meme inputsActuel mais principal tire.
@@ -1166,22 +1187,7 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
         // Optimum consomme
         const inputsOptCons: EntreesCalculateur = { ...inputsOpt, montantEmprunte: montantEmprunteConsomme };
         const rawOptCons = calculerRentabilite(inputsOptCons).projection;
-        const adjustedOptCons = rawOptCons.map((yr, idx) => {
-          const projYear = acqYear + idx;
-          const refDate = `${projYear}-01-01`;
-          let effectifMensuel = 0;
-          for (const lot of (lots ?? [])) {
-            const hist = (lot.historiqueLoyers ?? [])
-              .filter((h) => h.date <= refDate)
-              .sort((a, b) => b.date.localeCompare(a.date));
-            effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
-          }
-          if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
-          const ratio = effectifMensuel / baseLoyerMensuel;
-          const loyerBrut = Math.round(yr.loyerBrut * ratio);
-          const loyerNet = Math.round(yr.loyerNet * ratio);
-          return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
-        });
+        const adjustedOptCons = rawOptCons.map(ajusterAnnee);
         setProjectionOptimumConsomme(adjustedOptCons);
       } else {
         setProjectionOptimumConsomme(null);
@@ -1190,22 +1196,7 @@ export function SectionReelVsSimule({ bien, revenus, depenses, suiviLoyers, pret
       if (hasConsomme) {
         const inputsActuelCons: EntreesCalculateur = { ...inputsActuel, montantEmprunte: montantEmprunteConsomme };
         const rawCons = calculerRentabilite(inputsActuelCons).projection;
-        const adjustedCons = rawCons.map((yr, idx) => {
-          const projYear = acqYear + idx;
-          const refDate = `${projYear}-01-01`;
-          let effectifMensuel = 0;
-          for (const lot of (lots ?? [])) {
-            const hist = (lot.historiqueLoyers ?? [])
-              .filter((h) => h.date <= refDate)
-              .sort((a, b) => b.date.localeCompare(a.date));
-            effectifMensuel += hist.length > 0 ? hist[0].montant : lot.loyerMensuel;
-          }
-          if (effectifMensuel <= 0 || effectifMensuel === baseLoyerMensuel) return yr;
-          const ratio = effectifMensuel / baseLoyerMensuel;
-          const loyerBrut = Math.round(yr.loyerBrut * ratio);
-          const loyerNet = Math.round(yr.loyerNet * ratio);
-          return { ...yr, loyerBrut, loyerNet, cashFlowAvantImpot: Math.round(loyerNet - yr.charges - yr.mensualitesCredit) };
-        });
+        const adjustedCons = rawCons.map(ajusterAnnee);
         setProjectionActuelConsomme(adjustedCons);
       } else {
         setProjectionActuelConsomme(null);
