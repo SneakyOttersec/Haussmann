@@ -113,7 +113,7 @@ export function Sidebar() {
         await importDataFromZip(file);
       } else {
         const text = await file.text();
-        importData(text);
+        await importData(text);
       }
       toast.success("Donnees importees — rechargement...");
       setTimeout(() => window.location.reload(), 500);
@@ -382,7 +382,7 @@ export function MobileHeader() {
         await importDataFromZip(file);
       } else {
         const text = await file.text();
-        importData(text);
+        await importData(text);
       }
       toast.success("Donnees importees — rechargement...");
       setTimeout(() => window.location.reload(), 500);

@@ -15,14 +15,16 @@
  * └── haussmann-backup.json   (stripped of base64, contains __gdrive:{id}__ markers)
  */
 
-import type { DonneesApp } from '@/types';
-import { extractAllDocuments } from './doc-extract';
+import type { DonneesApp, SimulationSauvegardee } from '@/types';
+import { extractAllDocuments, sanitizeName, isDataUri, type ExtractedDoc } from './doc-extract';
+import { chargerSimulationsHydratees, importerSimulationsArray } from './simulations';
 
 // drive scope lets us browse the user's folder tree via the Picker and write
 // our backup inside a user-chosen folder. The user consents via the OAuth prompt.
 const SCOPES = 'https://www.googleapis.com/auth/drive';
 const ROOT_FOLDER = 'Haussmann';
 const DOCS_FOLDER = 'Documents';
+const SIM_FOLDER = 'Simulations';
 const FILE_NAME = 'haussmann-backup.json';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
@@ -297,12 +299,68 @@ async function restoreMarkers(obj: Record<string, unknown> | unknown[]): Promise
   }
 }
 
+// ── Simulation blob extraction ──
+
+const MIME_EXT: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/jpg': '.jpg',
+  'image/webp': '.webp',
+  'image/gif': '.gif',
+  'application/pdf': '.pdf',
+};
+
+function mimeToExt(dataUri: string): string {
+  const mime = dataUri.match(/^data:([^;,]+)[;,]/)?.[1] ?? '';
+  return MIME_EXT[mime] ?? '';
+}
+
+/**
+ * Collect the blobs embedded in saved simulations (cover photo + attachments)
+ * so Drive can store them as real files instead of bloating the JSON. Filenames
+ * embed a short slice of the sim/attachment id so they stay stable across saves
+ * (idempotent overwrite) and unique across simulations with the same name.
+ */
+export function extractSimulationDocs(sims: SimulationSauvegardee[], rootFolder: string): ExtractedDoc[] {
+  const docs: ExtractedDoc[] = [];
+  const folderPath = `${rootFolder}/${DOCS_FOLDER}/${SIM_FOLDER}`;
+  // Collapse whitespace then strip forbidden chars, matching buildFileName().
+  const clean = (s: string) => sanitizeName(s.replace(/\s+/g, '_'));
+  for (const sim of sims) {
+    const base = clean(sim.nom || sim.id);
+    const shortId = sim.id.slice(0, 8);
+    if (isDataUri(sim.inputs.photo)) {
+      docs.push({
+        folderPath,
+        fileName: clean(`${base}_${shortId}_photo`) + mimeToExt(sim.inputs.photo),
+        dataUri: sim.inputs.photo,
+      });
+    }
+    for (const att of sim.inputs.attachments ?? []) {
+      if (!isDataUri(att.data)) continue;
+      docs.push({
+        folderPath,
+        fileName: clean(`${base}_${att.id.slice(0, 8)}_${att.nom}`),
+        dataUri: att.data,
+      });
+    }
+  }
+  return docs;
+}
+
 // ── Public API ──
 
 export async function saveToGDrive(data: DonneesApp, parentFolderId?: string): Promise<{ savedAt: string; docsUploaded: number }> {
   const startParent = parentFolderId ?? 'root';
   const clone: DonneesApp = structuredClone(data);
-  const extracted = extractAllDocuments(clone, ROOT_FOLDER);
+  // Saved simulations live in their own localStorage key — include them so the
+  // Drive backup is complete (same as the local JSON/ZIP backup). Their blobs
+  // are hydrated, then uploaded as files alongside the bien documents.
+  const simulations = await chargerSimulationsHydratees();
+  const extracted = [
+    ...extractAllDocuments(clone, ROOT_FOLDER),
+    ...extractSimulationDocs(simulations, ROOT_FOLDER),
+  ];
   let docsUploaded = 0;
 
   // Upload each document and build a dataUri→fileId map
@@ -331,11 +389,12 @@ export async function saveToGDrive(data: DonneesApp, parentFolderId?: string): P
     }
   };
   replaceMarkers(clone as unknown as Record<string, unknown>);
+  replaceMarkers(simulations as unknown as unknown[]);
 
   // Upload stripped JSON
   const rootId = await ensureFolder(ROOT_FOLDER, startParent);
   const existingJson = await findFile(rootId, FILE_NAME);
-  const envelope = JSON.stringify({ version: 2, exportedAt: new Date().toISOString(), data: clone }, null, 2);
+  const envelope = JSON.stringify({ version: 3, exportedAt: new Date().toISOString(), data: clone, simulations }, null, 2);
   await uploadTextFile(rootId, FILE_NAME, envelope, existingJson);
 
   const savedAt = new Date().toISOString();
@@ -360,6 +419,14 @@ export async function loadFromGDrive(parentFolderId?: string): Promise<DonneesAp
 
   // Download all documents referenced by __gdrive:xxx__ markers
   await restoreMarkers(data as unknown as Record<string, unknown>);
+
+  // Restore saved simulations (v3+). Their blobs (markers) are downloaded too,
+  // then they are merged into the local simulations store. Absent in older
+  // Drive backups → skipped, leaving local simulations untouched.
+  if (Array.isArray(parsed.simulations)) {
+    await restoreMarkers(parsed.simulations);
+    await importerSimulationsArray(parsed.simulations);
+  }
 
   Object.keys(folderCache).forEach(k => delete folderCache[k]);
   return data;
@@ -405,6 +472,7 @@ declare global {
       };
     };
   };
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace google.accounts.oauth2 {
     interface TokenResponse {
       access_token: string;

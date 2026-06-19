@@ -1,6 +1,7 @@
 import type { DonneesApp } from '@/types';
 import { putBlob, getBlob } from './blobstore';
 import { extractAllDocuments, dataUriToBytes } from './doc-extract';
+import { chargerSimulationsHydratees, importerSimulationsArray } from './simulations';
 
 const STORAGE_KEY = 'haussmann-data';
 const LEGACY_STORAGE_KEY = 'sci-immobilier-data';
@@ -309,21 +310,29 @@ if (typeof window !== 'undefined') {
   });
 }
 
-const EXPORT_VERSION = 2;
+// v3 adds a top-level `simulations` array (the saved simulator scenarios,
+// which live in their own localStorage key) so a single backup is
+// self-contained. v2 backups simply omit the field and import as a no-op.
+const EXPORT_VERSION = 3;
 
-export function exportData(): string {
+export async function exportData(): Promise<string> {
+  const simulations = await chargerSimulationsHydratees();
   return JSON.stringify({
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
     data: loadData(),
+    simulations,
   }, null, 2);
 }
 
-export function importData(json: string): DonneesApp {
+export async function importData(json: string): Promise<DonneesApp> {
   const parsed = JSON.parse(json);
   const raw = parsed.version && parsed.data ? parsed.data : parsed;
   const merged = migrateData({ ...getDefaultData(), ...raw });
   saveData(merged);
+  // Restore saved simulations when present (v3+). Absent in legacy backups,
+  // in which case this is a no-op and existing simulations are kept.
+  await importerSimulationsArray(parsed.simulations);
   return merged;
 }
 
@@ -346,8 +355,10 @@ export async function exportDataAsZip(data: DonneesApp): Promise<Blob> {
     zip.file(path, dataUriToBytes(doc.dataUri));
   }
 
-  // Add JSON backup (full data with base64 — self-contained)
-  const envelope = JSON.stringify({ version: EXPORT_VERSION, exportedAt: new Date().toISOString(), data }, null, 2);
+  // Add JSON backup (full data with base64 — self-contained), including the
+  // saved simulations so the ZIP is a complete backup on its own.
+  const simulations = await chargerSimulationsHydratees();
+  const envelope = JSON.stringify({ version: EXPORT_VERSION, exportedAt: new Date().toISOString(), data, simulations }, null, 2);
   zip.file(`${root}/haussmann-backup.json`, envelope);
 
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
@@ -363,5 +374,5 @@ export async function importDataFromZip(file: File): Promise<DonneesApp> {
   if (!jsonFile) throw new Error('haussmann-backup.json introuvable dans le ZIP');
 
   const json = await zip.files[jsonFile].async('string');
-  return importData(json);
+  return await importData(json);
 }

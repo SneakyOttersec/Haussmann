@@ -25,8 +25,8 @@ export function Header() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const handleExport = () => {
-    const json = exportData();
+  const handleExport = async () => {
+    const json = await exportData();
     const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -41,9 +41,9 @@ export function Header() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       try {
-        importData(reader.result as string);
+        await importData(reader.result as string);
         toast.success("Donnees importees — rechargement...");
         setTimeout(() => window.location.reload(), 500);
       } catch {

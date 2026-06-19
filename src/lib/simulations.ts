@@ -157,24 +157,31 @@ export async function supprimerSimulation(id: string): Promise<void> {
   await deleteBlobsWithPrefix(`sim:${id}:`);
 }
 
-export async function exporterSimulations(): Promise<string> {
+/**
+ * Load all simulations with their blobs (photo + attachments) hydrated back
+ * into `inputs` as base64 data URIs. This is the self-contained form suitable
+ * for embedding in a backup envelope.
+ */
+export async function chargerSimulationsHydratees(): Promise<SimulationSauvegardee[]> {
   const sims = chargerSimulations();
-  // Hydrate all blobs back into the export data
-  const hydrated = await Promise.all(
-    sims.map(async (sim) => {
-      const inputs = await hydraterSimulation(sim);
-      return { ...sim, inputs };
-    })
+  return Promise.all(
+    sims.map(async (sim) => ({ ...sim, inputs: await hydraterSimulation(sim) }))
   );
-  return JSON.stringify(hydrated, null, 2);
 }
 
-export async function importerSimulations(json: string): Promise<SimulationSauvegardee[]> {
-  const imported = JSON.parse(json);
-  if (!Array.isArray(imported)) throw new Error('Format invalide');
+export async function exporterSimulations(): Promise<string> {
+  return JSON.stringify(await chargerSimulationsHydratees(), null, 2);
+}
+
+/**
+ * Merge imported simulations into the existing store. Simulations whose id is
+ * already present are left untouched (non-destructive merge). Blobs are moved
+ * to IndexedDB and stripped from the localStorage copy.
+ */
+async function fusionnerSimulationsImportees(imported: SimulationSauvegardee[]): Promise<SimulationSauvegardee[]> {
   const existing = chargerSimulations();
   const existingIds = new Set(existing.map((s) => s.id));
-  const newSims = imported.filter((s: SimulationSauvegardee) => !existingIds.has(s.id));
+  const newSims = imported.filter((s) => !existingIds.has(s.id));
 
   // Store blobs in IndexedDB for each new simulation
   for (const sim of newSims) {
@@ -197,4 +204,20 @@ export async function importerSimulations(json: string): Promise<SimulationSauve
   const merged = [...existing, ...strippedNew];
   saveAll(merged);
   return merged;
+}
+
+export async function importerSimulations(json: string): Promise<SimulationSauvegardee[]> {
+  const imported = JSON.parse(json);
+  if (!Array.isArray(imported)) throw new Error('Format invalide');
+  return fusionnerSimulationsImportees(imported);
+}
+
+/**
+ * Import simulations from an already-parsed array (e.g. embedded in a backup
+ * envelope). Non-array input is ignored so a legacy backup without a
+ * `simulations` field is a no-op rather than an error.
+ */
+export async function importerSimulationsArray(sims: unknown): Promise<SimulationSauvegardee[]> {
+  if (!Array.isArray(sims)) return chargerSimulations();
+  return fusionnerSimulationsImportees(sims as SimulationSauvegardee[]);
 }
