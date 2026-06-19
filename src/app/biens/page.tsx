@@ -578,7 +578,13 @@ function PropertyDetailContent() {
   // We recompute the mensualite on this effective principal so the user sees
   // what they actually pay today vs. what they'll pay once the envelope is
   // fully consumed.
-  const travauxEnveloppeCredit = bien.allocationCredit?.travaux ?? 0;
+  // Meme source d'enveloppe travaux que l'AllocationSection (affichage) et
+  // SectionInterventions (suivi de consommation) : l'allocation sauvegardee si
+  // elle existe, sinon le defaut derive (bien.montantTravaux). Lire
+  // bien.allocationCredit?.travaux brut donnait 0 tant qu'aucune allocation
+  // n'avait ete sauvegardee, figeant le capital tire au principal total — le
+  // "sur capital utilise" ne bougeait jamais quand on consommait des travaux.
+  const travauxEnveloppeCredit = pret ? calculerAllocationCredit(bien, pret).travaux : 0;
   const travauxFinancesParCredit = interventions
     .filter((i) => (i.interventionType ?? "intervention") === "travaux" && i.financeParCredit)
     .reduce((s, i) => s + i.montant, 0);
